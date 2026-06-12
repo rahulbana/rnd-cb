@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>🍌 Nano Banana Photo Editor</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <header>
+    <h1>🍌 Nano Banana Photo Editor</h1>
+    <p class="subtitle">Edit photos and create images with the Gemini image model</p>
+    <div id="key-warning" class="key-warning hidden">
+      ⚠ No API key configured on the server. Set <code>GEMINI_API_KEY</code> and restart.
+    </div>
+  </header>
+
+  <main>
+    <nav class="tabs">
+      <button id="tab-edit" class="tab active">Edit a photo</button>
+      <button id="tab-generate" class="tab">Generate an image</button>
+    </nav>
+
+    <!-- Edit mode -->
+    <section id="panel-edit" class="panel">
+      <div id="dropzone" class="dropzone">
+        <input type="file" id="file-input" accept="image/png,image/jpeg,image/webp" hidden />
+        <div id="dropzone-empty">
+          <p class="drop-icon">🖼️</p>
+          <p><strong>Drop a photo here</strong> or click to browse</p>
+          <p class="hint">PNG, JPEG or WebP — up to 15 MB</p>
+        </div>
+        <img id="source-preview" class="hidden" alt="Source image" />
+      </div>
+
+      <div class="presets" id="presets">
+        <span class="presets-label">Quick edits:</span>
+        <button class="preset" data-prompt="Remove the background completely and replace it with a plain white background">Remove background</button>
+        <button class="preset" data-prompt="Enhance this photo: improve lighting, sharpness, color balance and overall quality">Enhance</button>
+        <button class="preset" data-prompt="Convert this photo to black and white with rich contrast">Black &amp; white</button>
+        <button class="preset" data-prompt="Make this photo look like a vintage film photograph from the 1970s with warm faded tones">Vintage</button>
+        <button class="preset" data-prompt="Turn this photo into a watercolor painting">Watercolor</button>
+        <button class="preset" data-prompt="Turn this photo into a Studio Ghibli style anime illustration">Anime style</button>
+        <button class="preset" data-prompt="Restore this old photo: fix scratches, tears and fading, and improve clarity">Restore old photo</button>
+      </div>
+
+      <div class="prompt-row">
+        <textarea id="edit-prompt" rows="2"
+          placeholder="Describe your edit… e.g. “add a sunset sky”, “put a party hat on the cat”, “remove the person on the left”"></textarea>
+        <button id="edit-btn" class="primary" disabled>✨ Apply edit</button>
+      </div>
+    </section>
+
+    <!-- Generate mode -->
+    <section id="panel-generate" class="panel hidden">
+      <div class="prompt-row">
+        <textarea id="generate-prompt" rows="3"
+          placeholder="Describe the image you want… e.g. “a photorealistic banana astronaut floating above Earth”"></textarea>
+        <button id="generate-btn" class="primary">🎨 Generate</button>
+      </div>
+    </section>
+
+    <!-- Status / result -->
+    <div id="status" class="status hidden"></div>
+
+    <section id="result-section" class="result hidden">
+      <div class="result-grid">
+        <figure id="before-figure">
+          <figcaption>Before</figcaption>
+          <img id="before-img" alt="Original image" />
+        </figure>
+        <figure>
+          <figcaption>After</figcaption>
+          <img id="after-img" alt="Result image" />
+        </figure>
+      </div>
+      <p id="model-note" class="model-note hidden"></p>
+      <div class="result-actions">
+        <a id="download-btn" class="primary" download="nano-banana-result.png">⬇ Download</a>
+        <button id="continue-btn">↪ Keep editing this result</button>
+      </div>
+    </section>
+  </main>
+
+  <footer>
+    Powered by Gemini <span id="model-name">image model</span> (a.k.a. Nano Banana)
+  </footer>
+
+  <script src="app.js"></script>
+</body>
+</html>
