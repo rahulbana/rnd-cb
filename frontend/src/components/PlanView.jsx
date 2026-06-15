@@ -7,6 +7,7 @@ const TABS = [
   { id: "schedule", label: "Schedule" },
   { id: "resources", label: "Resources" },
   { id: "assessment", label: "Assessments" },
+  { id: "quiz", label: "Quiz" },
 ];
 
 export default function PlanView({ plan, onReset }) {
@@ -79,6 +80,7 @@ export default function PlanView({ plan, onReset }) {
         {tab === "schedule" && <Schedule data={plan.schedule} />}
         {tab === "resources" && <Resources data={plan.resources} />}
         {tab === "assessment" && <Assessments data={plan.assessment} />}
+        {tab === "quiz" && <Quiz data={plan.quiz} />}
       </div>
 
       {/* Full plan — only rendered to the page when printing to PDF. */}
@@ -92,6 +94,8 @@ export default function PlanView({ plan, onReset }) {
         <Resources data={plan.resources} />
         <h3 className="print-h">✅ Assessments</h3>
         <Assessments data={plan.assessment} />
+        <h3 className="print-h">📝 Quiz</h3>
+        <Quiz data={plan.quiz} forcePrint />
       </div>
     </div>
   );
@@ -207,6 +211,142 @@ function Resources({ data }) {
         </div>
       ))}
     </section>
+  );
+}
+
+function Quiz({ data, forcePrint = false }) {
+  const [show, setShow] = useState(forcePrint);
+  const reveal = forcePrint || show;
+
+  const sections = [
+    { key: "short_questions", title: "Short Questions", render: shortRow },
+    { key: "mcqs", title: "Multiple Choice (single answer)", render: mcqRow },
+    { key: "multi_select_mcqs", title: "Multiple Select · MMCQ", render: mmcqRow },
+    { key: "fill_in_the_blanks", title: "Fill in the Blanks", render: shortRow },
+    { key: "true_false", title: "True / False", render: tfRow },
+    { key: "long_questions", title: "Long Answer Questions", render: shortRow },
+  ];
+
+  const total = sections.reduce((n, s) => n + (data?.[s.key]?.length || 0), 0);
+
+  if (!total) {
+    return (
+      <section className="section">
+        <p className="muted">No quiz questions were generated for this plan.</p>
+      </section>
+    );
+  }
+
+  return (
+    <section className="section">
+      {!forcePrint && (
+        <div className="quiz-bar no-print">
+          <span className="quiz-count">{total} questions</span>
+          <button
+            className={`btn ${show ? "btn-ghost" : "btn-primary"} quiz-toggle`}
+            onClick={() => setShow((v) => !v)}
+          >
+            {show ? "🙈 Hide answers" : "👀 Show answers"}
+          </button>
+        </div>
+      )}
+
+      {sections.map((sec) => {
+        const items = data?.[sec.key] || [];
+        if (!items.length) return null;
+        return (
+          <div key={sec.key} className="quiz-block">
+            <h4>
+              {sec.title} <span className="badge badge-alt">{items.length}</span>
+            </h4>
+            <ol className="quiz-list">
+              {items.map((item, i) => (
+                <li key={i} className="quiz-item">
+                  {sec.render(item, reveal)}
+                </li>
+              ))}
+            </ol>
+          </div>
+        );
+      })}
+    </section>
+  );
+}
+
+function shortRow(item, reveal) {
+  return (
+    <>
+      <p className="q">{item.question}</p>
+      {reveal && (
+        <p className="a">
+          <strong>Answer:</strong> {item.answer}
+        </p>
+      )}
+    </>
+  );
+}
+
+function mcqRow(item, reveal) {
+  return (
+    <>
+      <p className="q">{item.question}</p>
+      <ul className="options">
+        {item.options.map((o, j) => {
+          const correct = reveal && o === item.answer;
+          return (
+            <li key={j} className={correct ? "opt-correct" : ""}>
+              <span className="opt-letter">{String.fromCharCode(65 + j)}</span>
+              {o}
+              {correct && <span className="tick">✓</span>}
+            </li>
+          );
+        })}
+      </ul>
+      {reveal && (
+        <p className="a">
+          <strong>Answer:</strong> {item.answer}
+        </p>
+      )}
+    </>
+  );
+}
+
+function mmcqRow(item, reveal) {
+  const answers = item.answers || [];
+  return (
+    <>
+      <p className="q">{item.question}</p>
+      <ul className="options">
+        {item.options.map((o, j) => {
+          const correct = reveal && answers.includes(o);
+          return (
+            <li key={j} className={correct ? "opt-correct" : ""}>
+              <span className="opt-letter">{String.fromCharCode(65 + j)}</span>
+              {o}
+              {correct && <span className="tick">✓</span>}
+            </li>
+          );
+        })}
+      </ul>
+      {reveal && (
+        <p className="a">
+          <strong>Answers:</strong> {answers.join(", ")}
+        </p>
+      )}
+    </>
+  );
+}
+
+function tfRow(item, reveal) {
+  return (
+    <>
+      <p className="q">{item.statement}</p>
+      {reveal && (
+        <p className="a">
+          <strong>Answer:</strong> {item.answer ? "True" : "False"}
+        </p>
+      )}
+    </>
   );
 }
 

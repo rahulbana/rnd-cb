@@ -6,7 +6,7 @@ from typing import AsyncGenerator
 
 from app.agents.graph import AGENT_LABELS, build_graph
 from app.agents.state import PlanState
-from app.schemas import StudyPlan, StudyPlanRequest
+from app.schemas import QuizOutput, StudyPlan, StudyPlanRequest
 from app.services.export import render_markdown
 
 
@@ -18,6 +18,7 @@ def _assemble_plan(req: StudyPlanRequest, state: PlanState) -> StudyPlan:
         schedule=state["schedule"],
         resources=state["resources"],
         assessment=state["assessment"],
+        quiz=state.get("quiz") or QuizOutput(),
         study_tips=state.get("study_tips", []),
     )
     plan.markdown = render_markdown(plan)

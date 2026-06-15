@@ -97,6 +97,49 @@ class StudyTips(BaseModel):
 
 
 # --------------------------------------------------------------------------- #
+# Quiz                                                                         #
+# --------------------------------------------------------------------------- #
+class ShortQA(BaseModel):
+    question: str
+    answer: str
+
+
+class MCQItem(BaseModel):
+    question: str
+    options: List[str] = Field(default_factory=list)
+    answer: str = Field(..., description="The single correct option text.")
+
+
+class MultiSelectItem(BaseModel):
+    """MMCQ — multiple correct answers."""
+
+    question: str
+    options: List[str] = Field(default_factory=list)
+    answers: List[str] = Field(
+        default_factory=list, description="All correct option texts."
+    )
+
+
+class FillBlank(BaseModel):
+    question: str = Field(..., description="A sentence containing a ____ blank.")
+    answer: str
+
+
+class TrueFalseItem(BaseModel):
+    statement: str
+    answer: bool
+
+
+class QuizOutput(BaseModel):
+    short_questions: List[ShortQA] = Field(default_factory=list)
+    mcqs: List[MCQItem] = Field(default_factory=list)
+    multi_select_mcqs: List[MultiSelectItem] = Field(default_factory=list)
+    fill_in_the_blanks: List[FillBlank] = Field(default_factory=list)
+    true_false: List[TrueFalseItem] = Field(default_factory=list)
+    long_questions: List[ShortQA] = Field(default_factory=list)
+
+
+# --------------------------------------------------------------------------- #
 # Final compiled plan                                                          #
 # --------------------------------------------------------------------------- #
 class StudyPlan(BaseModel):
@@ -106,5 +149,6 @@ class StudyPlan(BaseModel):
     schedule: ScheduleOutput
     resources: ResourcesOutput
     assessment: AssessmentOutput
+    quiz: QuizOutput = Field(default_factory=QuizOutput)
     study_tips: List[str] = Field(default_factory=list)
     markdown: str = Field("", description="Full plan rendered as Markdown for download.")

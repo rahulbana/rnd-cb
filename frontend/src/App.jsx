@@ -34,6 +34,7 @@ export default function App() {
               "scheduler_agent",
               "resources_agent",
               "assessment_agent",
+              "quiz_agent",
             ];
             if (agent === "planner") {
               for (const id of specialists) {

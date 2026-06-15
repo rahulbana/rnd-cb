@@ -23,6 +23,7 @@ from app.schemas import (
     AssessmentOutput,
     CurriculumOutput,
     PlanOutline,
+    QuizOutput,
     ResourcesOutput,
     ScheduleOutput,
     StudyTips,
@@ -125,6 +126,36 @@ async def assessment_node(state: PlanState) -> PlanState:
     )
     assessment = await run_structured(system, user, AssessmentOutput, temperature=0.4)
     return {"assessment": assessment}
+
+
+async def quiz_node(state: PlanState) -> PlanState:
+    """Specialist agent: generates an abundant practice quiz with answers."""
+    req = state["request"]
+    outline = state["outline"]
+    system = (
+        "You are an expert quiz master and question-paper setter for school "
+        "students. You generate large, varied question banks with correct "
+        "answers. Make questions accurate, unambiguous and grade-appropriate, "
+        "and cover the topic broadly across difficulty levels. " + GRADE_TONE
+    )
+    user = (
+        f"Student request:\n{request_summary(req)}\n\n"
+        f"Topic context: {outline.title} — {outline.overview}\n"
+        f"Learning goals: {', '.join(outline.learning_goals) or 'n/a'}\n\n"
+        "Create an ABUNDANT practice quiz covering the topic. Provide:\n"
+        "- short_questions: 8-10 short-answer questions, each with a concise answer.\n"
+        "- mcqs: 8-10 multiple-choice questions, each with 4 options and exactly "
+        "one correct answer (answer must match one option verbatim).\n"
+        "- multi_select_mcqs: 5-6 multiple-correct questions (MMCQ), each with "
+        "4-5 options and 2+ correct answers (answers must match options verbatim).\n"
+        "- fill_in_the_blanks: 8-10 sentences each containing a '____' blank, "
+        "with the answer.\n"
+        "- true_false: 6-8 statements with a boolean answer.\n"
+        "- long_questions: 4-5 descriptive/long-answer questions with model answers.\n"
+        "Ensure variety and avoid duplicates."
+    )
+    quiz = await run_structured(system, user, QuizOutput, temperature=0.6)
+    return {"quiz": quiz}
 
 
 async def compiler_node(state: PlanState) -> PlanState:

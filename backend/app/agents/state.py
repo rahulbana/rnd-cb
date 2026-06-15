@@ -7,6 +7,7 @@ from app.schemas import (
     AssessmentOutput,
     CurriculumOutput,
     PlanOutline,
+    QuizOutput,
     ResourcesOutput,
     ScheduleOutput,
     StudyPlanRequest,
@@ -26,6 +27,7 @@ class PlanState(TypedDict, total=False):
     schedule: ScheduleOutput
     resources: ResourcesOutput
     assessment: AssessmentOutput
+    quiz: QuizOutput
     study_tips: list[str]
     error: Optional[str]
 

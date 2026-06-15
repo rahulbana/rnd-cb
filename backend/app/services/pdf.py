@@ -149,6 +149,66 @@ def build_pdf(plan: StudyPlan) -> bytes:
             if a.sample_questions:
                 story.append(_bullets(a.sample_questions, s["body"]))
 
+    q = plan.quiz
+    if any([q.short_questions, q.mcqs, q.multi_select_mcqs, q.fill_in_the_blanks,
+            q.true_false, q.long_questions]):
+        story.append(Paragraph("Quiz", s["h2"]))
+
+        def _qa_rows(items):
+            return [
+                f"{_clean(it.question)}<br/><font color='#16a34a'><b>Answer:</b> "
+                f"{_clean(it.answer)}</font>"
+                for it in items
+            ]
+
+        if q.short_questions:
+            story.append(Paragraph("Short Questions", s["h3"]))
+            story.append(_bullets(_qa_rows(q.short_questions), s["body"]))
+
+        if q.mcqs:
+            story.append(Paragraph("Multiple Choice (single answer)", s["h3"]))
+            rows = []
+            for it in q.mcqs:
+                opts = "  ".join(
+                    f"{chr(65 + j)}. {_clean(o)}" for j, o in enumerate(it.options)
+                )
+                rows.append(
+                    f"{_clean(it.question)}<br/>{opts}<br/>"
+                    f"<font color='#16a34a'><b>Answer:</b> {_clean(it.answer)}</font>"
+                )
+            story.append(_bullets(rows, s["body"]))
+
+        if q.multi_select_mcqs:
+            story.append(Paragraph("Multiple Select (MMCQ)", s["h3"]))
+            rows = []
+            for it in q.multi_select_mcqs:
+                opts = "  ".join(
+                    f"{chr(65 + j)}. {_clean(o)}" for j, o in enumerate(it.options)
+                )
+                rows.append(
+                    f"{_clean(it.question)}<br/>{opts}<br/>"
+                    f"<font color='#16a34a'><b>Answers:</b> "
+                    f"{_clean(', '.join(it.answers))}</font>"
+                )
+            story.append(_bullets(rows, s["body"]))
+
+        if q.fill_in_the_blanks:
+            story.append(Paragraph("Fill in the Blanks", s["h3"]))
+            story.append(_bullets(_qa_rows(q.fill_in_the_blanks), s["body"]))
+
+        if q.true_false:
+            story.append(Paragraph("True / False", s["h3"]))
+            rows = [
+                f"{_clean(it.statement)}<br/><font color='#16a34a'><b>Answer:</b> "
+                f"{'True' if it.answer else 'False'}</font>"
+                for it in q.true_false
+            ]
+            story.append(_bullets(rows, s["body"]))
+
+        if q.long_questions:
+            story.append(Paragraph("Long Answer Questions", s["h3"]))
+            story.append(_bullets(_qa_rows(q.long_questions), s["body"]))
+
     if plan.study_tips:
         story.append(Paragraph("Study Tips", s["h2"]))
         story.append(_bullets(plan.study_tips, s["body"]))

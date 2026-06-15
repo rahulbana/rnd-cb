@@ -17,6 +17,7 @@ from app.agents.nodes import (
     compiler_node,
     curriculum_node,
     planner_node,
+    quiz_node,
     resources_node,
     scheduler_node,
 )
@@ -31,6 +32,7 @@ AGENT_LABELS: dict[str, str] = {
     "scheduler_agent": "🗓️ Scheduler Agent — laying out your timetable",
     "resources_agent": "🔗 Resources Agent — curating materials",
     "assessment_agent": "✅ Assessment Agent — creating checkpoints",
+    "quiz_agent": "📝 Quiz Agent — building a practice question bank",
     "compiler": "🧩 Lead Coach — assembling your study plan",
 }
 
@@ -39,6 +41,7 @@ SPECIALISTS = [
     "scheduler_agent",
     "resources_agent",
     "assessment_agent",
+    "quiz_agent",
 ]
 
 
@@ -52,6 +55,7 @@ def build_graph():
     graph.add_node("scheduler_agent", scheduler_node)
     graph.add_node("resources_agent", resources_node)
     graph.add_node("assessment_agent", assessment_node)
+    graph.add_node("quiz_agent", quiz_node)
     graph.add_node("compiler", compiler_node)
 
     graph.add_edge(START, "planner")

@@ -72,6 +72,66 @@ def render_markdown(plan: StudyPlan) -> str:
                     a(f"- {q}")
             a("")
 
+    q = plan.quiz
+    has_quiz = any(
+        [
+            q.short_questions,
+            q.mcqs,
+            q.multi_select_mcqs,
+            q.fill_in_the_blanks,
+            q.true_false,
+            q.long_questions,
+        ]
+    )
+    if has_quiz:
+        a("## 📝 Quiz")
+
+        if q.short_questions:
+            a("### Short Questions")
+            for i, item in enumerate(q.short_questions, 1):
+                a(f"{i}. {item.question}")
+                a(f"   - **Answer:** {item.answer}")
+            a("")
+
+        if q.mcqs:
+            a("### Multiple Choice (single answer)")
+            for i, item in enumerate(q.mcqs, 1):
+                a(f"{i}. {item.question}")
+                for j, opt in enumerate(item.options):
+                    a(f"   {chr(65 + j)}. {opt}")
+                a(f"   - **Answer:** {item.answer}")
+            a("")
+
+        if q.multi_select_mcqs:
+            a("### Multiple Select (MMCQ — one or more answers)")
+            for i, item in enumerate(q.multi_select_mcqs, 1):
+                a(f"{i}. {item.question}")
+                for j, opt in enumerate(item.options):
+                    a(f"   {chr(65 + j)}. {opt}")
+                a(f"   - **Answers:** {', '.join(item.answers)}")
+            a("")
+
+        if q.fill_in_the_blanks:
+            a("### Fill in the Blanks")
+            for i, item in enumerate(q.fill_in_the_blanks, 1):
+                a(f"{i}. {item.question}")
+                a(f"   - **Answer:** {item.answer}")
+            a("")
+
+        if q.true_false:
+            a("### True / False")
+            for i, item in enumerate(q.true_false, 1):
+                a(f"{i}. {item.statement}")
+                a(f"   - **Answer:** {'True' if item.answer else 'False'}")
+            a("")
+
+        if q.long_questions:
+            a("### Long Answer Questions")
+            for i, item in enumerate(q.long_questions, 1):
+                a(f"{i}. {item.question}")
+                a(f"   - **Answer:** {item.answer}")
+            a("")
+
     if plan.study_tips:
         a("## 💡 Study Tips")
         for t in plan.study_tips:
