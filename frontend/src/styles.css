@@ -170,6 +170,19 @@ body {
 @keyframes spin { to { transform: rotate(360deg); } }
 
 /* Report */
+.report-actions { display: flex; gap: 8px; }
+.btn-ghost {
+  background: var(--panel-2);
+  border: 1px solid var(--border);
+  color: var(--text);
+  font-size: 12px;
+  padding: 6px 10px;
+  border-radius: 8px;
+  cursor: pointer;
+}
+.btn-ghost:hover:not(:disabled) { border-color: var(--accent); color: var(--accent); }
+.btn-ghost:disabled { opacity: 0.4; cursor: not-allowed; }
+
 .markdown { line-height: 1.65; font-size: 15px; }
 .markdown h1, .markdown h2, .markdown h3 { margin-top: 1.2em; }
 .markdown a { color: var(--accent); }
