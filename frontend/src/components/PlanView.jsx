@@ -224,22 +224,26 @@ const QUIZ_SECTIONS = [
 ];
 
 function Quiz({ data, forcePrint = false }) {
-  // Track which sections currently reveal their answers.
+  // Track which individual questions currently reveal their answer.
   const [revealed, setRevealed] = useState({});
 
   const activeSections = QUIZ_SECTIONS.filter((s) => (data?.[s.key] || []).length);
-  const total = activeSections.reduce((n, s) => n + data[s.key].length, 0);
 
-  const isRevealed = (key) => forcePrint || !!revealed[key];
-  const allShown =
-    activeSections.length > 0 && activeSections.every((s) => revealed[s.key]);
+  const allIds = [];
+  activeSections.forEach((s) =>
+    data[s.key].forEach((_, i) => allIds.push(`${s.key}-${i}`))
+  );
+  const total = allIds.length;
 
-  const toggleSection = (key) =>
-    setRevealed((prev) => ({ ...prev, [key]: !prev[key] }));
+  const isShown = (id) => forcePrint || !!revealed[id];
+  const allShown = total > 0 && allIds.every((id) => revealed[id]);
+
+  const toggle = (id) =>
+    setRevealed((prev) => ({ ...prev, [id]: !prev[id] }));
 
   const toggleAll = () => {
     const next = {};
-    if (!allShown) activeSections.forEach((s) => (next[s.key] = true));
+    if (!allShown) allIds.forEach((id) => (next[id] = true));
     setRevealed(next);
   };
 
@@ -267,28 +271,32 @@ function Quiz({ data, forcePrint = false }) {
 
       {activeSections.map((sec) => {
         const items = data[sec.key];
-        const shown = isRevealed(sec.key);
         return (
           <div key={sec.key} className="quiz-block">
-            <div className="quiz-block-head">
-              <h4>
-                {sec.title} <span className="badge badge-alt">{items.length}</span>
-              </h4>
-              {!forcePrint && (
-                <button
-                  className={`btn btn-small ${shown ? "btn-ghost" : ""}`}
-                  onClick={() => toggleSection(sec.key)}
-                >
-                  {shown ? "🙈 Hide answers" : "👀 Show answers"}
-                </button>
-              )}
-            </div>
+            <h4>
+              {sec.title} <span className="badge badge-alt">{items.length}</span>
+            </h4>
             <ol className="quiz-list">
-              {items.map((item, i) => (
-                <li key={i} className="quiz-item">
-                  {sec.render(item, shown)}
-                </li>
-              ))}
+              {items.map((item, i) => {
+                const id = `${sec.key}-${i}`;
+                const shown = isShown(id);
+                return (
+                  <li key={i} className="quiz-item">
+                    <div className="q-row">
+                      {!forcePrint && (
+                        <button
+                          className={`btn btn-small ans-btn ${shown ? "btn-ghost" : ""}`}
+                          onClick={() => toggle(id)}
+                          title={shown ? "Hide answer" : "Show answer"}
+                        >
+                          {shown ? "🙈 Hide" : "👀 Answer"}
+                        </button>
+                      )}
+                      <div className="q-content">{sec.render(item, shown)}</div>
+                    </div>
+                  </li>
+                );
+              })}
             </ol>
           </div>
         );

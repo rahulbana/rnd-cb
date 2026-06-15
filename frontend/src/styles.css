@@ -457,20 +457,26 @@ input[type="range"] {
   background: #f8fafc;
 }
 .quiz-block h4 {
-  margin: 0;
-}
-.quiz-block-head {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 0.5rem;
-  flex-wrap: wrap;
-  margin-bottom: 0.6rem;
+  margin: 0 0 0.6rem;
 }
 .btn-small {
-  padding: 0.35rem 0.65rem;
-  font-size: 0.82rem;
+  padding: 0.3rem 0.6rem;
+  font-size: 0.78rem;
   border-radius: 8px;
+}
+.q-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.6rem;
+}
+.ans-btn {
+  flex: none;
+  white-space: nowrap;
+  margin-top: 0.05rem;
+}
+.q-content {
+  flex: 1;
+  min-width: 0;
 }
 .quiz-list {
   margin: 0;
