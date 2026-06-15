@@ -1,0 +1,52 @@
+"""FastAPI application exposing the multi-agent study planner."""
+from __future__ import annotations
+
+from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import PlainTextResponse
+from sse_starlette.sse import EventSourceResponse
+
+from app.config import get_settings
+from app.schemas import StudyPlan, StudyPlanRequest
+from app.services.export import render_markdown
+from app.services.plan_service import generate_plan, stream_plan
+
+settings = get_settings()
+
+app = FastAPI(
+    title="Multi-Agent Study Planner",
+    description="Agentic study-plan generator for students (class 5-12).",
+    version="1.0.0",
+)
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=settings.cors_origins,
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+
+@app.get("/api/health")
+async def health() -> dict:
+    """Health check; reports whether an API key is configured."""
+    return {"status": "ok", "model": settings.openai_model, "configured": settings.has_api_key}
+
+
+@app.post("/api/study-plan", response_model=StudyPlan)
+async def create_study_plan(req: StudyPlanRequest) -> StudyPlan:
+    """Generate a complete study plan in a single request (no streaming)."""
+    return await generate_plan(req)
+
+
+@app.post("/api/study-plan/stream")
+async def create_study_plan_stream(req: StudyPlanRequest) -> EventSourceResponse:
+    """Stream live agent progress while the plan is built (SSE)."""
+    return EventSourceResponse(stream_plan(req))
+
+
+@app.post("/api/study-plan/markdown", response_class=PlainTextResponse)
+async def study_plan_markdown(plan: StudyPlan) -> str:
+    """Re-render a plan to Markdown (used for server-side download if desired)."""
+    return render_markdown(plan)
