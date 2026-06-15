@@ -66,13 +66,19 @@ def _styles() -> dict[str, ParagraphStyle]:
 
 
 def _bullets(items: list[str], style: ParagraphStyle) -> ListFlowable:
+    """Bullet list of render-ready markup strings (callers must pre-clean text)."""
     return ListFlowable(
-        [ListItem(Paragraph(_clean(it), style), leftIndent=10) for it in items],
+        [ListItem(Paragraph(it, style), leftIndent=10) for it in items],
         bulletType="bullet",
         bulletColor=_PRIMARY,
         start="•",
         leftIndent=12,
     )
+
+
+def _text_bullets(items: list[str], style: ParagraphStyle) -> ListFlowable:
+    """Bullet list of plain text — escapes each item before rendering."""
+    return _bullets([_clean(it) for it in items], style)
 
 
 def build_pdf(plan: StudyPlan) -> bytes:
@@ -104,18 +110,18 @@ def build_pdf(plan: StudyPlan) -> bytes:
 
     if plan.outline.learning_goals:
         story.append(Paragraph("Learning Goals", s["h2"]))
-        story.append(_bullets(plan.outline.learning_goals, s["body"]))
+        story.append(_text_bullets(plan.outline.learning_goals, s["body"]))
 
     if plan.outline.prerequisites:
         story.append(Paragraph("Prerequisites", s["h2"]))
-        story.append(_bullets(plan.outline.prerequisites, s["body"]))
+        story.append(_text_bullets(plan.outline.prerequisites, s["body"]))
 
     if plan.curriculum.modules:
         story.append(Paragraph("Curriculum", s["h2"]))
         for i, m in enumerate(plan.curriculum.modules, 1):
             story.append(Paragraph(f"Module {i}: {_clean(m.title)}", s["h3"]))
             if m.objectives:
-                story.append(_bullets(m.objectives, s["body"]))
+                story.append(_text_bullets(m.objectives, s["body"]))
             if m.subtopics:
                 story.append(Paragraph("Subtopics: " + _clean(", ".join(m.subtopics)), s["small"]))
 
@@ -147,7 +153,7 @@ def build_pdf(plan: StudyPlan) -> bytes:
             story.append(Paragraph(f"{_clean(a.title)} ({_clean(a.type)})", s["h3"]))
             story.append(Paragraph(_clean(a.description), s["body"]))
             if a.sample_questions:
-                story.append(_bullets(a.sample_questions, s["body"]))
+                story.append(_text_bullets(a.sample_questions, s["body"]))
 
     q = plan.quiz
     if any([q.short_questions, q.mcqs, q.multi_select_mcqs, q.fill_in_the_blanks,
@@ -211,7 +217,7 @@ def build_pdf(plan: StudyPlan) -> bytes:
 
     if plan.study_tips:
         story.append(Paragraph("Study Tips", s["h2"]))
-        story.append(_bullets(plan.study_tips, s["body"]))
+        story.append(_text_bullets(plan.study_tips, s["body"]))
 
     story.append(Spacer(1, 10))
     story.append(HRFlowable(width="100%", thickness=0.5, color=colors.HexColor("#e2e8f0")))
