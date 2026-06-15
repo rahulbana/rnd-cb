@@ -22,7 +22,8 @@ export async function streamStudyPlan(request, handlers) {
   while (true) {
     const { value, done } = await reader.read();
     if (done) break;
-    buffer += decoder.decode(value, { stream: true });
+    // Normalize CRLF (sse-starlette uses \r\n) so framing is consistent.
+    buffer += decoder.decode(value, { stream: true }).replace(/\r\n/g, "\n");
 
     // SSE events are separated by a blank line.
     const chunks = buffer.split("\n\n");

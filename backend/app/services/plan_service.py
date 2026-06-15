@@ -31,18 +31,18 @@ async def generate_plan(req: StudyPlanRequest) -> StudyPlan:
     return _assemble_plan(req, final_state)
 
 
-async def stream_plan(req: StudyPlanRequest) -> AsyncGenerator[str, None]:
+async def stream_plan(req: StudyPlanRequest) -> AsyncGenerator[dict, None]:
     """Run the graph, yielding Server-Sent Events as agents make progress.
 
-    Each yielded string is a fully-formed SSE 'data:' payload (JSON).
-    Event types: 'agent_start' is approximated via 'agent_done' updates from
-    LangGraph's per-node streaming, plus a final 'complete' event.
+    Each yielded dict is formatted into a proper SSE frame by sse-starlette's
+    EventSourceResponse (do NOT pre-format the wire here, or it gets
+    double-wrapped). Event types: 'init', 'agent_done', 'complete', 'error'.
     """
     graph = build_graph()
     accumulated: PlanState = {"request": req}
 
-    def sse(event: str, payload: dict) -> str:
-        return f"event: {event}\ndata: {json.dumps(payload)}\n\n"
+    def sse(event: str, payload: dict) -> dict:
+        return {"event": event, "data": json.dumps(payload)}
 
     # Announce the agents that will participate.
     yield sse(
