@@ -33,12 +33,25 @@ parallel, then a lead coach assembles everything into one downloadable plan.
 - **Curriculum Agent** — breaks the topic into progressive learning modules.
 - **Scheduler Agent** — lays out a realistic week-by-week timetable.
 - **Resources Agent** — curates videos, books, articles and exercises.
-- **Assessment Agent** — designs quizzes, practice sets and checkpoints.
+- **Assessment Agent** — designs assessments, practice sets and checkpoints.
+- **Quiz Agent** — **researches the web** (CBSE/ICSE board sites, previous-year
+  papers, teacher notes/quizzes) and then generates an abundant question bank:
+  short answers, MCQs, multi-select MCQs (MMCQ), fill-in-the-blanks, true/false
+  and long-answer questions — all with answers.
 - **Lead Coach** — synthesises study tips and compiles the final plan.
 
-Built with [LangGraph](https://langchain-ai.github.io/langgraph/) — the four
+Built with [LangGraph](https://langchain-ai.github.io/langgraph/) — the five
 specialists fan out and run in parallel for speed. Progress streams live to the
 UI over Server-Sent Events.
+
+### 🔎 Web research for the quiz
+
+Before writing questions, the Quiz Agent searches the web for board materials
+and previous-year papers to match real exam patterns. It is **best-effort**: if
+the network is unavailable or returns nothing, it falls back to the model's own
+knowledge and quiz generation continues normally. Uses free DuckDuckGo search by
+default, or [Tavily](https://tavily.com) when `TAVILY_API_KEY` is set. Disable
+with `WEB_RESEARCH=false`.
 
 ---
 
@@ -89,6 +102,9 @@ Backend settings live in `backend/.env` (see `.env.example`):
 | `OPENAI_API_KEY` | _(required)_   | Your OpenAI API key                  |
 | `OPENAI_MODEL`   | `gpt-4o-mini`  | Model used by every agent            |
 | `CORS_ORIGINS`   | localhost:5173 | Comma-separated allowed origins      |
+| `WEB_RESEARCH`   | `true`         | Web research to ground quiz questions |
+| `TAVILY_API_KEY` | _(optional)_   | Higher-quality research provider     |
+| `RESEARCH_MAX_RESULTS` | `4`      | Results fetched per search query     |
 
 ---
 

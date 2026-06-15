@@ -23,6 +23,19 @@ class Settings:
             origin.strip() for origin in raw_origins.split(",") if origin.strip()
         ]
 
+        # Web research used to ground quiz generation in board materials.
+        self.web_research: bool = os.getenv("WEB_RESEARCH", "true").lower() not in (
+            "0",
+            "false",
+            "no",
+            "off",
+        )
+        self.tavily_api_key: str = os.getenv("TAVILY_API_KEY", "")
+        try:
+            self.research_max_results: int = int(os.getenv("RESEARCH_MAX_RESULTS", "4"))
+        except ValueError:
+            self.research_max_results = 4
+
     @property
     def has_api_key(self) -> bool:
         return bool(self.openai_api_key)

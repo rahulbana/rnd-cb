@@ -32,7 +32,7 @@ AGENT_LABELS: dict[str, str] = {
     "scheduler_agent": "🗓️ Scheduler Agent — laying out your timetable",
     "resources_agent": "🔗 Resources Agent — curating materials",
     "assessment_agent": "✅ Assessment Agent — creating checkpoints",
-    "quiz_agent": "📝 Quiz Agent — building a practice question bank",
+    "quiz_agent": "📝 Quiz Agent — researching board papers & building questions",
     "compiler": "🧩 Lead Coach — assembling your study plan",
 }
 

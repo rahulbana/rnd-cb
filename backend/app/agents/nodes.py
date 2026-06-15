@@ -19,6 +19,7 @@ from __future__ import annotations
 
 from app.agents.llm import run_structured
 from app.agents.state import PlanState, request_summary
+from app.services.search import research_quiz_context
 from app.schemas import (
     AssessmentOutput,
     CurriculumOutput,
@@ -129,19 +130,35 @@ async def assessment_node(state: PlanState) -> PlanState:
 
 
 async def quiz_node(state: PlanState) -> PlanState:
-    """Specialist agent: generates an abundant practice quiz with answers."""
+    """Specialist agent: researches board materials, then generates a quiz."""
     req = state["request"]
     outline = state["outline"]
+
+    # Ground the quiz in real board materials when web research is available.
+    references = await research_quiz_context(req.grade, req.subject, req.topic)
+    reference_block = ""
+    if references:
+        reference_block = (
+            "\nReference material gathered from the web (board sites like CBSE/"
+            "ICSE, previous-year papers and teacher notes/quizzes). Use it to "
+            "match the style, difficulty and commonly-tested points of these "
+            "boards. Do NOT copy any text verbatim — write original, "
+            "paraphrased questions grounded in these references:\n"
+            f"{references}\n"
+        )
+
     system = (
         "You are an expert quiz master and question-paper setter for school "
-        "students. You generate large, varied question banks with correct "
-        "answers. Make questions accurate, unambiguous and grade-appropriate, "
-        "and cover the topic broadly across difficulty levels. " + GRADE_TONE
+        "students, familiar with CBSE, ICSE and state-board exam patterns. You "
+        "generate large, varied question banks with correct answers. Make "
+        "questions accurate, unambiguous and grade-appropriate, and cover the "
+        "topic broadly across difficulty levels. " + GRADE_TONE
     )
     user = (
         f"Student request:\n{request_summary(req)}\n\n"
         f"Topic context: {outline.title} — {outline.overview}\n"
-        f"Learning goals: {', '.join(outline.learning_goals) or 'n/a'}\n\n"
+        f"Learning goals: {', '.join(outline.learning_goals) or 'n/a'}\n"
+        f"{reference_block}\n"
         "Create an ABUNDANT practice quiz covering the topic. Provide:\n"
         "- short_questions: 8-10 short-answer questions, each with a concise answer.\n"
         "- mcqs: 8-10 multiple-choice questions, each with 4 options and exactly "
