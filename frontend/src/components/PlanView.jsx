@@ -214,20 +214,34 @@ function Resources({ data }) {
   );
 }
 
+const QUIZ_SECTIONS = [
+  { key: "short_questions", title: "Short Questions", render: shortRow },
+  { key: "mcqs", title: "Multiple Choice (single answer)", render: mcqRow },
+  { key: "multi_select_mcqs", title: "Multiple Select · MMCQ", render: mmcqRow },
+  { key: "fill_in_the_blanks", title: "Fill in the Blanks", render: shortRow },
+  { key: "true_false", title: "True / False", render: tfRow },
+  { key: "long_questions", title: "Long Answer Questions", render: shortRow },
+];
+
 function Quiz({ data, forcePrint = false }) {
-  const [show, setShow] = useState(forcePrint);
-  const reveal = forcePrint || show;
+  // Track which sections currently reveal their answers.
+  const [revealed, setRevealed] = useState({});
 
-  const sections = [
-    { key: "short_questions", title: "Short Questions", render: shortRow },
-    { key: "mcqs", title: "Multiple Choice (single answer)", render: mcqRow },
-    { key: "multi_select_mcqs", title: "Multiple Select · MMCQ", render: mmcqRow },
-    { key: "fill_in_the_blanks", title: "Fill in the Blanks", render: shortRow },
-    { key: "true_false", title: "True / False", render: tfRow },
-    { key: "long_questions", title: "Long Answer Questions", render: shortRow },
-  ];
+  const activeSections = QUIZ_SECTIONS.filter((s) => (data?.[s.key] || []).length);
+  const total = activeSections.reduce((n, s) => n + data[s.key].length, 0);
 
-  const total = sections.reduce((n, s) => n + (data?.[s.key]?.length || 0), 0);
+  const isRevealed = (key) => forcePrint || !!revealed[key];
+  const allShown =
+    activeSections.length > 0 && activeSections.every((s) => revealed[s.key]);
+
+  const toggleSection = (key) =>
+    setRevealed((prev) => ({ ...prev, [key]: !prev[key] }));
+
+  const toggleAll = () => {
+    const next = {};
+    if (!allShown) activeSections.forEach((s) => (next[s.key] = true));
+    setRevealed(next);
+  };
 
   if (!total) {
     return (
@@ -243,26 +257,36 @@ function Quiz({ data, forcePrint = false }) {
         <div className="quiz-bar no-print">
           <span className="quiz-count">{total} questions</span>
           <button
-            className={`btn ${show ? "btn-ghost" : "btn-primary"} quiz-toggle`}
-            onClick={() => setShow((v) => !v)}
+            className={`btn ${allShown ? "btn-ghost" : "btn-primary"} quiz-toggle`}
+            onClick={toggleAll}
           >
-            {show ? "🙈 Hide answers" : "👀 Show answers"}
+            {allShown ? "🙈 Hide all answers" : "👀 Show all answers"}
           </button>
         </div>
       )}
 
-      {sections.map((sec) => {
-        const items = data?.[sec.key] || [];
-        if (!items.length) return null;
+      {activeSections.map((sec) => {
+        const items = data[sec.key];
+        const shown = isRevealed(sec.key);
         return (
           <div key={sec.key} className="quiz-block">
-            <h4>
-              {sec.title} <span className="badge badge-alt">{items.length}</span>
-            </h4>
+            <div className="quiz-block-head">
+              <h4>
+                {sec.title} <span className="badge badge-alt">{items.length}</span>
+              </h4>
+              {!forcePrint && (
+                <button
+                  className={`btn btn-small ${shown ? "btn-ghost" : ""}`}
+                  onClick={() => toggleSection(sec.key)}
+                >
+                  {shown ? "🙈 Hide answers" : "👀 Show answers"}
+                </button>
+              )}
+            </div>
             <ol className="quiz-list">
               {items.map((item, i) => (
                 <li key={i} className="quiz-item">
-                  {sec.render(item, reveal)}
+                  {sec.render(item, shown)}
                 </li>
               ))}
             </ol>

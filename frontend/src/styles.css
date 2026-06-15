@@ -457,7 +457,20 @@ input[type="range"] {
   background: #f8fafc;
 }
 .quiz-block h4 {
-  margin: 0 0 0.5rem;
+  margin: 0;
+}
+.quiz-block-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+  margin-bottom: 0.6rem;
+}
+.btn-small {
+  padding: 0.35rem 0.65rem;
+  font-size: 0.82rem;
+  border-radius: 8px;
 }
 .quiz-list {
   margin: 0;
