@@ -1,0 +1,161 @@
+"""Generate a downloadable PDF from a StudyPlan using ReportLab."""
+from __future__ import annotations
+
+import io
+import re
+
+from reportlab.lib import colors
+from reportlab.lib.pagesizes import A4
+from reportlab.lib.styles import ParagraphStyle, getSampleStyleSheet
+from reportlab.lib.units import mm
+from reportlab.platypus import (
+    HRFlowable,
+    ListFlowable,
+    ListItem,
+    Paragraph,
+    SimpleDocTemplate,
+    Spacer,
+)
+
+from app.schemas import StudyPlan
+
+# ReportLab's built-in fonts can't render emoji; strip them so nothing breaks.
+_EMOJI_RE = re.compile(
+    "[\U0001F000-\U0001FAFF\U00002600-\U000027BF\U0001F1E6-\U0001F1FF\U0000FE0F\U00002190-\U000021FF\U00002B00-\U00002BFF]+",
+    flags=re.UNICODE,
+)
+
+_PRIMARY = colors.HexColor("#4f46e5")
+_ACCENT = colors.HexColor("#06b6d4")
+_MUTED = colors.HexColor("#64748b")
+
+
+def _clean(text: str) -> str:
+    """Remove emoji and escape XML special chars for ReportLab paragraphs."""
+    text = _EMOJI_RE.sub("", str(text)).strip()
+    return text.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+
+
+def _styles() -> dict[str, ParagraphStyle]:
+    base = getSampleStyleSheet()
+    return {
+        "title": ParagraphStyle(
+            "PlanTitle", parent=base["Title"], fontSize=22, textColor=_PRIMARY,
+            spaceAfter=4,
+        ),
+        "meta": ParagraphStyle(
+            "Meta", parent=base["Normal"], fontSize=9, textColor=_MUTED,
+            spaceAfter=10,
+        ),
+        "h2": ParagraphStyle(
+            "H2", parent=base["Heading2"], fontSize=14, textColor=_PRIMARY,
+            spaceBefore=12, spaceAfter=6,
+        ),
+        "h3": ParagraphStyle(
+            "H3", parent=base["Heading3"], fontSize=11.5, textColor=colors.HexColor("#0f172a"),
+            spaceBefore=6, spaceAfter=2,
+        ),
+        "body": ParagraphStyle(
+            "Body", parent=base["Normal"], fontSize=10, leading=14, spaceAfter=4,
+        ),
+        "small": ParagraphStyle(
+            "Small", parent=base["Normal"], fontSize=9, textColor=_ACCENT,
+            spaceAfter=4,
+        ),
+    }
+
+
+def _bullets(items: list[str], style: ParagraphStyle) -> ListFlowable:
+    return ListFlowable(
+        [ListItem(Paragraph(_clean(it), style), leftIndent=10) for it in items],
+        bulletType="bullet",
+        bulletColor=_PRIMARY,
+        start="•",
+        leftIndent=12,
+    )
+
+
+def build_pdf(plan: StudyPlan) -> bytes:
+    """Render the study plan into PDF bytes."""
+    req = plan.request
+    s = _styles()
+    buf = io.BytesIO()
+    doc = SimpleDocTemplate(
+        buf, pagesize=A4,
+        leftMargin=18 * mm, rightMargin=18 * mm,
+        topMargin=16 * mm, bottomMargin=16 * mm,
+        title=_clean(plan.outline.title) or "Study Plan",
+    )
+    story: list = []
+
+    story.append(Paragraph(_clean(plan.outline.title) or "Study Plan", s["title"]))
+    story.append(
+        Paragraph(
+            f"Class {req.grade} &nbsp;·&nbsp; {_clean(req.subject)} &nbsp;·&nbsp; "
+            f"{_clean(req.topic)} &nbsp;·&nbsp; {req.duration_weeks} week(s) "
+            f"&nbsp;·&nbsp; ~{req.hours_per_week} hrs/week &nbsp;·&nbsp; "
+            f"level: {_clean(req.level)}",
+            s["meta"],
+        )
+    )
+    story.append(HRFlowable(width="100%", thickness=1, color=colors.HexColor("#e2e8f0")))
+    story.append(Spacer(1, 6))
+    story.append(Paragraph(_clean(plan.outline.overview), s["body"]))
+
+    if plan.outline.learning_goals:
+        story.append(Paragraph("Learning Goals", s["h2"]))
+        story.append(_bullets(plan.outline.learning_goals, s["body"]))
+
+    if plan.outline.prerequisites:
+        story.append(Paragraph("Prerequisites", s["h2"]))
+        story.append(_bullets(plan.outline.prerequisites, s["body"]))
+
+    if plan.curriculum.modules:
+        story.append(Paragraph("Curriculum", s["h2"]))
+        for i, m in enumerate(plan.curriculum.modules, 1):
+            story.append(Paragraph(f"Module {i}: {_clean(m.title)}", s["h3"]))
+            if m.objectives:
+                story.append(_bullets(m.objectives, s["body"]))
+            if m.subtopics:
+                story.append(Paragraph("Subtopics: " + _clean(", ".join(m.subtopics)), s["small"]))
+
+    if plan.schedule.weeks:
+        story.append(Paragraph("Schedule", s["h2"]))
+        for w in plan.schedule.weeks:
+            story.append(Paragraph(f"Week {w.week_number} — {_clean(w.focus)}", s["h3"]))
+            rows = [
+                f"<b>{_clean(se.day)}</b> ({se.duration_minutes} min): {_clean(se.activity)}"
+                for se in w.sessions
+            ]
+            if rows:
+                story.append(_bullets(rows, s["body"]))
+
+    if plan.resources.resources:
+        story.append(Paragraph("Resources", s["h2"]))
+        rows = []
+        for r in plan.resources.resources:
+            line = f"<b>[{_clean(r.type)}]</b> {_clean(r.title)} — {_clean(r.description)}"
+            if r.link:
+                link = _clean(r.link)
+                line += f' (<link href="{link}"><font color="#4f46e5">{link}</font></link>)'
+            rows.append(line)
+        story.append(_bullets(rows, s["body"]))
+
+    if plan.assessment.assessments:
+        story.append(Paragraph("Assessments &amp; Checkpoints", s["h2"]))
+        for a in plan.assessment.assessments:
+            story.append(Paragraph(f"{_clean(a.title)} ({_clean(a.type)})", s["h3"]))
+            story.append(Paragraph(_clean(a.description), s["body"]))
+            if a.sample_questions:
+                story.append(_bullets(a.sample_questions, s["body"]))
+
+    if plan.study_tips:
+        story.append(Paragraph("Study Tips", s["h2"]))
+        story.append(_bullets(plan.study_tips, s["body"]))
+
+    story.append(Spacer(1, 10))
+    story.append(HRFlowable(width="100%", thickness=0.5, color=colors.HexColor("#e2e8f0")))
+    story.append(Paragraph("Generated by the Multi-Agent Study Planner.", s["meta"]))
+
+    doc.build(story)
+    return buf.getvalue()

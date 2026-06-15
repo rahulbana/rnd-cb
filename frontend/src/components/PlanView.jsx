@@ -11,7 +11,19 @@ const TABS = [
 
 export default function PlanView({ plan, onReset }) {
   const [tab, setTab] = useState("overview");
+  const [pdfState, setPdfState] = useState("idle"); // idle | loading | error
   const { request: req } = plan;
+
+  const handlePdf = async () => {
+    setPdfState("loading");
+    try {
+      await downloadPDF(plan);
+      setPdfState("idle");
+    } catch (err) {
+      console.error(err);
+      setPdfState("error");
+    }
+  };
 
   return (
     <div className="plan-wrap">
@@ -30,8 +42,17 @@ export default function PlanView({ plan, onReset }) {
           <button className="btn" onClick={() => downloadJSON(plan)}>
             ⬇ JSON
           </button>
-          <button className="btn" onClick={() => downloadPDF()}>
-            ⬇ PDF
+          <button
+            className="btn btn-pdf"
+            onClick={handlePdf}
+            disabled={pdfState === "loading"}
+            title="Download as PDF"
+          >
+            {pdfState === "loading"
+              ? "Preparing…"
+              : pdfState === "error"
+              ? "⚠ Retry PDF"
+              : "⬇ PDF"}
           </button>
           <button className="btn btn-ghost" onClick={onReset}>
             ↺ New plan

@@ -166,6 +166,15 @@ input[type="range"] {
 .btn-ghost {
   background: transparent;
 }
+.btn-pdf {
+  background: linear-gradient(135deg, #ef4444, #dc2626);
+  color: #fff;
+  border: none;
+}
+.btn-pdf:disabled {
+  opacity: 0.7;
+  cursor: progress;
+}
 
 /* ----- Intro / How it works ----- */
 .intro h3,
