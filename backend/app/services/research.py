@@ -18,9 +18,10 @@ import asyncio
 import json
 import urllib.request
 
-from app.config import get_settings
+from app.core.config import get_settings
+from app.core.logging import get_logger
 
-_TIMEOUT_SECONDS = 14
+log = get_logger("services.research")
 
 
 def _queries(grade: int, subject: str, topic: str) -> list[str]:
@@ -58,7 +59,7 @@ def _tavily_search(api_key: str, queries: list[str], per_query: int) -> list[dic
                         "url": r.get("url", ""),
                     }
                 )
-        except Exception:
+        except Exception:  # noqa: BLE001 - best-effort per query
             continue
     return results
 
@@ -85,9 +86,9 @@ def _ddg_search(queries: list[str], per_query: int) -> list[dict]:
                                 "url": r.get("href", ""),
                             }
                         )
-                except Exception:
+                except Exception:  # noqa: BLE001
                     continue
-    except Exception:
+    except Exception:  # noqa: BLE001
         return results
     return results
 
@@ -129,7 +130,8 @@ async def research_quiz_context(grade: int, subject: str, topic: str) -> str:
     try:
         return await asyncio.wait_for(
             asyncio.to_thread(_research_sync, grade, subject, topic),
-            timeout=_TIMEOUT_SECONDS,
+            timeout=settings.research_timeout,
         )
-    except Exception:
+    except Exception:  # noqa: BLE001 - research is strictly best-effort
+        log.warning("web research unavailable; continuing without references")
         return ""

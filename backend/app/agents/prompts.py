@@ -1,34 +1,11 @@
-"""Agent node implementations for the study-plan graph.
+"""Prompt templates for each agent.
 
-The architecture is a supervisor / multi-agent pattern:
-
-    planner (lead agent)
-        |
-        +--> curriculum agent  -.
-        +--> scheduler agent     \\  (run in parallel)
-        +--> resources agent     /
-        +--> assessment agent  -'
-        |
-    compiler (lead agent assembles the final plan + study tips)
-
-The lead "planner" agent designs the high-level plan and delegates focused
-briefs to each specialist agent. The compiler synthesises everything back
-into one coherent study plan.
+Keeping prompts in one place makes them easy to review, tune and test in
+isolation from the orchestration logic.
 """
 from __future__ import annotations
 
-from app.agents.llm import run_structured
-from app.agents.state import PlanState, request_summary
-from app.services.search import research_quiz_context
-from app.schemas import (
-    AssessmentOutput,
-    CurriculumOutput,
-    PlanOutline,
-    QuizOutput,
-    ResourcesOutput,
-    ScheduleOutput,
-    StudyTips,
-)
+from app.schemas import PlanOutline, StudyPlanRequest
 
 GRADE_TONE = (
     "Write at a reading level and complexity appropriate for the student's "
@@ -36,14 +13,34 @@ GRADE_TONE = (
     "encouraging tone."
 )
 
+Prompt = tuple[str, str]  # (system, user)
 
-async def planner_node(state: PlanState) -> PlanState:
-    """Lead agent: creates the outline and delegation briefs."""
-    req = state["request"]
+
+def request_summary(req: StudyPlanRequest) -> str:
+    """A compact, reusable description of the student's request for prompts."""
+    parts = [
+        f"Class/Grade: {req.grade}",
+        f"Subject: {req.subject}",
+        f"Topic: {req.topic}",
+        f"Plan length: {req.duration_weeks} week(s)",
+        f"Time available: {req.hours_per_week} hour(s) per week",
+        f"Current level: {req.level}",
+        f"Goal: {req.goal}",
+    ]
+    if req.notes:
+        parts.append(f"Extra notes: {req.notes}")
+    return "\n".join(parts)
+
+
+def _goals(outline: PlanOutline) -> str:
+    return ", ".join(outline.learning_goals) or "n/a"
+
+
+def planner_prompt(req: StudyPlanRequest) -> Prompt:
     system = (
         "You are the lead study-plan architect for school students. "
         "You design the overall plan and decide what each specialist agent "
-        "(curriculum, scheduler, resources, assessment) should focus on. "
+        "(curriculum, scheduler, resources, assessment, quiz) should focus on. "
         + GRADE_TONE
     )
     user = (
@@ -51,14 +48,10 @@ async def planner_node(state: PlanState) -> PlanState:
         "Provide a title, a short overview, concrete learning goals, any "
         "prerequisites, and a short delegation note for each specialist agent."
     )
-    outline = await run_structured(system, user, PlanOutline, temperature=0.4)
-    return {"outline": outline}
+    return system, user
 
 
-async def curriculum_node(state: PlanState) -> PlanState:
-    """Specialist agent: breaks the topic into modules and objectives."""
-    req = state["request"]
-    outline = state["outline"]
+def curriculum_prompt(req: StudyPlanRequest, outline: PlanOutline) -> Prompt:
     system = (
         "You are a curriculum designer. Break the topic into a logical sequence "
         "of learning modules, each with clear objectives and subtopics. " + GRADE_TONE
@@ -66,17 +59,13 @@ async def curriculum_node(state: PlanState) -> PlanState:
     user = (
         f"Student request:\n{request_summary(req)}\n\n"
         f"Overall plan: {outline.title} — {outline.overview}\n"
-        f"Learning goals: {', '.join(outline.learning_goals) or 'n/a'}\n\n"
+        f"Learning goals: {_goals(outline)}\n\n"
         "Produce 3-6 modules that build on each other from foundations to mastery."
     )
-    curriculum = await run_structured(system, user, CurriculumOutput, temperature=0.3)
-    return {"curriculum": curriculum}
+    return system, user
 
 
-async def scheduler_node(state: PlanState) -> PlanState:
-    """Specialist agent: lays out a realistic week-by-week schedule."""
-    req = state["request"]
-    outline = state["outline"]
+def scheduler_prompt(req: StudyPlanRequest, outline: PlanOutline) -> Prompt:
     system = (
         "You are a study scheduler. Build a realistic, balanced timetable that "
         "fits the student's available time, with focused sessions and built-in "
@@ -89,14 +78,10 @@ async def scheduler_node(state: PlanState) -> PlanState:
         f"and several sessions whose total time fits about {req.hours_per_week} "
         "hours/week. Keep sessions specific and actionable."
     )
-    schedule = await run_structured(system, user, ScheduleOutput, temperature=0.3)
-    return {"schedule": schedule}
+    return system, user
 
 
-async def resources_node(state: PlanState) -> PlanState:
-    """Specialist agent: recommends learning resources."""
-    req = state["request"]
-    outline = state["outline"]
+def resources_prompt(req: StudyPlanRequest, outline: PlanOutline) -> Prompt:
     system = (
         "You are a learning-resources curator. Recommend a varied, high-quality "
         "mix of free and accessible resources (videos, articles, books, practice "
@@ -108,14 +93,10 @@ async def resources_node(state: PlanState) -> PlanState:
         f"Overall plan: {outline.title} — {outline.overview}\n\n"
         "Recommend 5-8 resources covering different learning styles."
     )
-    resources = await run_structured(system, user, ResourcesOutput, temperature=0.4)
-    return {"resources": resources}
+    return system, user
 
 
-async def assessment_node(state: PlanState) -> PlanState:
-    """Specialist agent: designs checkpoints and assessments."""
-    req = state["request"]
-    outline = state["outline"]
+def assessment_prompt(req: StudyPlanRequest, outline: PlanOutline) -> Prompt:
     system = (
         "You are an assessment designer. Create checkpoints, quizzes, practice "
         "sets and a small project so the student can measure progress. " + GRADE_TONE
@@ -125,17 +106,10 @@ async def assessment_node(state: PlanState) -> PlanState:
         f"Overall plan: {outline.title} — {outline.overview}\n\n"
         "Create 3-5 assessments with sample questions, increasing in difficulty."
     )
-    assessment = await run_structured(system, user, AssessmentOutput, temperature=0.4)
-    return {"assessment": assessment}
+    return system, user
 
 
-async def quiz_node(state: PlanState) -> PlanState:
-    """Specialist agent: researches board materials, then generates a quiz."""
-    req = state["request"]
-    outline = state["outline"]
-
-    # Ground the quiz in real board materials when web research is available.
-    references = await research_quiz_context(req.grade, req.subject, req.topic)
+def quiz_prompt(req: StudyPlanRequest, outline: PlanOutline, references: str) -> Prompt:
     reference_block = ""
     if references:
         reference_block = (
@@ -157,7 +131,7 @@ async def quiz_node(state: PlanState) -> PlanState:
     user = (
         f"Student request:\n{request_summary(req)}\n\n"
         f"Topic context: {outline.title} — {outline.overview}\n"
-        f"Learning goals: {', '.join(outline.learning_goals) or 'n/a'}\n"
+        f"Learning goals: {_goals(outline)}\n"
         f"{reference_block}\n"
         "Create an ABUNDANT practice quiz covering the topic. For EVERY question "
         "type below, generate at least 15-20 questions (more is welcome):\n"
@@ -173,26 +147,21 @@ async def quiz_node(state: PlanState) -> PlanState:
         "Spread questions across easy, medium and hard difficulty. Ensure variety "
         "and avoid duplicates."
     )
-    quiz = await run_structured(system, user, QuizOutput, temperature=0.6)
-    return {"quiz": quiz}
+    return system, user
 
 
-async def compiler_node(state: PlanState) -> PlanState:
-    """Lead agent: synthesises final study tips from all specialist output."""
-    req = state["request"]
-    outline = state["outline"]
+def compiler_prompt(
+    req: StudyPlanRequest, outline: PlanOutline, module_titles: str
+) -> Prompt:
     system = (
         "You are the lead study coach assembling the final plan. Provide a short "
         "list of practical, motivating study tips tailored to the student. "
         + GRADE_TONE
     )
-    module_titles = ", ".join(m.title for m in state["curriculum"].modules) or "n/a"
     user = (
         f"Student request:\n{request_summary(req)}\n\n"
         f"Plan: {outline.title}. Modules: {module_titles}.\n\n"
         "Give 4-6 concise study tips (habits, focus techniques, how to use the "
         "resources and assessments effectively)."
     )
-
-    tips = await run_structured(system, user, StudyTips, temperature=0.5)
-    return {"study_tips": tips.tips}
+    return system, user

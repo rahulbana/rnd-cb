@@ -73,17 +73,7 @@ def render_markdown(plan: StudyPlan) -> str:
             a("")
 
     q = plan.quiz
-    has_quiz = any(
-        [
-            q.short_questions,
-            q.mcqs,
-            q.multi_select_mcqs,
-            q.fill_in_the_blanks,
-            q.true_false,
-            q.long_questions,
-        ]
-    )
-    if has_quiz:
+    if q.total():
         a("## 📝 Quiz")
 
         if q.short_questions:

@@ -17,6 +17,7 @@ from reportlab.platypus import (
     Spacer,
 )
 
+from app.core.exceptions import ExportError
 from app.schemas import StudyPlan
 
 # ReportLab's built-in fonts can't render emoji; strip them so nothing breaks.
@@ -28,6 +29,7 @@ _EMOJI_RE = re.compile(
 _PRIMARY = colors.HexColor("#4f46e5")
 _ACCENT = colors.HexColor("#06b6d4")
 _MUTED = colors.HexColor("#64748b")
+_ANSWER = "#16a34a"
 
 
 def _clean(text: str) -> str:
@@ -52,8 +54,8 @@ def _styles() -> dict[str, ParagraphStyle]:
             spaceBefore=12, spaceAfter=6,
         ),
         "h3": ParagraphStyle(
-            "H3", parent=base["Heading3"], fontSize=11.5, textColor=colors.HexColor("#0f172a"),
-            spaceBefore=6, spaceAfter=2,
+            "H3", parent=base["Heading3"], fontSize=11.5,
+            textColor=colors.HexColor("#0f172a"), spaceBefore=6, spaceAfter=2,
         ),
         "body": ParagraphStyle(
             "Body", parent=base["Normal"], fontSize=10, leading=14, spaceAfter=4,
@@ -81,17 +83,16 @@ def _text_bullets(items: list[str], style: ParagraphStyle) -> ListFlowable:
     return _bullets([_clean(it) for it in items], style)
 
 
-def build_pdf(plan: StudyPlan) -> bytes:
-    """Render the study plan into PDF bytes."""
+def _qa_rows(items) -> list[str]:
+    return [
+        f"{_clean(it.question)}<br/><font color='{_ANSWER}'><b>Answer:</b> "
+        f"{_clean(it.answer)}</font>"
+        for it in items
+    ]
+
+
+def _build_story(plan: StudyPlan, s: dict[str, ParagraphStyle]) -> list:
     req = plan.request
-    s = _styles()
-    buf = io.BytesIO()
-    doc = SimpleDocTemplate(
-        buf, pagesize=A4,
-        leftMargin=18 * mm, rightMargin=18 * mm,
-        topMargin=16 * mm, bottomMargin=16 * mm,
-        title=_clean(plan.outline.title) or "Study Plan",
-    )
     story: list = []
 
     story.append(Paragraph(_clean(plan.outline.title) or "Study Plan", s["title"]))
@@ -123,7 +124,9 @@ def build_pdf(plan: StudyPlan) -> bytes:
             if m.objectives:
                 story.append(_text_bullets(m.objectives, s["body"]))
             if m.subtopics:
-                story.append(Paragraph("Subtopics: " + _clean(", ".join(m.subtopics)), s["small"]))
+                story.append(
+                    Paragraph("Subtopics: " + _clean(", ".join(m.subtopics)), s["small"])
+                )
 
     if plan.schedule.weeks:
         story.append(Paragraph("Schedule", s["h2"]))
@@ -155,65 +158,7 @@ def build_pdf(plan: StudyPlan) -> bytes:
             if a.sample_questions:
                 story.append(_text_bullets(a.sample_questions, s["body"]))
 
-    q = plan.quiz
-    if any([q.short_questions, q.mcqs, q.multi_select_mcqs, q.fill_in_the_blanks,
-            q.true_false, q.long_questions]):
-        story.append(Paragraph("Quiz", s["h2"]))
-
-        def _qa_rows(items):
-            return [
-                f"{_clean(it.question)}<br/><font color='#16a34a'><b>Answer:</b> "
-                f"{_clean(it.answer)}</font>"
-                for it in items
-            ]
-
-        if q.short_questions:
-            story.append(Paragraph("Short Questions", s["h3"]))
-            story.append(_bullets(_qa_rows(q.short_questions), s["body"]))
-
-        if q.mcqs:
-            story.append(Paragraph("Multiple Choice (single answer)", s["h3"]))
-            rows = []
-            for it in q.mcqs:
-                opts = "  ".join(
-                    f"{chr(65 + j)}. {_clean(o)}" for j, o in enumerate(it.options)
-                )
-                rows.append(
-                    f"{_clean(it.question)}<br/>{opts}<br/>"
-                    f"<font color='#16a34a'><b>Answer:</b> {_clean(it.answer)}</font>"
-                )
-            story.append(_bullets(rows, s["body"]))
-
-        if q.multi_select_mcqs:
-            story.append(Paragraph("Multiple Select (MMCQ)", s["h3"]))
-            rows = []
-            for it in q.multi_select_mcqs:
-                opts = "  ".join(
-                    f"{chr(65 + j)}. {_clean(o)}" for j, o in enumerate(it.options)
-                )
-                rows.append(
-                    f"{_clean(it.question)}<br/>{opts}<br/>"
-                    f"<font color='#16a34a'><b>Answers:</b> "
-                    f"{_clean(', '.join(it.answers))}</font>"
-                )
-            story.append(_bullets(rows, s["body"]))
-
-        if q.fill_in_the_blanks:
-            story.append(Paragraph("Fill in the Blanks", s["h3"]))
-            story.append(_bullets(_qa_rows(q.fill_in_the_blanks), s["body"]))
-
-        if q.true_false:
-            story.append(Paragraph("True / False", s["h3"]))
-            rows = [
-                f"{_clean(it.statement)}<br/><font color='#16a34a'><b>Answer:</b> "
-                f"{'True' if it.answer else 'False'}</font>"
-                for it in q.true_false
-            ]
-            story.append(_bullets(rows, s["body"]))
-
-        if q.long_questions:
-            story.append(Paragraph("Long Answer Questions", s["h3"]))
-            story.append(_bullets(_qa_rows(q.long_questions), s["body"]))
+    _append_quiz(plan, s, story)
 
     if plan.study_tips:
         story.append(Paragraph("Study Tips", s["h2"]))
@@ -222,6 +167,77 @@ def build_pdf(plan: StudyPlan) -> bytes:
     story.append(Spacer(1, 10))
     story.append(HRFlowable(width="100%", thickness=0.5, color=colors.HexColor("#e2e8f0")))
     story.append(Paragraph("Generated by the Multi-Agent Study Planner.", s["meta"]))
+    return story
 
-    doc.build(story)
+
+def _append_quiz(plan: StudyPlan, s: dict[str, ParagraphStyle], story: list) -> None:
+    q = plan.quiz
+    if not q.total():
+        return
+
+    story.append(Paragraph("Quiz", s["h2"]))
+
+    if q.short_questions:
+        story.append(Paragraph("Short Questions", s["h3"]))
+        story.append(_bullets(_qa_rows(q.short_questions), s["body"]))
+
+    if q.mcqs:
+        story.append(Paragraph("Multiple Choice (single answer)", s["h3"]))
+        rows = []
+        for it in q.mcqs:
+            opts = "  ".join(
+                f"{chr(65 + j)}. {_clean(o)}" for j, o in enumerate(it.options)
+            )
+            rows.append(
+                f"{_clean(it.question)}<br/>{opts}<br/>"
+                f"<font color='{_ANSWER}'><b>Answer:</b> {_clean(it.answer)}</font>"
+            )
+        story.append(_bullets(rows, s["body"]))
+
+    if q.multi_select_mcqs:
+        story.append(Paragraph("Multiple Select (MMCQ)", s["h3"]))
+        rows = []
+        for it in q.multi_select_mcqs:
+            opts = "  ".join(
+                f"{chr(65 + j)}. {_clean(o)}" for j, o in enumerate(it.options)
+            )
+            rows.append(
+                f"{_clean(it.question)}<br/>{opts}<br/>"
+                f"<font color='{_ANSWER}'><b>Answers:</b> "
+                f"{_clean(', '.join(it.answers))}</font>"
+            )
+        story.append(_bullets(rows, s["body"]))
+
+    if q.fill_in_the_blanks:
+        story.append(Paragraph("Fill in the Blanks", s["h3"]))
+        story.append(_bullets(_qa_rows(q.fill_in_the_blanks), s["body"]))
+
+    if q.true_false:
+        story.append(Paragraph("True / False", s["h3"]))
+        rows = [
+            f"{_clean(it.statement)}<br/><font color='{_ANSWER}'><b>Answer:</b> "
+            f"{'True' if it.answer else 'False'}</font>"
+            for it in q.true_false
+        ]
+        story.append(_bullets(rows, s["body"]))
+
+    if q.long_questions:
+        story.append(Paragraph("Long Answer Questions", s["h3"]))
+        story.append(_bullets(_qa_rows(q.long_questions), s["body"]))
+
+
+def build_pdf(plan: StudyPlan) -> bytes:
+    """Render the study plan into PDF bytes."""
+    s = _styles()
+    buf = io.BytesIO()
+    doc = SimpleDocTemplate(
+        buf, pagesize=A4,
+        leftMargin=18 * mm, rightMargin=18 * mm,
+        topMargin=16 * mm, bottomMargin=16 * mm,
+        title=_clean(plan.outline.title) or "Study Plan",
+    )
+    try:
+        doc.build(_build_story(plan, s))
+    except Exception as exc:  # noqa: BLE001
+        raise ExportError(f"Failed to render PDF: {exc}") from exc
     return buf.getvalue()

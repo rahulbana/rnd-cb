@@ -1,16 +1,21 @@
-"""Runs the agent graph and exposes both streaming and one-shot APIs."""
+"""Orchestrates the agent graph: one-shot generation and SSE streaming."""
 from __future__ import annotations
 
 import json
 from typing import AsyncGenerator
 
-from app.agents.graph import AGENT_LABELS, build_graph
+from app.agents.graph import build_graph
+from app.agents.registry import AGENT_LABELS
 from app.agents.state import PlanState
+from app.core.logging import get_logger
 from app.schemas import QuizOutput, StudyPlan, StudyPlanRequest
-from app.services.export import render_markdown
+from app.services.exporters import render_markdown
+
+log = get_logger("services.planner")
 
 
 def _assemble_plan(req: StudyPlanRequest, state: PlanState) -> StudyPlan:
+    """Build the final StudyPlan from accumulated graph state."""
     plan = StudyPlan(
         request=req,
         outline=state["outline"],
@@ -27,32 +32,33 @@ def _assemble_plan(req: StudyPlanRequest, state: PlanState) -> StudyPlan:
 
 async def generate_plan(req: StudyPlanRequest) -> StudyPlan:
     """Run the full graph and return the assembled study plan."""
+    log.info("generating plan: grade=%s subject=%s topic=%s", req.grade, req.subject, req.topic)
     graph = build_graph()
     final_state: PlanState = await graph.ainvoke({"request": req})
-    return _assemble_plan(req, final_state)
+    plan = _assemble_plan(req, final_state)
+    log.info("plan generated: %s (%d quiz questions)", plan.outline.title, plan.quiz.total())
+    return plan
+
+
+def _sse(event: str, payload: dict) -> dict:
+    """A dict shaped for sse-starlette's EventSourceResponse.
+
+    Do NOT pre-format the wire here, or sse-starlette double-wraps it.
+    """
+    return {"event": event, "data": json.dumps(payload)}
 
 
 async def stream_plan(req: StudyPlanRequest) -> AsyncGenerator[dict, None]:
-    """Run the graph, yielding Server-Sent Events as agents make progress.
+    """Run the graph, yielding SSE events as agents make progress.
 
-    Each yielded dict is formatted into a proper SSE frame by sse-starlette's
-    EventSourceResponse (do NOT pre-format the wire here, or it gets
-    double-wrapped). Event types: 'init', 'agent_done', 'complete', 'error'.
+    Event types: 'init', 'agent_done', 'complete', 'error'.
     """
     graph = build_graph()
     accumulated: PlanState = {"request": req}
 
-    def sse(event: str, payload: dict) -> dict:
-        return {"event": event, "data": json.dumps(payload)}
-
-    # Announce the agents that will participate.
-    yield sse(
+    yield _sse(
         "init",
-        {
-            "agents": [
-                {"id": key, "label": label} for key, label in AGENT_LABELS.items()
-            ]
-        },
+        {"agents": [{"id": k, "label": v} for k, v in AGENT_LABELS.items()]},
     )
 
     try:
@@ -61,15 +67,14 @@ async def stream_plan(req: StudyPlanRequest) -> AsyncGenerator[dict, None]:
             for node_name, delta in update.items():
                 if isinstance(delta, dict):
                     accumulated.update(delta)
-                yield sse(
+                yield _sse(
                     "agent_done",
-                    {
-                        "agent": node_name,
-                        "label": AGENT_LABELS.get(node_name, node_name),
-                    },
+                    {"agent": node_name, "label": AGENT_LABELS.get(node_name, node_name)},
                 )
 
         plan = _assemble_plan(req, accumulated)
-        yield sse("complete", {"plan": json.loads(plan.model_dump_json())})
+        yield _sse("complete", {"plan": json.loads(plan.model_dump_json())})
     except Exception as exc:  # surface a clean error to the client
-        yield sse("error", {"message": str(exc)})
+        log.exception("plan streaming failed")
+        message = getattr(exc, "message", None) or str(exc)
+        yield _sse("error", {"message": message})

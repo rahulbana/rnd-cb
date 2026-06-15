@@ -1,72 +1,58 @@
-"""FastAPI application exposing the multi-agent study planner."""
+"""FastAPI application factory for the multi-agent study planner."""
 from __future__ import annotations
 
-from fastapi import FastAPI, Response
+from contextlib import asynccontextmanager
+
+from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import PlainTextResponse
-from sse_starlette.sse import EventSourceResponse
 
-from app.config import get_settings
-from app.schemas import StudyPlan, StudyPlanRequest
-from app.services.export import render_markdown
-from app.services.pdf import build_pdf
-from app.services.plan_service import generate_plan, stream_plan
+from app.agents.graph import build_graph
+from app.api.errors import register_exception_handlers
+from app.api.router import api_router
+from app.core.config import get_settings
+from app.core.logging import configure_logging, get_logger
 
 
-def _filename(plan: StudyPlan, ext: str) -> str:
-    raw = f"study-plan-{plan.request.subject}-{plan.request.topic}".lower()
-    slug = "".join(c if c.isalnum() else "-" for c in raw).strip("-")
-    return f"{slug or 'study-plan'}.{ext}"
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    settings = get_settings()
+    configure_logging(settings.log_level)
+    log = get_logger("main")
 
-settings = get_settings()
-
-app = FastAPI(
-    title="Multi-Agent Study Planner",
-    description="Agentic study-plan generator for students (class 5-12).",
-    version="1.0.0",
-)
-
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=settings.cors_origins,
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
-
-
-@app.get("/api/health")
-async def health() -> dict:
-    """Health check; reports whether an API key is configured."""
-    return {"status": "ok", "model": settings.openai_model, "configured": settings.has_api_key}
-
-
-@app.post("/api/study-plan", response_model=StudyPlan)
-async def create_study_plan(req: StudyPlanRequest) -> StudyPlan:
-    """Generate a complete study plan in a single request (no streaming)."""
-    return await generate_plan(req)
-
-
-@app.post("/api/study-plan/stream")
-async def create_study_plan_stream(req: StudyPlanRequest) -> EventSourceResponse:
-    """Stream live agent progress while the plan is built (SSE)."""
-    return EventSourceResponse(stream_plan(req))
-
-
-@app.post("/api/study-plan/markdown", response_class=PlainTextResponse)
-async def study_plan_markdown(plan: StudyPlan) -> str:
-    """Re-render a plan to Markdown (used for server-side download if desired)."""
-    return render_markdown(plan)
-
-
-@app.post("/api/study-plan/pdf")
-async def study_plan_pdf(plan: StudyPlan) -> Response:
-    """Render a plan to a downloadable PDF document."""
-    pdf_bytes = build_pdf(plan)
-    return Response(
-        content=pdf_bytes,
-        media_type="application/pdf",
-        headers={
-            "Content-Disposition": f'attachment; filename="{_filename(plan, "pdf")}"'
-        },
+    build_graph()  # compile/validate the agent graph at startup
+    if not settings.has_api_key:
+        log.warning("OPENAI_API_KEY is not set — plan generation will fail until configured.")
+    log.info(
+        "%s v%s started (model=%s, web_research=%s)",
+        settings.app_name,
+        settings.app_version,
+        settings.openai_model,
+        settings.web_research,
     )
+    yield
+    log.info("shutting down")
+
+
+def create_app() -> FastAPI:
+    settings = get_settings()
+    app = FastAPI(
+        title=settings.app_name,
+        version=settings.app_version,
+        description="Agentic study-plan generator for students (class 5-12).",
+        lifespan=lifespan,
+    )
+
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=settings.cors_origins_list,
+        allow_credentials=True,
+        allow_methods=["*"],
+        allow_headers=["*"],
+    )
+
+    register_exception_handlers(app)
+    app.include_router(api_router)
+    return app
+
+
+app = create_app()

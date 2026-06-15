@@ -110,25 +110,55 @@ Backend settings live in `backend/.env` (see `.env.example`):
 
 ## 📦 Project structure
 
+The backend follows a layered, modular architecture:
+
 ```
 backend/
   app/
-    main.py              # FastAPI app + routes
-    config.py            # env-based settings
-    schemas.py           # request + structured-output models
-    agents/
-      graph.py           # LangGraph wiring (planner → specialists → compiler)
-      nodes.py           # the six agents
-      llm.py             # OpenAI client + structured-output helper
-      state.py           # shared graph state
+    main.py                    # FastAPI application factory + lifespan
+    core/                      # cross-cutting concerns
+      config.py                #   typed settings (pydantic-settings)
+      logging.py               #   logging configuration
+      exceptions.py            #   AppError hierarchy (status + error_type)
+    api/                       # HTTP layer
+      router.py                #   aggregate /api router
+      deps.py                  #   shared dependencies
+      errors.py                #   exception handlers -> JSON envelopes
+      routes/                  #   health, study_plans
+    schemas/                   # pydantic models (request, content, quiz, plan)
+    agents/                    # the multi-agent system
+      registry.py              #   declarative agent registry (single source of truth)
+      graph.py                 #   LangGraph wiring built from the registry
+      prompts.py               #   all agent prompts in one place
+      llm.py                   #   OpenAI client + structured-output runner
+      state.py                 #   shared graph state
+      nodes/                   #   one module per agent (+ timing decorator)
     services/
-      plan_service.py    # runs the graph (one-shot + SSE streaming)
-      export.py          # renders a plan to Markdown
+      planner_service.py       #   runs the graph (one-shot + SSE streaming)
+      research.py              #   best-effort web research for the quiz
+      exporters/               #   markdown, pdf, filename helpers
+  tests/                       # pytest suite (offline, no API key needed)
+  requirements.txt             # production dependencies
+  requirements-dev.txt         # + test/dev dependencies
+  pyproject.toml               # pytest & ruff configuration
 frontend/
   src/
-    App.jsx              # orchestrates form → live agents → plan
-    api.js               # SSE client
-    download.js          # Markdown / JSON / PDF download helpers
-    components/          # form, agent timeline, plan view
-    styles.css           # modern, responsive, print-friendly styles
+    App.jsx                    # orchestrates form → live agents → plan
+    api.js                     # SSE client
+    download.js                # Markdown / JSON / PDF download helpers
+    components/                # form, agent timeline, plan view
+    styles.css                 # modern, responsive, print-friendly styles
+```
+
+## 🧪 Tests
+
+The backend ships with a pytest suite that exercises the whole agent graph,
+API and exporters **offline** (the LLM and web research are stubbed, so no API
+key or network is required):
+
+```bash
+cd backend
+source .venv/bin/activate
+pip install -r requirements-dev.txt
+pytest
 ```
