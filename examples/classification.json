@@ -1,0 +1,15 @@
+{
+  "task": "classification",
+  "n_rows": 1000,
+  "n_features": 6,
+  "n_classes": 3,
+  "cluster_std": 1.5,
+  "class_names": ["low", "medium", "high"],
+  "feature_outlier_pct": 0.03,
+  "target_name": "risk_level",
+  "seed": 42,
+  "columns": [
+    {"name": "region", "dtype": "category", "categories": ["north", "south", "east", "west"]},
+    {"name": "signup_date", "dtype": "datetime", "min": "2022-01-01", "max": "2024-12-31", "datetime_format": "%Y-%m-%d"}
+  ]
+}

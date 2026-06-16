@@ -1,0 +1,10 @@
+{
+  "task": "regression",
+  "n_rows": 500,
+  "n_features": 8,
+  "n_informative": 4,
+  "noise": 5.0,
+  "feature_outlier_pct": 0.02,
+  "target_name": "price",
+  "seed": 7
+}

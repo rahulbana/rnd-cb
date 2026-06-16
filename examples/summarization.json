@@ -1,0 +1,9 @@
+{
+  "task": "summarization",
+  "n_rows": 300,
+  "seed": 11,
+  "text": {
+    "sentences_per_doc": [4, 9],
+    "words": [10, 22]
+  }
+}

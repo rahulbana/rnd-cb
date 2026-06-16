@@ -1,0 +1,9 @@
+{
+  "task": "clustering",
+  "n_rows": 600,
+  "n_features": 3,
+  "n_clusters": 4,
+  "cluster_std": 0.8,
+  "target_name": "cluster",
+  "seed": 1
+}

@@ -1,0 +1,17 @@
+{
+  "task": "tabular",
+  "n_rows": 1000,
+  "seed": 123,
+  "columns": [
+    {"name": "user_id", "dtype": "uuid"},
+    {"name": "full_name", "dtype": "name"},
+    {"name": "email", "dtype": "email"},
+    {"name": "age", "dtype": "int", "min": 18, "max": 90, "outlier_pct": 0.05},
+    {"name": "salary", "dtype": "float", "distribution": "normal", "mean": 60000, "std": 15000, "decimals": 2, "outlier_pct": 0.02},
+    {"name": "tenure_years", "dtype": "float", "distribution": "exponential", "mean": 4},
+    {"name": "department", "dtype": "category", "categories": ["eng", "sales", "ops", "hr"], "weights": [0.4, 0.3, 0.2, 0.1]},
+    {"name": "is_active", "dtype": "bool", "p_true": 0.8},
+    {"name": "joined_at", "dtype": "datetime", "min": "2018-01-01", "max": "2025-01-01"},
+    {"name": "bio", "dtype": "text", "text_words": [10, 30], "null_pct": 0.1}
+  ]
+}

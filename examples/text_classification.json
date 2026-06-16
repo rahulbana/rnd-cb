@@ -1,0 +1,11 @@
+{
+  "task": "text_classification",
+  "n_rows": 800,
+  "seed": 99,
+  "text": {
+    "flavor": "topic",
+    "labels": ["finance", "sports", "technology", "health"],
+    "words": [15, 45],
+    "target_name": "category"
+  }
+}
