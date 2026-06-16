@@ -54,4 +54,47 @@ def test_registry_has_expected_tools():
         "convert_length",
         "country_summary",
         "time_and_weather",
+        "summarize_webpage",
+        "summarize_youtube_video",
     } <= names
+
+
+@pytest.mark.parametrize(
+    "url,expected",
+    [
+        ("https://www.youtube.com/watch?v=dQw4w9WgXcQ", "dQw4w9WgXcQ"),
+        ("https://youtu.be/dQw4w9WgXcQ", "dQw4w9WgXcQ"),
+        ("https://www.youtube.com/watch?v=dQw4w9WgXcQ&t=42s", "dQw4w9WgXcQ"),
+        ("https://www.youtube.com/shorts/dQw4w9WgXcQ", "dQw4w9WgXcQ"),
+        ("https://www.youtube.com/embed/dQw4w9WgXcQ", "dQw4w9WgXcQ"),
+        ("youtube.com/watch?v=dQw4w9WgXcQ", "dQw4w9WgXcQ"),
+        ("dQw4w9WgXcQ", "dQw4w9WgXcQ"),
+    ],
+)
+def test_extract_youtube_video_id(url, expected):
+    from yeai.tools.youtube import extract_video_id
+
+    assert extract_video_id(url) == expected
+
+
+def test_extract_youtube_video_id_invalid():
+    from yeai.tools.youtube import extract_video_id
+
+    assert extract_video_id("https://example.com/not-a-video") is None
+
+
+def test_extract_readable_webpage():
+    from yeai.tools.webpage import extract_readable
+
+    html = """
+    <html><head><title>  Hello World  </title></head>
+    <body><nav>menu menu</nav>
+    <article><p>The quick brown fox.</p><p>Jumps over the lazy dog.</p></article>
+    <script>var x = 1;</script><footer>copyright</footer></body></html>
+    """
+    title, text = extract_readable(html)
+    assert title == "Hello World"
+    assert "quick brown fox" in text
+    assert "Jumps over the lazy dog" in text
+    assert "var x" not in text
+    assert "copyright" not in text

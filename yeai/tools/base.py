@@ -46,10 +46,28 @@ class Tool:
 def build_registry() -> Dict[str, Tool]:
     """Import every tool module and return a {name: Tool} mapping."""
     # Imported lazily to avoid import cycles and to keep optional deps local.
-    from . import calculator, country, currency, search, time_weather, units
+    from . import (
+        calculator,
+        country,
+        currency,
+        search,
+        time_weather,
+        units,
+        webpage,
+        youtube,
+    )
 
     tools: List[Tool] = []
-    for module in (search, currency, calculator, units, country, time_weather):
+    for module in (
+        search,
+        currency,
+        calculator,
+        units,
+        country,
+        time_weather,
+        webpage,
+        youtube,
+    ):
         tools.extend(module.TOOLS)
 
     return {tool.name: tool for tool in tools}

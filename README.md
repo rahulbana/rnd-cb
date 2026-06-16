@@ -15,10 +15,13 @@ answer you.
 | `convert_length` | Length conversion, e.g. cm ↔ m, plus mm, km, inch, foot, yard, mile. |
 | `country_summary` | Concise country facts: capital, region, population, area, currencies, languages, timezones, neighbours. |
 | `time_and_weather` | Current local time, timezone (with UTC offset) and temperature for a country or city. |
+| `summarize_webpage` | Fetch a web page by URL and extract its title + main readable text to summarize. |
+| `summarize_youtube_video` | Fetch a YouTube video's transcript and metadata from its URL to summarize. |
 
-The web search, currency, country and time/weather tools use free, **key-less**
-public APIs (DuckDuckGo, open.er-api.com, REST Countries, Open-Meteo), so the
-only credential you need is your OpenAI API key.
+The web search, currency, country, time/weather, webpage and YouTube tools use
+free, **key-less** public APIs (DuckDuckGo, open.er-api.com, REST Countries,
+Open-Meteo, YouTube oEmbed + `youtube-transcript-api`), so the only credential
+you need is your OpenAI API key.
 
 ## Setup
 
@@ -51,6 +54,8 @@ python -m yeai
 python -m yeai -q "Convert 50 US dollars to pounds"
 python -m yeai -q "What is the square root of 1764, and 15% of 200?"
 python -m yeai -q "What's the current time and temperature in Tokyo?"
+python -m yeai -q "Summarize this video: https://youtu.be/dQw4w9WgXcQ"
+python -m yeai -q "Summarize https://en.wikipedia.org/wiki/Olympic_Games"
 
 # List the available tools
 python -m yeai --list-tools
@@ -75,6 +80,8 @@ yeai/
     units.py        # convert_length
     country.py      # country_summary
     time_weather.py # time_and_weather
+    webpage.py      # summarize_webpage
+    youtube.py      # summarize_youtube_video
 tests/
   test_offline_tools.py
 ```
