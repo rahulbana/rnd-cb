@@ -1,0 +1,3 @@
+# Ignore generated briefs, keep the directory.
+*.md
+!.gitignore
