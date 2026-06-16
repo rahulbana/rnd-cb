@@ -18,6 +18,7 @@ from app.schemas.content import (
 )
 from app.schemas.plan import StudyPlan
 from app.schemas.quiz import (
+    CaseStudy,
     FillBlank,
     MCQItem,
     MultiSelectItem,
@@ -45,6 +46,7 @@ __all__ = [
     "MultiSelectItem",
     "FillBlank",
     "TrueFalseItem",
+    "CaseStudy",
     "QuizOutput",
     "StudyPlan",
 ]

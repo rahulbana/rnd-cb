@@ -528,6 +528,24 @@ input[type="range"] {
   font-size: 0.78rem;
   flex: none;
 }
+.case-scenario {
+  background: #eef2ff;
+  border-left: 3px solid var(--primary);
+  border-radius: 6px;
+  padding: 0.5rem 0.7rem;
+  font-weight: 500;
+  font-style: italic;
+}
+.case-subq {
+  margin: 0.4rem 0 0;
+  padding-left: 1.2rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+.case-subq > li {
+  font-weight: 600;
+}
 .opt-correct {
   border-color: var(--ok);
   background: #ecfdf5;

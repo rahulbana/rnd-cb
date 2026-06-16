@@ -115,6 +115,15 @@ def render_markdown(plan: StudyPlan) -> str:
                 a(f"   - **Answer:** {'True' if item.answer else 'False'}")
             a("")
 
+        if q.case_studies:
+            a("### Case-Based Questions")
+            for i, case in enumerate(q.case_studies, 1):
+                a(f"**Case {i}.** {case.scenario}")
+                for j, sq in enumerate(case.questions, 1):
+                    a(f"   {i}.{j} {sq.question}")
+                    a(f"      - **Answer:** {sq.answer}")
+                a("")
+
         if q.long_questions:
             a("### Long Answer Questions")
             for i, item in enumerate(q.long_questions, 1):

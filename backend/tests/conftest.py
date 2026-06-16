@@ -10,6 +10,7 @@ import pytest
 from app.schemas import (
     Assessment,
     AssessmentOutput,
+    CaseStudy,
     CurriculumOutput,
     FillBlank,
     MCQItem,
@@ -78,6 +79,12 @@ def _fake_output(schema):
             ],
             fill_in_the_blanks=[FillBlank(question="Graph is a ____.", answer="parabola")],
             true_false=[TrueFalseItem(statement="Degree is 2.", answer=True)],
+            case_studies=[
+                CaseStudy(
+                    scenario="A ball is thrown and its height follows h=-5t^2+20t.",
+                    questions=[ShortQA(question="When does it land?", answer="At t=4s")],
+                )
+            ],
             long_questions=[ShortQA(question="Derive the formula.", answer="Complete the square")],
         )
     if schema is StudyTips:

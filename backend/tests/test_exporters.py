@@ -11,6 +11,7 @@ def test_markdown_contains_sections(sample_plan):
     for heading in ["# ", "## 📚 Curriculum", "## 🗓️ Schedule", "## 📝 Quiz"]:
         assert heading in md
     assert "parabola" in md
+    assert "### Case-Based Questions" in md
 
 
 def test_pdf_is_valid_and_has_no_literal_tags(sample_plan, tmp_path):

@@ -221,6 +221,15 @@ def _append_quiz(plan: StudyPlan, s: dict[str, ParagraphStyle], story: list) -> 
         ]
         story.append(_bullets(rows, s["body"]))
 
+    if q.case_studies:
+        story.append(Paragraph("Case-Based Questions", s["h3"]))
+        for i, case in enumerate(q.case_studies, 1):
+            story.append(
+                Paragraph(f"<b>Case {i}.</b> {_clean(case.scenario)}", s["body"])
+            )
+            if case.questions:
+                story.append(_bullets(_qa_rows(case.questions), s["body"]))
+
     if q.long_questions:
         story.append(Paragraph("Long Answer Questions", s["h3"]))
         story.append(_bullets(_qa_rows(q.long_questions), s["body"]))

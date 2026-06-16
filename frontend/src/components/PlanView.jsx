@@ -220,6 +220,7 @@ const QUIZ_SECTIONS = [
   { key: "multi_select_mcqs", title: "Multiple Select · MMCQ", render: mmcqRow },
   { key: "fill_in_the_blanks", title: "Fill in the Blanks", render: shortRow },
   { key: "true_false", title: "True / False", render: tfRow },
+  { key: "case_studies", title: "Case-Based Questions", render: caseRow },
   { key: "long_questions", title: "Long Answer Questions", render: shortRow },
 ];
 
@@ -365,6 +366,26 @@ function mmcqRow(item, reveal) {
           <strong>Answers:</strong> {answers.join(", ")}
         </p>
       )}
+    </>
+  );
+}
+
+function caseRow(item, reveal) {
+  return (
+    <>
+      <p className="q case-scenario">{item.scenario}</p>
+      <ol className="case-subq">
+        {(item.questions || []).map((sq, k) => (
+          <li key={k}>
+            <span>{sq.question}</span>
+            {reveal && (
+              <p className="a">
+                <strong>Answer:</strong> {sq.answer}
+              </p>
+            )}
+          </li>
+        ))}
+      </ol>
     </>
   );
 }
