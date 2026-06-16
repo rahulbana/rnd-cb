@@ -1,0 +1,21 @@
+[build-system]
+requires = ["setuptools>=64"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "festival-agent"
+version = "0.1.0"
+description = "Ask an OpenAI-powered agent on which date a festival was celebrated in any year."
+readme = "README.md"
+requires-python = ">=3.9"
+dependencies = [
+    "openai>=1.40.0",
+    "python-dotenv>=1.0.0",
+    "rich>=13.7.0",
+]
+
+[project.scripts]
+festival = "festival_agent.cli:main"
+
+[tool.setuptools]
+packages = ["festival_agent"]
