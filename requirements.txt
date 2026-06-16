@@ -1,0 +1,13 @@
+# Core multi-agent framework (CrewAI)
+crewai>=0.86.0
+crewai-tools>=0.25.0
+
+# Deep web search backend
+tavily-python>=0.5.0
+
+# OpenAI LLM (used by CrewAI under the hood)
+openai>=1.40.0
+
+# Utilities
+python-dotenv>=1.0.0
+pydantic>=2.7.0

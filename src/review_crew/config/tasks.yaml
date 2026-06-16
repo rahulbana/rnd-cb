@@ -1,0 +1,52 @@
+research_task:
+  description: >
+    Research real customer reviews for "{subject}" (category hint: {subject_type}).
+    Run several DEEP web searches targeting the major review platforms relevant to
+    this subject. For every review you find, record the review text, its rating, the
+    platform, and the exact source URL. Also find and report how many total
+    reviewers/ratings exist across the platforms.
+    Do NOT fabricate anything — only report what the sources actually say.
+  expected_output: >
+    A detailed, well-organized dossier containing:
+    - An estimate of the total number of reviewers/ratings found (with the platforms
+      and their counts).
+    - A list of collected reviews, each with: the text, the rating, the platform, and
+      the source URL.
+    - A short note on which platforms were searched.
+  agent: deep_researcher
+
+analysis_task:
+  description: >
+    Using the research dossier on "{subject}", analyze the sentiment of all reviews.
+    Determine the overall sentiment and a 0-100 positivity score. Select the 5 most
+    representative POSITIVE reviews and the 5 most representative NEGATIVE reviews
+    (keep each review's source URL). Write a clear conclusion about whether the
+    subject is trustworthy/worth it and why.
+  expected_output: >
+    A structured analysis containing: overall sentiment, a 0-100 score, the top 5
+    positive reviews (each with source), the top 5 negative reviews (each with
+    source), the total reviewer count carried over from research, and a plain-English
+    conclusion.
+  agent: sentiment_analyst
+  context:
+    - research_task
+
+verification_task:
+  description: >
+    Independently verify the analyst's report on "{subject}". Re-run deep searches to
+    confirm the most important claims and the total reviewer count. Open/inspect the
+    cited source URLs to confirm they are real and reputable. Flag any review that
+    looks fake, paid, or unverifiable, and drop or downgrade unsupported claims.
+    Assess authenticity and assign an overall confidence level (High/Medium/Low).
+    Then assemble the FINAL report.
+  expected_output: >
+    A final verified report that exactly matches the required structured schema:
+    subject, subject_type, total_reviews_found, overall_sentiment, sentiment_score
+    (0-100), conclusion, up to 5 top_positive_reviews (each with text, rating,
+    source), up to 5 top_negative_reviews (each with text, rating, source),
+    authenticity_assessment (including the confidence level and any fake-review
+    warnings), and the full list of source URLs.
+  agent: verification_specialist
+  context:
+    - research_task
+    - analysis_task
