@@ -49,7 +49,13 @@ code-reviewer ./src -l typescript --model gpt-4o
 
 # Only run specific categories
 code-reviewer ./src -l python -c correctness -c security
+
+# Also export a Markdown and/or Word report
+code-reviewer ./src -l python --md review.md --docx review.docx
 ```
+
+The console report is always printed. `--markdown/--md` and `--docx` are
+additive — pass either, both, or neither.
 
 You can also run it as a module: `python -m code_reviewer ...`.
 

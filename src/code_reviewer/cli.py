@@ -52,6 +52,15 @@ def review(
     max_workers: int = typer.Option(
         8, help="Max concurrent LLM calls."
     ),
+    markdown: Optional[str] = typer.Option(
+        None,
+        "--markdown",
+        "--md",
+        help="Also write a Markdown report to this path.",
+    ),
+    docx: Optional[str] = typer.Option(
+        None, "--docx", help="Also write a Word (.docx) report to this path."
+    ),
 ) -> None:
     """Review the code at PATH and print findings to the console."""
     load_dotenv()
@@ -108,6 +117,18 @@ def review(
         )
 
     render_report(report, console)
+
+    if markdown:
+        from .exporters import write_markdown
+
+        write_markdown(report, markdown)
+        console.print(f"[green]✓[/green] Markdown report written to {markdown}")
+
+    if docx:
+        from .exporters import write_docx
+
+        write_docx(report, docx)
+        console.print(f"[green]✓[/green] Word report written to {docx}")
 
     # Exit non-zero if any critical/high findings exist (useful for CI).
     counts = report.severity_counts()
