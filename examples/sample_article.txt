@@ -1,0 +1,36 @@
+The Quiet Rise of Small Language Models
+
+For the past few years, the story of artificial intelligence has been a story
+about size. Bigger models, trained on more data, with more parameters, kept
+setting new records. But a quieter trend has been building alongside the race
+for scale: small language models, or SLMs, that run on laptops, phones, and
+even microcontrollers.
+
+Small language models typically range from a few hundred million to a few
+billion parameters, compared to the hundreds of billions in frontier systems.
+What they give up in raw breadth they often make up for in speed, cost, and
+privacy. Because they can run locally, sensitive data never has to leave the
+device. Because they are small, they respond almost instantly and cost very
+little to operate.
+
+The techniques that make these models punch above their weight are worth
+understanding. Distillation lets a small "student" model learn from a larger
+"teacher," capturing much of its capability in a fraction of the size.
+Quantization shrinks the numerical precision of a model's weights, cutting
+memory use dramatically with only a small hit to quality. And careful curation
+of training data has shown that a smaller model trained on cleaner, more
+relevant examples can outperform a larger model trained on noisy data.
+
+There are real trade-offs. Small models still struggle with tasks that require
+broad world knowledge or long chains of reasoning. They are easier to push off
+track and can be more brittle outside their training distribution. For many
+production uses, teams now combine approaches: a small model handles the common,
+latency-sensitive cases on-device, and escalates to a larger model in the cloud
+only when needed.
+
+The implications go beyond engineering. When capable models can run anywhere,
+the economics of AI change. Startups can ship features without huge inference
+bills. Regulated industries can keep data on-premises. And entirely new
+categories of always-on, private assistants become possible. The age of giant
+models is not ending, but it is gaining a fast, frugal, and surprisingly
+capable companion.
