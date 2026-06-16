@@ -70,6 +70,11 @@ export default function StudyPlanForm({ onSubmit, loading }) {
 
   return (
     <form className="card form" onSubmit={handleSubmit}>
+      <div className="form-head">
+        <h2>Design your study plan</h2>
+        <p>Tell us about the student — the agents do the rest.</p>
+      </div>
+
       <div className="grid grid-2">
         <label>
           <span>Class / Grade</span>

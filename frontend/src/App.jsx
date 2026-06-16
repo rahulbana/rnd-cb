@@ -72,8 +72,15 @@ export default function App() {
 
   return (
     <div className="app">
+      <div className="bg-orbs" aria-hidden="true">
+        <span />
+        <span />
+        <span />
+      </div>
+
       <header className="hero no-print">
         <div className="hero-inner">
+          <span className="hero-badge">✨ Powered by multi-agent AI</span>
           <h1>
             <span className="logo">📘 StudyForge</span>
           </h1>
@@ -81,6 +88,12 @@ export default function App() {
             A multi-agent AI that designs personalised study plans for students
             in classes 5–12 — any subject, any topic.
           </p>
+          <div className="hero-pills">
+            <span>🎯 Any subject &amp; topic</span>
+            <span>🎓 Classes 5–12</span>
+            <span>📝 Quiz &amp; case studies</span>
+            <span>⬇ Markdown · JSON · PDF</span>
+          </div>
         </div>
       </header>
 
