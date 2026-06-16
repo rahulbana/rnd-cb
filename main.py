@@ -44,8 +44,10 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--host-voice", default="", help="TTS voice id for the host.")
     p.add_argument("--cohost-voice", default="", help="TTS voice id for the co-host.")
 
+    p.add_argument("--provider", default="openai",
+                   help="LLM provider for the agents. Default: openai")
     p.add_argument("--model", default="gpt-4o",
-                   help="OpenAI model for the agents. Default: gpt-4o")
+                   help="LLM model id for the agents. Default: gpt-4o")
     p.add_argument("--tts", default="kokoro", choices=["kokoro", "piper"],
                    help="Open-source TTS backend. Default: kokoro")
 
@@ -74,7 +76,8 @@ def main(argv: list[str] | None = None) -> int:
             text = fh.read()
 
     config = PipelineConfig(
-        openai_model=args.model,
+        llm_provider=args.provider,
+        llm_model=args.model,
         target_minutes=args.minutes,
         tts_backend=args.tts,
         run_editor=not args.no_editor,

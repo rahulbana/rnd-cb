@@ -1,7 +1,10 @@
 """Base class for the LLM-powered agents.
 
-A thin, dependency-light wrapper around the OpenAI client so every agent
-shares the same configuration, logging and structured-output helpers.
+Agents depend on the vendor-neutral :class:`~podcastify.llm.LLMProvider`
+interface rather than any specific SDK, so the model backend can be swapped
+without changing agent code. Each agent sets ``name`` and ``system_prompt``
+and calls :meth:`complete` (free text) or :meth:`complete_structured`
+(parsed into a Pydantic model).
 """
 
 from __future__ import annotations
@@ -9,8 +12,9 @@ from __future__ import annotations
 import logging
 from typing import Type, TypeVar
 
-from openai import OpenAI
 from pydantic import BaseModel
+
+from ..llm import LLMProvider, Message
 
 logger = logging.getLogger("podcastify")
 
@@ -18,24 +22,13 @@ T = TypeVar("T", bound=BaseModel)
 
 
 class LLMAgent:
-    """Common behaviour for an agent backed by an OpenAI chat model.
-
-    Each concrete agent sets ``name`` and ``system_prompt`` and then calls
-    :meth:`complete` (free text) or :meth:`complete_structured` (parsed into
-    a Pydantic model via OpenAI structured outputs).
-    """
+    """Common behaviour for an agent backed by an :class:`LLMProvider`."""
 
     name: str = "agent"
     system_prompt: str = "You are a helpful assistant."
 
-    def __init__(
-        self,
-        client: OpenAI,
-        model: str = "gpt-4o",
-        temperature: float = 0.7,
-    ) -> None:
-        self.client = client
-        self.model = model
+    def __init__(self, provider: LLMProvider, temperature: float = 0.7) -> None:
+        self.provider = provider
         self.temperature = temperature
 
     # -- helpers ------------------------------------------------------------
@@ -43,35 +36,22 @@ class LLMAgent:
     def _log(self, message: str) -> None:
         logger.info("[%s] %s", self.name, message)
 
+    def _messages(self, user_prompt: str) -> list[Message]:
+        return [
+            {"role": "system", "content": self.system_prompt},
+            {"role": "user", "content": user_prompt},
+        ]
+
     def complete(self, user_prompt: str) -> str:
         """Return a plain-text completion."""
-        self._log("calling LLM (text)")
-        resp = self.client.chat.completions.create(
-            model=self.model,
-            temperature=self.temperature,
-            messages=[
-                {"role": "system", "content": self.system_prompt},
-                {"role": "user", "content": user_prompt},
-            ],
+        self._log(f"calling LLM (text) via {self.provider.name}:{self.provider.model}")
+        return self.provider.complete(
+            self._messages(user_prompt), temperature=self.temperature
         )
-        return (resp.choices[0].message.content or "").strip()
 
     def complete_structured(self, user_prompt: str, schema: Type[T]) -> T:
-        """Return a completion parsed into ``schema`` (a Pydantic model).
-
-        Uses OpenAI structured outputs so the JSON always matches the schema.
-        """
+        """Return a completion parsed into ``schema`` (a Pydantic model)."""
         self._log(f"calling LLM (structured -> {schema.__name__})")
-        completion = self.client.beta.chat.completions.parse(
-            model=self.model,
-            temperature=self.temperature,
-            messages=[
-                {"role": "system", "content": self.system_prompt},
-                {"role": "user", "content": user_prompt},
-            ],
-            response_format=schema,
+        return self.provider.complete_structured(
+            self._messages(user_prompt), schema, temperature=self.temperature
         )
-        parsed = completion.choices[0].message.parsed
-        if parsed is None:  # pragma: no cover - defensive
-            raise RuntimeError(f"{self.name}: model returned no parseable output")
-        return parsed

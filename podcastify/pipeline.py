@@ -10,14 +10,12 @@
 from __future__ import annotations
 
 import logging
-import os
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import List, Optional
 
-from openai import OpenAI
-
 from .agents import EditorAgent, ExtractorAgent, ScriptWriterAgent, VoiceAgent
+from .llm import LLMProvider, get_llm_provider
 from .models import Article, PodcastScript, Speaker
 from .tts import get_tts_backend
 
@@ -26,9 +24,10 @@ logger = logging.getLogger("podcastify")
 
 @dataclass
 class PipelineConfig:
-    # --- LLM (OpenAI) ---
-    openai_model: str = "gpt-4o"
-    openai_api_key: Optional[str] = None  # falls back to OPENAI_API_KEY env
+    # --- LLM (swappable provider behind the LLMProvider interface) ---
+    llm_provider: str = "openai"          # "openai" or any registered provider
+    llm_model: str = "gpt-4o"             # provider-specific model id
+    llm_api_key: Optional[str] = None     # falls back to the provider's env var
 
     # --- Podcast shape ---
     target_minutes: int = 5
@@ -66,20 +65,26 @@ class PodcastResult:
 class PodcastPipeline:
     """Runs the full article -> podcast conversion."""
 
-    def __init__(self, config: PipelineConfig | None = None) -> None:
-        self.config = config or PipelineConfig()
-        api_key = self.config.openai_api_key or os.getenv("OPENAI_API_KEY")
-        if not api_key:
-            raise RuntimeError(
-                "OpenAI API key missing. Set OPENAI_API_KEY or "
-                "PipelineConfig.openai_api_key."
-            )
-        client = OpenAI(api_key=api_key)
-        model = self.config.openai_model
+    def __init__(
+        self,
+        config: PipelineConfig | None = None,
+        provider: LLMProvider | None = None,
+    ) -> None:
+        """Build the pipeline.
 
-        self.extractor = ExtractorAgent(client, model=model, temperature=0.2)
-        self.scriptwriter = ScriptWriterAgent(client, model=model, temperature=0.8)
-        self.editor = EditorAgent(client, model=model, temperature=0.4)
+        Pass ``provider`` to inject any :class:`LLMProvider` (e.g. a custom
+        vendor or a test double); otherwise one is built from ``config``.
+        """
+        self.config = config or PipelineConfig()
+        self.provider = provider or get_llm_provider(
+            self.config.llm_provider,
+            model=self.config.llm_model,
+            api_key=self.config.llm_api_key,
+        )
+
+        self.extractor = ExtractorAgent(self.provider, temperature=0.2)
+        self.scriptwriter = ScriptWriterAgent(self.provider, temperature=0.8)
+        self.editor = EditorAgent(self.provider, temperature=0.4)
 
     # -- public API ---------------------------------------------------------
 

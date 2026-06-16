@@ -3,7 +3,8 @@
 A small **multi-agent** pipeline that turns any article or blog post into a
 natural, two-person audio podcast.
 
-- **LLM "thinking" agents** are powered by **OpenAI**.
+- **LLM "thinking" agents** sit behind a swappable `LLMProvider` interface;
+  **OpenAI** is the default implementation.
 - **Text-to-speech** uses a **free, open-source** model — **Kokoro** by default
   (Apache-2.0, runs locally), with **Piper** (MIT, fully offline) as an option.
 
@@ -62,7 +63,8 @@ Outputs:
 from podcastify import PodcastPipeline, PipelineConfig, Speaker
 
 config = PipelineConfig(
-    openai_model="gpt-4o",
+    llm_provider="openai",                # swappable; see below
+    llm_model="gpt-4o",
     target_minutes=6,
     tts_backend="kokoro",                 # or "piper"
     speakers=[
@@ -76,6 +78,34 @@ result = PodcastPipeline(config).run(
 )
 print(result.audio_path, result.transcript_path)
 ```
+
+## Swapping the LLM provider
+
+The agents depend only on the `LLMProvider` interface
+(`podcastify/llm/base.py`), so any vendor can be plugged in without touching
+agent code. Implement two methods and register it:
+
+```python
+from podcastify import LLMProvider, register_provider, PodcastPipeline, PipelineConfig
+
+class MyProvider(LLMProvider):
+    name = "myllm"
+    def __init__(self, model=None, api_key=None, **kw):
+        self.model = model or "my-model"
+        # ... init your SDK client ...
+    def complete(self, messages, temperature=0.7) -> str:
+        ...
+    def complete_structured(self, messages, schema, temperature=0.7):
+        ...  # return an instance of `schema` (a Pydantic model)
+
+register_provider("myllm", lambda model=None, api_key=None, **kw: MyProvider(model, api_key, **kw))
+
+PodcastPipeline(PipelineConfig(llm_provider="myllm", llm_model="my-model")).run(...)
+```
+
+You can also inject a provider instance directly (handy for tests):
+`PodcastPipeline(config, provider=MyProvider())`. From the CLI, choose the
+built-in vendor with `--provider` / `--model`.
 
 ## TTS backends (free / open source)
 
@@ -103,8 +133,12 @@ main.py                     CLI entrypoint
 podcastify/
   models.py                 Article, PodcastScript, Speaker, DialogueLine
   pipeline.py               PodcastPipeline orchestrator + PipelineConfig
+  llm/
+    base.py                 LLMProvider interface (vendor-neutral)
+    openai_provider.py      OpenAI implementation (default)
+    factory.py              get_llm_provider() + register_provider()
   agents/
-    base.py                 LLMAgent (OpenAI wrapper, structured outputs)
+    base.py                 LLMAgent (uses an LLMProvider, structured outputs)
     extractor.py            ExtractorAgent
     scriptwriter.py         ScriptWriterAgent
     editor.py               EditorAgent
@@ -118,7 +152,7 @@ examples/sample_article.txt Sample input
 ```
 
 ## Notes
-- The pipeline is provider-pinned to OpenAI for the LLM agents (per the task);
-  swap the model with `--model`.
+- OpenAI is the default LLM provider; swap the vendor with `--provider` (after
+  registering it) or the model with `--model`.
 - `--no-audio` lets you generate and review the script without installing any
   TTS dependencies.

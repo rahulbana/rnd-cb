@@ -15,10 +15,6 @@ from .base import LLMAgent
 logger = logging.getLogger("podcastify")
 
 
-class _Meta(LLMAgent):
-    """Internal helper schema is defined inline to keep imports simple."""
-
-
 class ExtractorAgent(LLMAgent):
     name = "extractor"
     system_prompt = (
