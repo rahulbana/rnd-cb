@@ -1,8 +1,8 @@
 """A single specialized search sub-agent.
 
-Each sub-agent is one web-search-equipped model call. Anthropic runs the search loop
-server-side; we drive the conversation forward across ``pause_turn`` boundaries and then
-extract the findings text plus the sources (citations) it relied on.
+Each sub-agent is one web-search-equipped call to the OpenAI Responses API. OpenAI runs
+the search loop server-side and returns a completed response; we extract the findings
+text plus the sources (URL citations) it relied on.
 """
 
 from __future__ import annotations
@@ -10,15 +10,9 @@ from __future__ import annotations
 import datetime as _dt
 from dataclasses import dataclass
 
-import anthropic
+import openai
 
 from .config import SearchAgentSpec, SUBAGENT_MODEL
-
-# Server-side web search tool with dynamic filtering (supported on Opus 4.x).
-_WEB_SEARCH_TOOL_TYPE = "web_search_20260209"
-
-# Cap on how many times we re-send to continue a server-side tool loop (pause_turn).
-_MAX_CONTINUATIONS = 5
 
 
 @dataclass
@@ -42,16 +36,14 @@ class AgentFindings:
     error: str | None = None
 
 
+def _supports_reasoning(model: str) -> bool:
+    return model.startswith(("gpt-5", "o1", "o3", "o4"))
+
+
 def _build_web_search_tool(spec: SearchAgentSpec) -> dict:
-    tool: dict = {
-        "type": _WEB_SEARCH_TOOL_TYPE,
-        "name": "web_search",
-        "max_uses": spec.max_searches,
-    }
+    tool: dict = {"type": "web_search"}
     if spec.allowed_domains:
-        tool["allowed_domains"] = spec.allowed_domains
-    elif spec.blocked_domains:
-        tool["blocked_domains"] = spec.blocked_domains
+        tool["filters"] = {"allowed_domains": spec.allowed_domains}
     return tool
 
 
@@ -74,73 +66,53 @@ def _system_prompt(celebrity: str, spec: SearchAgentSpec) -> str:
     )
 
 
-def _extract(message: anthropic.types.Message) -> tuple[str, list[Source]]:
-    """Pull the final text and citation sources out of a completed message."""
-    text_parts: list[str] = []
+def _extract(response) -> tuple[str, list[Source]]:
+    """Pull the final text and URL citations out of a completed Responses API result."""
+    text = (getattr(response, "output_text", None) or "").strip()
     sources: dict[str, Source] = {}
-    for block in message.content:
-        if block.type != "text":
+    for item in getattr(response, "output", None) or []:
+        if getattr(item, "type", None) != "message":
             continue
-        text_parts.append(block.text)
-        for citation in getattr(block, "citations", None) or []:
-            url = getattr(citation, "url", None)
-            if not url:
-                continue
-            title = getattr(citation, "title", None) or url
-            sources.setdefault(url, Source(title=title, url=url))
-    return "\n".join(text_parts).strip(), list(sources.values())
+        for content in getattr(item, "content", None) or []:
+            for ann in getattr(content, "annotations", None) or []:
+                if getattr(ann, "type", None) != "url_citation":
+                    continue
+                url = getattr(ann, "url", None)
+                if not url:
+                    continue
+                title = getattr(ann, "title", None) or url
+                sources.setdefault(url, Source(title=title, url=url))
+    return text, list(sources.values())
 
 
 async def run_search_agent(
-    client: anthropic.AsyncAnthropic,
+    client: openai.AsyncOpenAI,
     celebrity: str,
     spec: SearchAgentSpec,
 ) -> AgentFindings:
     """Run one specialized sub-agent to completion and return its findings."""
-    tools = [_build_web_search_tool(spec)]
-    messages: list[dict] = [
-        {
-            "role": "user",
-            "content": (
-                f"Research \"{celebrity}\" within your focus area and report what you find."
-            ),
-        }
-    ]
+    kwargs: dict = {
+        "model": SUBAGENT_MODEL,
+        "instructions": _system_prompt(celebrity, spec),
+        "input": (
+            f"Research \"{celebrity}\" within your focus area and report what you find."
+        ),
+        "tools": [_build_web_search_tool(spec)],
+        "max_output_tokens": 8000,
+    }
+    if _supports_reasoning(SUBAGENT_MODEL):
+        kwargs["reasoning"] = {"effort": "low"}
 
     try:
-        response = await client.messages.create(
-            model=SUBAGENT_MODEL,
-            max_tokens=8000,
-            system=_system_prompt(celebrity, spec),
-            tools=tools,
-            output_config={"effort": "low"},
-            messages=messages,
-        )
-
-        # The web search tool runs a server-side loop; it may pause and need to resume.
-        continuations = 0
-        while response.stop_reason == "pause_turn" and continuations < _MAX_CONTINUATIONS:
-            messages.append({"role": "assistant", "content": response.content})
-            response = await client.messages.create(
-                model=SUBAGENT_MODEL,
-                max_tokens=8000,
-                system=_system_prompt(celebrity, spec),
-                tools=tools,
-                output_config={"effort": "low"},
-                messages=messages,
-            )
-            continuations += 1
-
-        if response.stop_reason == "refusal":
+        response = await client.responses.create(**kwargs)
+        findings, sources = _extract(response)
+        if not findings:
             return AgentFindings(
                 spec=spec,
                 findings="",
-                sources=[],
-                error="The model declined to research this request.",
+                sources=sources,
+                error="No findings returned (possible refusal or empty result).",
             )
-
-        findings, sources = _extract(response)
         return AgentFindings(spec=spec, findings=findings, sources=sources)
-
-    except anthropic.APIError as exc:  # surface, don't crash the whole fan-out
+    except openai.OpenAIError as exc:  # surface, don't crash the whole fan-out
         return AgentFindings(spec=spec, findings="", sources=[], error=str(exc))

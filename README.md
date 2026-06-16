@@ -6,9 +6,9 @@ A **multi-agent** web researcher that finds recent news, incidents, controversie
 **scams** involving a celebrity or public figure.
 
 An orchestrator fans out to several **specialized search sub-agents** that run
-**concurrently**, each focused on a different angle and source set, using Anthropic's
-server-side web search tool. A final synthesis agent merges their cited findings into a
-single Markdown briefing with a consolidated source list.
+**concurrently**, each focused on a different angle and source set, using OpenAI's
+Responses API `web_search` tool. A final synthesis agent merges their cited findings into
+a single Markdown briefing with a consolidated source list.
 
 ```
                           ┌──────────────────────────────┐
@@ -26,7 +26,7 @@ single Markdown briefing with a consolidated source list.
                           └──────────────────────────────┘
 ```
 
-Each sub-agent searches the live web independently (Anthropic runs the search loop
+Each sub-agent searches the live web independently (OpenAI runs the search loop
 server-side), so they explore different sites in parallel. Findings are grounded in
 citations, and unverified rumors are flagged as such.
 
@@ -34,7 +34,7 @@ citations, and unverified rumors are flagged as such.
 
 ```bash
 pip install -r requirements.txt
-export ANTHROPIC_API_KEY=sk-ant-...
+export OPENAI_API_KEY=sk-...
 ```
 
 ### Usage
@@ -59,12 +59,12 @@ print(report.agent_findings)  # raw per-agent results
 ### Customizing the agents
 
 The roster lives in `celebrity_radar/config.py` as a list of `SearchAgentSpec`. Add,
-remove, or re-scope agents — and pin each to specific domains via `allowed_domains` /
-`blocked_domains` — then pass your own list to `research_celebrity(..., agents=[...])`.
+remove, or re-scope agents — and pin each to specific domains via `allowed_domains` —
+then pass your own list to `research_celebrity(..., agents=[...])`.
 
 ### Notes
 
-- Defaults to the `claude-opus-4-8` model; search agents run at low effort, synthesis at
-  high effort with adaptive thinking.
+- Defaults to the `gpt-5` model; search agents run at low reasoning effort, synthesis at
+  high effort. Reasoning effort is only sent for reasoning-capable models (gpt-5 / o-series).
 - Built for legitimate research, reputation monitoring, and scam awareness. Treat
   unverified claims accordingly.

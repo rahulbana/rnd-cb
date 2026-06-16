@@ -6,10 +6,10 @@ import asyncio
 import datetime as _dt
 from dataclasses import dataclass, field
 
-import anthropic
+import openai
 
 from .config import SearchAgentSpec, DEFAULT_AGENTS, ORCHESTRATOR_MODEL
-from .subagent import AgentFindings, Source, run_search_agent
+from .subagent import AgentFindings, Source, run_search_agent, _supports_reasoning
 
 
 @dataclass
@@ -65,7 +65,7 @@ def _consolidate_sources(findings: list[AgentFindings]) -> list[Source]:
 
 
 async def _synthesize(
-    client: anthropic.AsyncAnthropic,
+    client: openai.AsyncOpenAI,
     celebrity: str,
     findings: list[AgentFindings],
 ) -> str:
@@ -75,25 +75,24 @@ async def _synthesize(
         f"{_format_agent_findings(findings)}"
     )
 
-    # Stream to stay under HTTP timeouts on a potentially long report.
-    async with client.messages.stream(
-        model=ORCHESTRATOR_MODEL,
-        max_tokens=16000,
-        system=_synthesis_system_prompt(celebrity),
-        thinking={"type": "adaptive"},
-        output_config={"effort": "high"},
-        messages=[{"role": "user", "content": user_content}],
-    ) as stream:
-        message = await stream.get_final_message()
+    kwargs: dict = {
+        "model": ORCHESTRATOR_MODEL,
+        "instructions": _synthesis_system_prompt(celebrity),
+        "input": user_content,
+        "max_output_tokens": 16000,
+    }
+    if _supports_reasoning(ORCHESTRATOR_MODEL):
+        kwargs["reasoning"] = {"effort": "high"}
 
-    return "".join(b.text for b in message.content if b.type == "text").strip()
+    response = await client.responses.create(**kwargs)
+    return (getattr(response, "output_text", None) or "").strip()
 
 
 async def research_celebrity(
     celebrity: str,
     *,
     agents: list[SearchAgentSpec] | None = None,
-    client: anthropic.AsyncAnthropic | None = None,
+    client: openai.AsyncOpenAI | None = None,
 ) -> CelebrityReport:
     """Research ``celebrity`` with the multi-agent pipeline and return a report.
 
@@ -102,7 +101,7 @@ async def research_celebrity(
     """
     agents = agents or DEFAULT_AGENTS
     own_client = client is None
-    client = client or anthropic.AsyncAnthropic()
+    client = client or openai.AsyncOpenAI()
 
     try:
         findings = await asyncio.gather(

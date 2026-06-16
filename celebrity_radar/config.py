@@ -4,11 +4,12 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 
-# Default to the most capable Opus model. The synthesis step does the heavy reasoning,
-# so it runs at higher effort; the search sub-agents run at lower effort to stay cheap
-# and fast since the web search tool does most of their work.
-ORCHESTRATOR_MODEL = "claude-opus-4-8"
-SUBAGENT_MODEL = "claude-opus-4-8"
+# Default to a capable model that supports the Responses API web_search tool and
+# reasoning effort. The synthesis step does the heavy reasoning (high effort); the
+# search sub-agents run at low effort to stay cheap and fast since the web_search
+# tool does most of their work.
+ORCHESTRATOR_MODEL = "gpt-5"
+SUBAGENT_MODEL = "gpt-5"
 
 
 @dataclass(frozen=True)
@@ -16,7 +17,7 @@ class SearchAgentSpec:
     """Defines one specialized search sub-agent.
 
     Each sub-agent is an independent web-search-equipped model call with its own focus
-    and (optionally) a curated set of domains to prefer or avoid.
+    and (optionally) a curated set of domains to restrict the search to.
     """
 
     key: str
@@ -29,13 +30,7 @@ class SearchAgentSpec:
     """Instructions describing what this sub-agent should hunt for."""
 
     allowed_domains: list[str] = field(default_factory=list)
-    """If non-empty, restrict web search to these domains."""
-
-    blocked_domains: list[str] = field(default_factory=list)
-    """Domains to exclude from web search (ignored if ``allowed_domains`` is set)."""
-
-    max_searches: int = 6
-    """Cap on web searches this sub-agent may run."""
+    """If non-empty, restrict web search to these domains (OpenAI web_search filters)."""
 
 
 # The default roster. Each agent targets a distinct angle so their findings complement
@@ -49,7 +44,6 @@ DEFAULT_AGENTS: list[SearchAgentSpec] = [
             "reputable mainstream outlets and entertainment news. Capture dates, what "
             "happened, and the outlet reporting it."
         ),
-        max_searches=6,
     ),
     SearchAgentSpec(
         key="scams",
@@ -61,7 +55,6 @@ DEFAULT_AGENTS: list[SearchAgentSpec] = [
             "Note whether the celebrity is the victim or is being impersonated, and "
             "include any official warnings or debunkings."
         ),
-        max_searches=6,
     ),
     SearchAgentSpec(
         key="incidents_legal",
@@ -71,7 +64,6 @@ DEFAULT_AGENTS: list[SearchAgentSpec] = [
             "controversies, and statements/apologies. Capture the timeline and the "
             "current status of any ongoing matter."
         ),
-        max_searches=6,
     ),
     SearchAgentSpec(
         key="social_reaction",
@@ -81,6 +73,5 @@ DEFAULT_AGENTS: list[SearchAgentSpec] = [
             "fan and public reaction, and any misinformation or rumors circulating. "
             "Distinguish confirmed facts from unverified claims."
         ),
-        max_searches=6,
     ),
 ]
