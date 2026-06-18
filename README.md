@@ -63,7 +63,21 @@ m3u8-dl download "https://example.com/master.m3u8" \
 | `--timeout N` | Per-request timeout (seconds). Default: 30. |
 | `--referer URL` | Convenience shortcut for a `Referer` header. |
 | `-H, --header "Name: value"` | Extra HTTP header (repeatable). |
+| `-k, --insecure` | Skip TLS certificate verification (only for hosts you trust). |
 | `-q, --quiet` | Suppress the progress bar. |
+
+### Troubleshooting
+
+**`SSL: CERTIFICATE_VERIFY_FAILED ... unable to get local issuer certificate`**
+
+Your Python can't find a CA bundle to validate the server's certificate. Options:
+
+- `pip install certifi` — the downloader picks this up automatically.
+- Re-run with `-k/--insecure` to skip verification (only for hosts you trust):
+
+  ```bash
+  m3u8-dl download "https://example.com/master.m3u8" -o video.mp4 --insecure
+  ```
 
 ### Use as a library
 

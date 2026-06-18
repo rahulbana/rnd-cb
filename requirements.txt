@@ -6,5 +6,9 @@
 # default. Swap for `cryptography>=3.4` if you prefer.
 pycryptodome>=3.18
 
+# OPTIONAL: provides an up-to-date CA bundle. Install this if you hit
+# "CERTIFICATE_VERIFY_FAILED" errors; the downloader uses it automatically.
+certifi>=2023.7.22
+
 # Development / tests only:
 pytest>=7.0

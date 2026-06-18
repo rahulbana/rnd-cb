@@ -15,6 +15,7 @@ from .downloader import (
     M3U8Downloader,
     http_get_text,
     is_master_playlist,
+    make_ssl_context,
     parse_master_playlist,
 )
 
@@ -56,7 +57,8 @@ def _remux_to_mp4(ts_path: str, mp4_path: str) -> bool:
 
 
 def cmd_list(args: argparse.Namespace) -> int:
-    text = http_get_text(args.url, _parse_headers(args.header))
+    ctx = make_ssl_context(verify=not args.insecure)
+    text = http_get_text(args.url, _parse_headers(args.header), ssl_context=ctx)
     if not is_master_playlist(text):
         print("This URL is a media playlist (single quality), not a master playlist.")
         return 0
@@ -79,6 +81,7 @@ def cmd_download(args: argparse.Namespace) -> int:
         max_retries=args.retries,
         timeout=args.timeout,
         progress=None if args.quiet else _print_progress,
+        verify_ssl=not args.insecure,
     )
 
     output = args.output
@@ -128,6 +131,10 @@ def build_parser() -> argparse.ArgumentParser:
         "-H", "--header", action="append",
         help="Extra HTTP header 'Name: value' (repeatable).",
     )
+    common.add_argument(
+        "-k", "--insecure", action="store_true",
+        help="Skip TLS certificate verification (use only for hosts you trust).",
+    )
 
     p_dl = sub.add_parser("download", parents=[common], help="Download a stream.")
     p_dl.add_argument("url", help="The .m3u8 URL (master or media playlist).")
@@ -168,6 +175,14 @@ def main(argv: Optional[list] = None) -> int:
         return 130
     except Exception as exc:  # noqa: BLE001 - top-level friendly error
         print(f"Error: {exc}", file=sys.stderr)
+        if "CERTIFICATE_VERIFY_FAILED" in str(exc):
+            print(
+                "\nTLS certificate verification failed. Try one of:\n"
+                "  * pip install certifi   (adds an up-to-date CA bundle)\n"
+                "  * re-run with -k/--insecure to skip verification "
+                "(only for hosts you trust)",
+                file=sys.stderr,
+            )
         return 1
 
 
