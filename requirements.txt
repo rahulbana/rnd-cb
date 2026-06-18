@@ -1,0 +1,10 @@
+# Core downloader uses only the Python standard library — no install needed
+# for plain (unencrypted) HLS streams.
+#
+# The dependency below is OPTIONAL: it is required only to download AES-128
+# encrypted streams. Either backend works; pycryptodome is listed as the
+# default. Swap for `cryptography>=3.4` if you prefer.
+pycryptodome>=3.18
+
+# Development / tests only:
+pytest>=7.0
