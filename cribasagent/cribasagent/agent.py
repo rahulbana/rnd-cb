@@ -30,6 +30,7 @@ class CribasAgent:
             lookback_hours=self.config.lookback_hours,
             max_articles=self.config.max_articles,
             request_timeout=self.config.request_timeout,
+            keep_undated=self.config.keep_undated,
         )
         if not articles:
             logger.warning("No articles found in the lookback window; nothing to do.")

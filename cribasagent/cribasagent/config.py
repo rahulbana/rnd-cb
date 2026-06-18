@@ -59,6 +59,12 @@ class Config:
     request_timeout: int = field(
         default_factory=lambda: _env_int("CRIBAS_REQUEST_TIMEOUT", 20)
     )
+    # Keep items whose feed provides no parseable date (treated as fresh).
+    # Prevents a feed's odd date format from silently zeroing the run.
+    keep_undated: bool = field(
+        default_factory=lambda: os.environ.get("CRIBAS_KEEP_UNDATED", "1")
+        not in ("0", "false", "False", "")
+    )
 
     # --- Output ---
     output_dir: Path = field(

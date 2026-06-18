@@ -75,6 +75,23 @@ Everything is configurable through environment variables (see `.env.example`):
 `OPENAI_API_KEY`, `CRIBAS_MODEL`, `CRIBAS_LOOKBACK_HOURS`, `CRIBAS_MAX_ARTICLES`,
 `CRIBAS_BATCH_SIZE`, `CRIBAS_OUTPUT_DIR`, `CRIBAS_RUN_AT`, and more.
 
+## Troubleshooting
+
+**"0 articles in window" / no articles found.** The fetcher now logs the real
+HTTP status per feed. If you see `HTTP 403`, the site blocked the request —
+cribasagent already sends a browser User-Agent, but some networks/sites are
+stricter; try again, switch network, or prune that source in `sources.py`.
+Run with `-v` for full detail:
+
+```bash
+python -m cribasagent run -v
+```
+
+**`python-dotenv could not parse statement starting at line N`.** A line in your
+`.env` isn't valid `KEY=value`. Check that line — keys need no spaces around
+`=`, and values with `#` or spaces should be quoted. It's only a warning, but
+if the bad line *is* your `OPENAI_API_KEY` the run will fail to authenticate.
+
 ## Output
 
 A file like `output/upsc-current-affairs-2026-06-16.md`, with sections such as
