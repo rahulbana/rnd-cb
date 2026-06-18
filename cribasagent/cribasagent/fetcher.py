@@ -18,6 +18,7 @@ from __future__ import annotations
 import html
 import logging
 import re
+import ssl
 import urllib.error
 import urllib.request
 from concurrent.futures import ThreadPoolExecutor, as_completed
@@ -45,6 +46,33 @@ _HEADERS = {
 }
 
 
+def _build_ssl_context(insecure: bool) -> ssl.SSLContext:
+    """SSL context for feed fetches.
+
+    Default: verify against certifi's CA bundle, which sidesteps the common
+    "unable to get local issuer certificate" error on machines whose Python
+    has no system CA store (e.g. fresh macOS installs).
+
+    ``insecure``: disable verification entirely — needed only behind a
+    TLS-intercepting corporate proxy/antivirus that injects a self-signed
+    root. A loud warning is logged because this drops authenticity checks.
+    """
+    if insecure:
+        logger.warning(
+            "CRIBAS_INSECURE_SSL is on: TLS certificate verification DISABLED."
+        )
+        ctx = ssl.create_default_context()
+        ctx.check_hostname = False
+        ctx.verify_mode = ssl.CERT_NONE
+        return ctx
+    try:
+        import certifi
+
+        return ssl.create_default_context(cafile=certifi.where())
+    except ImportError:  # certifi not installed -> fall back to system store
+        return ssl.create_default_context()
+
+
 def _clean(text: str | None) -> str:
     """Strip HTML tags and unescape entities from a feed summary."""
     if not text:
@@ -61,11 +89,13 @@ def _parse_published(entry) -> datetime | None:
     return None
 
 
-def _http_get(url: str, timeout: int) -> tuple[int | None, bytes | None, str | None]:
+def _http_get(
+    url: str, timeout: int, context: ssl.SSLContext
+) -> tuple[int | None, bytes | None, str | None]:
     """Fetch a URL with browser headers. Returns (status, body, error)."""
     req = urllib.request.Request(url, headers=_HEADERS)
     try:
-        with urllib.request.urlopen(req, timeout=timeout) as resp:
+        with urllib.request.urlopen(req, timeout=timeout, context=context) as resp:
             return resp.status, resp.read(), None
     except urllib.error.HTTPError as exc:
         return exc.code, None, f"HTTP {exc.code} {exc.reason}"
@@ -74,10 +104,14 @@ def _http_get(url: str, timeout: int) -> tuple[int | None, bytes | None, str | N
 
 
 def _fetch_one(
-    source: NewsSource, cutoff: datetime, timeout: int, keep_undated: bool
+    source: NewsSource,
+    cutoff: datetime,
+    timeout: int,
+    keep_undated: bool,
+    context: ssl.SSLContext,
 ) -> list[Article]:
     """Fetch and filter a single feed. Never raises — logs and returns []."""
-    status, body, error = _http_get(source.url, timeout)
+    status, body, error = _http_get(source.url, timeout, context)
     if body is None:
         logger.warning("%s: fetch failed (%s)", source.name, error)
         return []
@@ -136,15 +170,19 @@ def fetch_recent_articles(
     max_articles: int,
     request_timeout: int = 20,
     keep_undated: bool = True,
+    insecure_ssl: bool = False,
 ) -> list[Article]:
     """Return de-duplicated, recency-sorted articles from all sources."""
     cutoff = datetime.now(timezone.utc) - timedelta(hours=lookback_hours)
+    context = _build_ssl_context(insecure_ssl)
 
     collected: list[Article] = []
     # Feeds are independent and I/O bound -> fetch them concurrently.
     with ThreadPoolExecutor(max_workers=min(8, len(sources))) as pool:
         futures = {
-            pool.submit(_fetch_one, src, cutoff, request_timeout, keep_undated): src
+            pool.submit(
+                _fetch_one, src, cutoff, request_timeout, keep_undated, context
+            ): src
             for src in sources
         }
         for future in as_completed(futures):

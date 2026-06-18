@@ -87,6 +87,23 @@ Run with `-v` for full detail:
 python -m cribasagent run -v
 ```
 
+**`SSL: CERTIFICATE_VERIFY_FAILED` / `unable to get local issuer certificate`.**
+Your Python has no CA bundle (common on fresh macOS installs). Just install the
+dependencies — cribasagent verifies against `certifi`'s bundle:
+
+```bash
+pip install -r requirements.txt        # installs certifi
+# macOS python.org build: also run Applications/Python 3.x/Install Certificates.command
+```
+
+If instead you see `self-signed certificate in certificate chain`, a corporate
+proxy/antivirus is intercepting TLS. Either install your organisation's root CA,
+or, as a last resort, disable verification (drops authenticity checks):
+
+```bash
+CRIBAS_INSECURE_SSL=1 python -m cribasagent run
+```
+
 **`python-dotenv could not parse statement starting at line N`.** A line in your
 `.env` isn't valid `KEY=value`. Check that line — keys need no spaces around
 `=`, and values with `#` or spaces should be quoted. It's only a warning, but

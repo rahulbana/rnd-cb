@@ -65,6 +65,12 @@ class Config:
         default_factory=lambda: os.environ.get("CRIBAS_KEEP_UNDATED", "1")
         not in ("0", "false", "False", "")
     )
+    # Disable TLS verification. Only needed behind a TLS-intercepting proxy that
+    # injects a self-signed root. Off by default; drops authenticity checks.
+    insecure_ssl: bool = field(
+        default_factory=lambda: os.environ.get("CRIBAS_INSECURE_SSL", "0")
+        in ("1", "true", "True", "yes")
+    )
 
     # --- Output ---
     output_dir: Path = field(
