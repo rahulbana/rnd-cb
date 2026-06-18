@@ -48,6 +48,10 @@ python on_this_day.py 21 July --no-save
 # Skip the fact-checking pass (faster / cheaper)
 python on_this_day.py 21 July --no-verify
 
+# Also produce a PDF (one section per page)
+python on_this_day.py 21 July --pdf                 # -> reports/july-21.pdf
+python on_this_day.py 7 July 1984 --pdf report.pdf  # custom path
+
 # No arguments → it prompts you interactively
 python on_this_day.py
 ```
@@ -62,7 +66,8 @@ Reports are saved to `./reports/<date>.md` by default (e.g.
 | `-c`, `--country` | Emphasise events for a particular country |
 | `-m`, `--model` | OpenAI model (default: `$OPENAI_MODEL` or `gpt-4o`) |
 | `-o`, `--output` | Path to save the Markdown report |
-| `--no-save` | Print the report without saving |
+| `--no-save` | Do not save the Markdown report |
+| `--pdf [PATH]` | Also save a sectioned PDF (one section per page); default `reports/<date>.pdf` |
 | `--no-verify` | Skip the independent fact-checking pass |
 | `--version` | Show version |
 
@@ -79,8 +84,11 @@ It's a two-agent pipeline:
    - **Agent 2 — Verifier:** a *separate* fact-checking agent independently
      re-searches the web to confirm or correct each claim, flags anything it
      can't verify, and consolidates the source list. (Skip with `--no-verify`.)
-3. **`history_agent/cli.py`** — the command-line interface; reports progress and
-   saves the final, verified report.
+3. **`history_agent/pdf.py`** — renders the final report to a PDF with **one
+   section per page** (each `##` heading starts a new page), styled headings,
+   bullet/numbered lists, clickable source links and page numbers.
+4. **`history_agent/cli.py`** — the command-line interface; reports progress and
+   saves the final, verified report (Markdown, and PDF with `--pdf`).
 
 ## Development
 

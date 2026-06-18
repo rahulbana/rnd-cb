@@ -11,6 +11,9 @@ from . import __version__
 from .agent import DEFAULT_MODEL, ResearchResult, investigate
 from .dateparse import DateParseError, ParsedDate, parse_date_input
 
+# Sentinel marking "--pdf given without a path"; resolved to the default later.
+_PDF_DEFAULT = "<default>"
+
 
 def _build_arg_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
@@ -47,7 +50,18 @@ def _build_arg_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--no-save",
         action="store_true",
-        help="Print the report but do not save it to a file.",
+        help="Do not save the Markdown report to a file.",
+    )
+    parser.add_argument(
+        "--pdf",
+        nargs="?",
+        const=_PDF_DEFAULT,
+        default=None,
+        metavar="PATH",
+        help=(
+            "Also save a sectioned PDF (one section per page). Optionally give a "
+            "path; defaults to ./reports/<date>.pdf."
+        ),
     )
     parser.add_argument(
         "--no-verify",
@@ -64,6 +78,10 @@ def _build_arg_parser() -> argparse.ArgumentParser:
 
 def _default_output_path(parsed: ParsedDate) -> Path:
     return Path("reports") / f"{parsed.slug()}.md"
+
+
+def _default_pdf_path(parsed: ParsedDate) -> Path:
+    return Path("reports") / f"{parsed.slug()}.pdf"
 
 
 def _build_document(parsed: ParsedDate, result: ResearchResult, verified: bool) -> str:
@@ -135,6 +153,24 @@ def main(argv: list[str] | None = None) -> int:
         out_path.parent.mkdir(parents=True, exist_ok=True)
         out_path.write_text(document, encoding="utf-8")
         print(f"Saved report to {out_path}", file=sys.stderr)
+
+    if args.pdf is not None:
+        from .pdf import render_markdown_to_pdf  # imported lazily so md-only runs
+
+        pdf_path = (
+            _default_pdf_path(parsed)
+            if args.pdf == _PDF_DEFAULT
+            else Path(args.pdf)
+        )
+        pdf_path.parent.mkdir(parents=True, exist_ok=True)
+        try:
+            render_markdown_to_pdf(
+                result.markdown, str(pdf_path), title=f"On This Day — {parsed.human()}"
+            )
+        except RuntimeError as exc:
+            print(f"Error: {exc}", file=sys.stderr)
+            return 1
+        print(f"Saved PDF to {pdf_path}", file=sys.stderr)
 
     return 0
 
