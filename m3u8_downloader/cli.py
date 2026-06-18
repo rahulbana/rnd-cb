@@ -82,6 +82,7 @@ def cmd_download(args: argparse.Namespace) -> int:
         timeout=args.timeout,
         progress=None if args.quiet else _print_progress,
         verify_ssl=not args.insecure,
+        inherit_query=not args.no_inherit_query,
     )
 
     output = args.output
@@ -154,6 +155,11 @@ def build_parser() -> argparse.ArgumentParser:
     p_dl.add_argument("--timeout", type=int, default=30,
                       help="Per-request timeout in seconds (default: 30).")
     p_dl.add_argument("--referer", default=None, help="Shortcut for a Referer header.")
+    p_dl.add_argument(
+        "--no-inherit-query", action="store_true",
+        help="Do not copy the playlist's query string (signed token) onto "
+             "segment/key URLs that lack one. On by default.",
+    )
     p_dl.add_argument("-q", "--quiet", action="store_true", help="Suppress progress.")
     p_dl.set_defaults(func=cmd_download)
 

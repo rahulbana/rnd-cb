@@ -79,6 +79,21 @@ Your Python can't find a CA bundle to validate the server's certificate. Options
   m3u8-dl download "https://example.com/master.m3u8" -o video.mp4 --insecure
   ```
 
+**`HTTP Error 404 / 403` on a segment**
+
+The playlist parsed fine but the CDN rejected a segment request. Common causes:
+
+- **Expired signed link.** Many CDNs hand out short-lived URLs with a
+  `validto`/`hash`/token in the query string. Once that window passes, segments
+  return 403/404 even though the playlist still loads. Grab a *fresh* `.m3u8`
+  URL and run immediately; raise `--concurrency` so the download finishes inside
+  the window.
+- **Missing `Referer`.** Some hosts only serve segments when a referring page is
+  sent. Add `--referer "https://the-site.example/"`.
+- **Token not propagated.** By default the playlist's query string (the signed
+  token) is copied onto segment URLs that don't carry their own. If a particular
+  stream breaks because of this, disable it with `--no-inherit-query`.
+
 ### Use as a library
 
 ```python

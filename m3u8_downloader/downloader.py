@@ -18,6 +18,7 @@ import os
 import ssl
 import struct
 import tempfile
+import urllib.error
 import urllib.parse
 import urllib.request
 from concurrent.futures import ThreadPoolExecutor, as_completed
@@ -126,8 +127,22 @@ class MediaPlaylist:
     total_duration: float = 0.0
 
 
-def _absolute(base_url: str, ref: str) -> str:
-    return urllib.parse.urljoin(base_url, ref.strip())
+def _absolute(base_url: str, ref: str, inherit_query: bool = False) -> str:
+    """Resolve ``ref`` against ``base_url``.
+
+    When ``inherit_query`` is set and the resolved URL has no query string of
+    its own, the base URL's query is copied onto it. Many tokenised CDNs
+    (signed HLS links with ``?hash=...&validto=...``) list their segments as
+    plain relative paths and expect the parent playlist's token to be reused;
+    without this the segment requests are rejected (typically 403/404).
+    """
+    abs_url = urllib.parse.urljoin(base_url, ref.strip())
+    if inherit_query:
+        base_q = urllib.parse.urlsplit(base_url).query
+        parts = urllib.parse.urlsplit(abs_url)
+        if base_q and not parts.query:
+            abs_url = urllib.parse.urlunsplit(parts._replace(query=base_q))
+    return abs_url
 
 
 def _parse_attributes(line: str) -> dict:
@@ -160,7 +175,9 @@ def is_master_playlist(text: str) -> bool:
     return "#EXT-X-STREAM-INF" in text
 
 
-def parse_master_playlist(text: str, base_url: str) -> list:
+def parse_master_playlist(
+    text: str, base_url: str, inherit_query: bool = False
+) -> list:
     """Return the list of :class:`Variant` entries in a master playlist."""
     variants: list = []
     pending: Optional[dict] = None
@@ -173,7 +190,7 @@ def parse_master_playlist(text: str, base_url: str) -> list:
         elif not line.startswith("#") and pending is not None:
             variants.append(
                 Variant(
-                    url=_absolute(base_url, line),
+                    url=_absolute(base_url, line, inherit_query),
                     bandwidth=int(pending.get("BANDWIDTH", 0) or 0),
                     resolution=pending.get("RESOLUTION"),
                     codecs=pending.get("CODECS"),
@@ -184,7 +201,9 @@ def parse_master_playlist(text: str, base_url: str) -> list:
     return variants
 
 
-def parse_media_playlist(text: str, base_url: str) -> MediaPlaylist:
+def parse_media_playlist(
+    text: str, base_url: str, inherit_query: bool = False
+) -> MediaPlaylist:
     """Parse a media playlist into an ordered list of segments."""
     playlist = MediaPlaylist()
     current_key: Optional[EncryptionKey] = None
@@ -211,7 +230,7 @@ def parse_media_playlist(text: str, base_url: str) -> MediaPlaylist:
                 uri = attrs.get("URI")
                 current_key = EncryptionKey(
                     method=method,
-                    uri=_absolute(base_url, uri) if uri else None,
+                    uri=_absolute(base_url, uri, inherit_query) if uri else None,
                     iv=iv,
                 )
         elif line.startswith("#EXTINF:"):
@@ -223,7 +242,7 @@ def parse_media_playlist(text: str, base_url: str) -> MediaPlaylist:
         elif not line.startswith("#"):
             playlist.segments.append(
                 Segment(
-                    url=_absolute(base_url, line),
+                    url=_absolute(base_url, line, inherit_query),
                     duration=next_duration,
                     key=current_key,
                     sequence=sequence,
@@ -278,6 +297,22 @@ def _default_iv(sequence: int) -> bytes:
     return struct.pack(">QQ", 0, sequence)
 
 
+def _signed_link_hint(code: int) -> str:
+    """Human-friendly guidance for 4xx errors on (often signed) segment URLs."""
+    if code in (401, 403):
+        reason = "the signed link is not authorising segment requests"
+    elif code in (404, 410):
+        reason = "the signed link has likely expired or the segment is gone"
+    else:
+        reason = "the server rejected the request"
+    return (
+        f"This usually means {reason}. These CDN links are short-lived "
+        "(check the 'validto'/expiry in the URL) and may require a Referer. "
+        "Try: grab a fresh .m3u8 URL and re-run immediately, and/or pass "
+        "--referer <page-url> (and raise --concurrency to finish in time)."
+    )
+
+
 # --------------------------------------------------------------------------- #
 # Downloader
 # --------------------------------------------------------------------------- #
@@ -297,6 +332,7 @@ class M3U8Downloader:
         timeout: int = 30,
         progress: Optional[Callable[[int, int], None]] = None,
         verify_ssl: bool = True,
+        inherit_query: bool = True,
     ) -> None:
         self.headers = headers or {}
         self.concurrency = max(1, concurrency)
@@ -304,6 +340,7 @@ class M3U8Downloader:
         self.timeout = timeout
         self.progress = progress
         self.ssl_context = make_ssl_context(verify_ssl)
+        self.inherit_query = inherit_query
         self._key_cache: dict = {}
 
     # -- public API ------------------------------------------------------- #
@@ -313,13 +350,13 @@ class M3U8Downloader:
         """Follow a master playlist (if any) and return (media_playlist, url)."""
         text = http_get_text(url, self.headers, self.timeout, self.ssl_context)
         if is_master_playlist(text):
-            variants = parse_master_playlist(text, url)
+            variants = parse_master_playlist(text, url, self.inherit_query)
             if not variants:
                 raise RuntimeError("Master playlist contained no variants.")
             variant = self._pick_variant(variants, prefer_height)
             url = variant.url
             text = http_get_text(url, self.headers, self.timeout, self.ssl_context)
-        return parse_media_playlist(text, url), url
+        return parse_media_playlist(text, url, self.inherit_query), url
 
     def download(
         self,
@@ -403,6 +440,14 @@ class M3U8Downloader:
                 with open(path, "wb") as fh:
                     fh.write(data)
                 return path
+            except urllib.error.HTTPError as exc:
+                last_err = exc
+                # 4xx responses won't change on retry — fail fast with a hint.
+                if 400 <= exc.code < 500:
+                    raise RuntimeError(
+                        f"Segment {idx} returned HTTP {exc.code} ({segment.url}).\n"
+                        + _signed_link_hint(exc.code)
+                    ) from exc
             except Exception as exc:  # noqa: BLE001 - retried below
                 last_err = exc
         raise RuntimeError(

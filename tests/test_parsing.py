@@ -75,3 +75,23 @@ def test_attribute_parsing_with_commas_in_quotes():
 
 def test_default_iv():
     assert _default_iv(5) == struct.pack(">QQ", 0, 5)
+
+
+def test_query_inheritance_for_signed_segments():
+    base = "https://cdn.example/video/master.m3u8?validto=123&hash=abc"
+    # segments with no query of their own should inherit the playlist token
+    pl = parse_media_playlist(MEDIA, base, inherit_query=True)
+    assert pl.segments[0].url == "https://cdn.example/video/seg0.ts?validto=123&hash=abc"
+    # default (off) leaves them bare
+    pl_off = parse_media_playlist(MEDIA, base)
+    assert pl_off.segments[0].url == "https://cdn.example/video/seg0.ts"
+
+
+def test_query_inheritance_does_not_override_explicit_query():
+    base = "https://cdn.example/video/master.m3u8?token=PARENT"
+    text = (
+        "#EXTM3U\n#EXT-X-MEDIA-SEQUENCE:0\n"
+        "#EXTINF:1.0,\nseg0.ts?token=OWN\n"
+    )
+    pl = parse_media_playlist(text, base, inherit_query=True)
+    assert pl.segments[0].url == "https://cdn.example/video/seg0.ts?token=OWN"
