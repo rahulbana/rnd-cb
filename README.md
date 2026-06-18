@@ -15,6 +15,11 @@ It works two ways, detected automatically from your input:
 Coverage is worldwide with special attention to India, and you can emphasise any
 country with `--country`.
 
+Every report ends with a **Sources** section listing the exact pages the agents
+used. And before anything is shown to you, a **second, independent verifier
+agent** re-searches the web to fact-check the first agent's draft — correcting
+errors and flagging anything it can't confirm.
+
 ## Setup
 
 ```bash
@@ -40,6 +45,9 @@ python on_this_day.py 26 January 1950 --country India
 python on_this_day.py 21 July --model gpt-4o --output july21.md
 python on_this_day.py 21 July --no-save
 
+# Skip the fact-checking pass (faster / cheaper)
+python on_this_day.py 21 July --no-verify
+
 # No arguments → it prompts you interactively
 python on_this_day.py
 ```
@@ -55,16 +63,24 @@ Reports are saved to `./reports/<date>.md` by default (e.g.
 | `-m`, `--model` | OpenAI model (default: `$OPENAI_MODEL` or `gpt-4o`) |
 | `-o`, `--output` | Path to save the Markdown report |
 | `--no-save` | Print the report without saving |
+| `--no-verify` | Skip the independent fact-checking pass |
 | `--version` | Show version |
 
 ## How it works
 
+It's a two-agent pipeline:
+
 1. **`history_agent/dateparse.py`** — parses your free-form date and decides
    whether a year was supplied (exact-date vs. this-day-in-history mode).
-2. **`history_agent/agent.py`** — calls the OpenAI **Responses API** with the
-   built-in `web_search` tool so the model genuinely browses the internet, then
-   returns a structured Markdown report with a Sources section.
-3. **`history_agent/cli.py`** — the command-line interface; saves the report.
+2. **`history_agent/agent.py`**
+   - **Agent 1 — Researcher:** calls the OpenAI **Responses API** with the
+     built-in `web_search` tool so the model genuinely browses the internet, and
+     drafts a structured report with a mandatory **Sources** section.
+   - **Agent 2 — Verifier:** a *separate* fact-checking agent independently
+     re-searches the web to confirm or correct each claim, flags anything it
+     can't verify, and consolidates the source list. (Skip with `--no-verify`.)
+3. **`history_agent/cli.py`** — the command-line interface; reports progress and
+   saves the final, verified report.
 
 ## Development
 
