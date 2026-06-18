@@ -24,8 +24,12 @@ errors and flagging anything it can't confirm.
 
 ```bash
 pip install -r requirements.txt
-export OPENAI_API_KEY=sk-...        # or copy .env.example to .env
+cp .env.example .env               # then put your key in .env (auto-loaded)
+# ...or just: export OPENAI_API_KEY=sk-...
 ```
+
+The entry point loads a local `.env` file automatically (via `python-dotenv`),
+so `OPENAI_API_KEY` there is picked up without exporting it.
 
 ## Usage
 
