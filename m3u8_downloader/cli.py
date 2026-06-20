@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import argparse
 import os
+import re
 import shutil
 import subprocess
 import sys
@@ -18,6 +19,14 @@ from .downloader import (
     make_ssl_context,
     parse_master_playlist,
 )
+from .pagescrape import sanitize_filename
+
+_PLAYLIST_URL = re.compile(r"\.m3u8(?:[?#]|$)", re.I)
+
+
+def _looks_like_playlist(url: str) -> bool:
+    """Heuristic: does this URL point straight at an .m3u8 playlist?"""
+    return bool(_PLAYLIST_URL.search(url))
 
 
 def _print_progress(done: int, total: int) -> None:
@@ -85,14 +94,37 @@ def cmd_download(args: argparse.Namespace) -> int:
         inherit_query=not args.no_inherit_query,
     )
 
+    # Decide whether we were handed a playlist URL or a web page to scrape.
+    from_page = args.from_page or (
+        not args.from_playlist and not _looks_like_playlist(args.url)
+    )
+
+    stream_url = args.url
+    if from_page:
+        if not args.quiet:
+            print(f"Scanning page for a video stream: {args.url}", file=sys.stderr)
+        stream = downloader.resolve_best_from_page(args.url, prefer_height=args.height)
+        stream_url = stream.stream_url
+        if not args.quiet:
+            print(
+                f"  title  : {stream.title or '(no title found)'}\n"
+                f"  quality: {stream.quality}  "
+                f"({stream.candidate_count} stream(s) found)",
+                file=sys.stderr,
+            )
+
     output = args.output
+    if output is None:
+        output = (
+            sanitize_filename(stream.title) + ".mp4" if from_page else "video.mp4"
+        )
     want_mp4 = output.lower().endswith(".mp4")
     ts_target = output[:-4] + ".ts" if want_mp4 else output
 
     start = time.time()
     if not args.quiet:
-        print(f"Resolving playlist: {args.url}", file=sys.stderr)
-    result = downloader.download(args.url, ts_target, prefer_height=args.height)
+        print(f"Resolving playlist: {stream_url}", file=sys.stderr)
+    result = downloader.download(stream_url, ts_target, prefer_height=args.height)
     elapsed = time.time() - start
 
     if not args.quiet:
@@ -138,11 +170,23 @@ def build_parser() -> argparse.ArgumentParser:
     )
 
     p_dl = sub.add_parser("download", parents=[common], help="Download a stream.")
-    p_dl.add_argument("url", help="The .m3u8 URL (master or media playlist).")
     p_dl.add_argument(
-        "-o", "--output", default="video.mp4",
-        help="Output file. Use a .mp4 extension to remux via ffmpeg "
-             "(default: video.mp4).",
+        "url",
+        help="A web page URL containing a video, or a direct .m3u8 URL. "
+             "Pages are scanned automatically for the best HLS stream.",
+    )
+    p_dl.add_argument(
+        "-o", "--output", default=None,
+        help="Output file. Use a .mp4 extension to remux via ffmpeg. "
+             "Defaults to the page title (page mode) or video.mp4.",
+    )
+    p_dl.add_argument(
+        "--from-page", action="store_true",
+        help="Force treating the URL as a web page to scan for streams.",
+    )
+    p_dl.add_argument(
+        "--from-playlist", action="store_true",
+        help="Force treating the URL as a direct .m3u8 playlist.",
     )
     p_dl.add_argument(
         "--height", type=int, default=None,

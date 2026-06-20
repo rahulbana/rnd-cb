@@ -4,10 +4,11 @@ RND CB
 
 ## m3u8 video downloader
 
-A small, dependency-light "agent" that downloads HLS (`.m3u8`) videos from a
-URL. It handles master playlists (picks the best quality, or one you choose),
-parallel segment downloads with retries, AES-128 encrypted streams, and
-optional remuxing to `.mp4` via `ffmpeg`.
+A small, dependency-light "agent" that downloads HLS (`.m3u8`) videos. Point it
+at a **web page** and it finds the embedded stream, picks the highest quality,
+and saves the file named after the page title — or hand it a direct `.m3u8` URL.
+It handles master playlists, parallel segment downloads with retries, AES-128
+encrypted streams, and optional remuxing to `.mp4` via `ffmpeg`.
 
 Plain (unencrypted) streams use only the Python standard library. Encrypted
 streams additionally need a crypto backend (`cryptography` or `pycryptodome`).
@@ -28,7 +29,22 @@ python -m m3u8_downloader ...
 
 ### Usage
 
-Download the best quality to `video.mp4` (remuxes with ffmpeg if available):
+**Just give it the page URL.** The agent scans the page, detects the best HLS
+stream, downloads it, and names the file after the page title:
+
+```bash
+m3u8-dl download "https://example.com/watch/some-video"
+# -> "Some Video Title.mp4"
+```
+
+Override the auto-generated name with `-o`, or cap the quality with `--height`:
+
+```bash
+m3u8-dl download "https://example.com/watch/some-video" -o clip.mp4 --height 720
+```
+
+You can still pass a direct `.m3u8` URL (master or media playlist) — it's
+detected automatically. Force either mode with `--from-page` / `--from-playlist`:
 
 ```bash
 m3u8-dl download "https://example.com/stream/master.m3u8" -o video.mp4
@@ -56,15 +72,21 @@ m3u8-dl download "https://example.com/master.m3u8" \
 
 | Option | Description |
 | --- | --- |
-| `-o, --output` | Output file. A `.mp4` extension triggers an ffmpeg remux; otherwise a raw `.ts` is written. Default: `video.mp4`. |
+| `-o, --output` | Output file. A `.mp4` extension triggers an ffmpeg remux; otherwise a raw `.ts` is written. Default: page title (page mode) or `video.mp4`. |
+| `--from-page` / `--from-playlist` | Force how the URL is treated. Default: auto-detected. |
 | `--height N` | Preferred max vertical resolution (e.g. `720`). Default: best available. |
 | `-c, --concurrency N` | Parallel segment downloads. Default: 8. |
 | `--retries N` | Retries per segment. Default: 3. |
 | `--timeout N` | Per-request timeout (seconds). Default: 30. |
 | `--referer URL` | Convenience shortcut for a `Referer` header. |
 | `-H, --header "Name: value"` | Extra HTTP header (repeatable). |
+| `--no-inherit-query` | Don't copy the playlist's signed token onto segment URLs. |
 | `-k, --insecure` | Skip TLS certificate verification (only for hosts you trust). |
 | `-q, --quiet` | Suppress the progress bar. |
+
+When the page loads its video dynamically and no `.m3u8` is found, open your
+browser's Network tab, filter for `m3u8`, copy that request URL, and pass it to
+`download` directly.
 
 ### Troubleshooting
 

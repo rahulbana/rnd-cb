@@ -25,6 +25,12 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import dataclass, field
 from typing import Callable, Optional
 
+from .pagescrape import (
+    extract_title,
+    find_m3u8_urls,
+    height_hint_from_url,
+)
+
 DEFAULT_HEADERS = {
     "User-Agent": (
         "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 "
@@ -323,6 +329,16 @@ class DownloadResult:
     duration: float
 
 
+@dataclass
+class PageStream:
+    """The stream chosen from a scanned web page."""
+
+    title: str
+    stream_url: str
+    quality: str
+    candidate_count: int
+
+
 class M3U8Downloader:
     def __init__(
         self,
@@ -344,19 +360,79 @@ class M3U8Downloader:
         self._key_cache: dict = {}
 
     # -- public API ------------------------------------------------------- #
-    def resolve_media_playlist(
-        self, url: str, prefer_height: Optional[int] = None
-    ) -> tuple:
-        """Follow a master playlist (if any) and return (media_playlist, url)."""
+    def _resolve(self, url: str, prefer_height: Optional[int] = None) -> tuple:
+        """Resolve to (media_playlist, media_url, chosen_variant, variants)."""
         text = http_get_text(url, self.headers, self.timeout, self.ssl_context)
         if is_master_playlist(text):
             variants = parse_master_playlist(text, url, self.inherit_query)
             if not variants:
                 raise RuntimeError("Master playlist contained no variants.")
             variant = self._pick_variant(variants, prefer_height)
-            url = variant.url
-            text = http_get_text(url, self.headers, self.timeout, self.ssl_context)
-        return parse_media_playlist(text, url, self.inherit_query), url
+            media_url = variant.url
+            text = http_get_text(
+                media_url, self.headers, self.timeout, self.ssl_context
+            )
+            playlist = parse_media_playlist(text, media_url, self.inherit_query)
+            return playlist, media_url, variant, variants
+        return parse_media_playlist(text, url, self.inherit_query), url, None, []
+
+    def resolve_media_playlist(
+        self, url: str, prefer_height: Optional[int] = None
+    ) -> tuple:
+        """Follow a master playlist (if any) and return (media_playlist, url)."""
+        playlist, media_url, _variant, _variants = self._resolve(url, prefer_height)
+        return playlist, media_url
+
+    def resolve_best_from_page(
+        self, page_url: str, prefer_height: Optional[int] = None
+    ) -> "PageStream":
+        """Scan a web page, find its HLS streams, and pick the best one.
+
+        Returns a :class:`PageStream` describing the page title and the stream
+        URL to download. Raises if no usable ``.m3u8`` is found.
+        """
+        html_text = http_get_text(
+            page_url, self.headers, self.timeout, self.ssl_context
+        )
+        title = extract_title(html_text)
+        candidates = find_m3u8_urls(html_text, page_url)
+        if not candidates:
+            raise RuntimeError(
+                "No .m3u8 stream URL was found on the page. The video may be "
+                "loaded dynamically — open your browser's Network tab, filter "
+                "for 'm3u8', copy that request URL, and pass it to `download`."
+            )
+
+        best = None  # (score_tuple, media_url, variant)
+        errors: list = []
+        for candidate in candidates:
+            try:
+                playlist, media_url, variant, _ = self._resolve(
+                    candidate, prefer_height
+                )
+            except Exception as exc:  # noqa: BLE001 - try the next candidate
+                errors.append((candidate, exc))
+                continue
+            height = variant.height if variant else height_hint_from_url(candidate)
+            bandwidth = variant.bandwidth if variant else 0
+            score = (height, bandwidth, len(playlist.segments))
+            if best is None or score > best[0]:
+                best = (score, media_url, variant)
+
+        if best is None:
+            detail = "\n".join(f"  {url}: {err}" for url, err in errors)
+            raise RuntimeError(
+                "Found m3u8 link(s) on the page but none could be loaded:\n"
+                + detail
+            )
+
+        _, media_url, variant = best
+        return PageStream(
+            title=title,
+            stream_url=media_url,
+            quality=str(variant) if variant else "unknown quality",
+            candidate_count=len(candidates),
+        )
 
     def download(
         self,
