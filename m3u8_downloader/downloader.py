@@ -18,6 +18,7 @@ import os
 import ssl
 import struct
 import tempfile
+import time
 import urllib.error
 import urllib.parse
 import urllib.request
@@ -36,6 +37,9 @@ DEFAULT_HEADERS = {
         "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 "
         "(KHTML, like Gecko) Chrome/124.0 Safari/537.36"
     ),
+    # Some sites stall or reject requests that don't look like a browser.
+    "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+    "Accept-Language": "en-US,en;q=0.9",
 }
 
 
@@ -383,6 +387,35 @@ class M3U8Downloader:
         playlist, media_url, _variant, _variants = self._resolve(url, prefer_height)
         return playlist, media_url
 
+    def _fetch_page_text(self, page_url: str) -> str:
+        """Fetch a web page as text, retrying transient network failures."""
+        last_err: Optional[Exception] = None
+        for attempt in range(self.max_retries):
+            try:
+                return http_get_text(
+                    page_url, self.headers, self.timeout, self.ssl_context
+                )
+            except urllib.error.HTTPError as exc:
+                # An HTTP status came back — retrying won't help; report it.
+                raise RuntimeError(
+                    f"The page returned HTTP {exc.code} ({page_url}). "
+                    "It may require a login or age/consent cookie — pass one "
+                    'with -H "Cookie: ...".'
+                ) from exc
+            except (urllib.error.URLError, TimeoutError, OSError) as exc:
+                last_err = exc
+                if attempt < self.max_retries - 1:
+                    time.sleep(2 * (attempt + 1))
+        raise RuntimeError(
+            f"Could not load the page within {self.timeout}s ({page_url}): "
+            f"{last_err}.\n"
+            "The host may be blocking non-browser requests, or your network "
+            "may not allow it. Try a longer --timeout, add a browser "
+            '-H "Cookie: ..." (some sites gate video behind an age/consent '
+            "cookie), or open the page in a browser, copy the .m3u8 URL from "
+            "the Network tab, and pass that to `download` directly."
+        )
+
     def resolve_best_from_page(
         self, page_url: str, prefer_height: Optional[int] = None
     ) -> "PageStream":
@@ -391,9 +424,7 @@ class M3U8Downloader:
         Returns a :class:`PageStream` describing the page title and the stream
         URL to download. Raises if no usable ``.m3u8`` is found.
         """
-        html_text = http_get_text(
-            page_url, self.headers, self.timeout, self.ssl_context
-        )
+        html_text = self._fetch_page_text(page_url)
         title = extract_title(html_text)
         candidates = find_m3u8_urls(html_text, page_url)
         if not candidates:
