@@ -5,9 +5,10 @@ import SearchBox from "./features/search/SearchBox";
 import AgentTimeline from "./features/timeline/AgentTimeline";
 import ResourceList from "./features/resources/ResourceList";
 import Report from "./features/report/Report";
+import RunStats from "./features/stats/RunStats";
 
 export default function App() {
-  const { running, events, subqueries, sources, report, error, start, cancel } =
+  const { running, events, subqueries, sources, report, stats, error, start, cancel } =
     useDeepSearch();
 
   return (
@@ -29,6 +30,7 @@ export default function App() {
         </aside>
 
         <main className="main">
+          <RunStats stats={stats} />
           <Report report={report} running={running} />
           <ResourceList sources={sources} />
         </main>

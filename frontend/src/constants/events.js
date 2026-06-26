@@ -10,6 +10,7 @@ export const EVENT_TYPES = {
   SOURCE: "source",
   TOKEN: "token",
   REPORT: "report",
+  STATS: "stats",
   DONE: "done",
   ERROR: "error",
 };

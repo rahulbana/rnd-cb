@@ -1,7 +1,7 @@
 """Request / response models for the search API."""
 from __future__ import annotations
 
-from typing import List, Optional
+from typing import Dict, List, Optional
 
 from pydantic import BaseModel, Field
 
@@ -17,9 +17,21 @@ class SearchRequest(BaseModel):
 
 class HealthResponse(BaseModel):
     status: str
+    version: str
+    uptime_seconds: float
     model: str
     search_provider: str
     openai_configured: bool
+
+
+class LivenessResponse(BaseModel):
+    status: str = "alive"
+    uptime_seconds: float
+
+
+class ReadinessResponse(BaseModel):
+    ready: bool
+    checks: Dict[str, bool]
 
 
 class ReportResult(BaseModel):

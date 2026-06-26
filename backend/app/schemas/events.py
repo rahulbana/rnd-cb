@@ -20,5 +20,6 @@ class EventType(str, Enum):
     SOURCE = "source"
     TOKEN = "token"
     REPORT = "report"
+    STATS = "stats"
     DONE = "done"
     ERROR = "error"

@@ -8,6 +8,7 @@ from langchain_core.runnables import RunnableConfig
 from ...core.config import get_settings
 from ...core.exceptions import SearchProviderError
 from ...core.logging import get_logger
+from ...observability.metrics import SEARCH_CALLS, SEARCH_RESULTS, observe_node
 from ...providers.search import get_search_provider
 from ...schemas.events import EventType
 from ...schemas.source import Source
@@ -33,35 +34,39 @@ async def search(state: AgentState, config: RunnableConfig) -> Dict:
     all_sources: List[Source] = []
     seen_urls: Set[str] = set()
 
-    for idx, sq in enumerate(subqueries):
-        if bus:
-            await bus.emit(
-                EventType.TOOL_CALL, tool=provider.name, query=sq,
-                index=idx, total=len(subqueries), detail=f'Searching: "{sq}"',
-            )
-        try:
-            results = await provider.search(sq, per_query)
-        except SearchProviderError as exc:
-            logger.warning("Search failed for '%s': %s", sq, exc)
+    async with observe_node("search"):
+        for idx, sq in enumerate(subqueries):
             if bus:
                 await bus.emit(
-                    EventType.TOOL_ERROR, tool=provider.name, query=sq, error=str(exc)
+                    EventType.TOOL_CALL, tool=provider.name, query=sq,
+                    index=idx, total=len(subqueries), detail=f'Searching: "{sq}"',
                 )
-            continue
-
-        if bus:
-            await bus.emit(
-                EventType.TOOL_RESULT, tool=provider.name, query=sq,
-                count=len(results), detail=f'Found {len(results)} results for "{sq}".',
-            )
-
-        for r in results:
-            source = Source(title=r.title or r.url, url=r.url, content=r.content, subquery=sq)
-            all_sources.append(source)
-            if source.url and source.url not in seen_urls:
-                seen_urls.add(source.url)
+            try:
+                results = await provider.search(sq, per_query)
+            except SearchProviderError as exc:
+                SEARCH_CALLS.labels(provider=provider.name, status="error").inc()
+                logger.warning("Search failed for '%s': %s", sq, exc)
                 if bus:
-                    await bus.emit(EventType.SOURCE, source=source.model_dump())
+                    await bus.emit(
+                        EventType.TOOL_ERROR, tool=provider.name, query=sq, error=str(exc)
+                    )
+                continue
+
+            SEARCH_CALLS.labels(provider=provider.name, status="ok").inc()
+            SEARCH_RESULTS.labels(provider=provider.name).inc(len(results))
+            if bus:
+                await bus.emit(
+                    EventType.TOOL_RESULT, tool=provider.name, query=sq,
+                    count=len(results), detail=f'Found {len(results)} results for "{sq}".',
+                )
+
+            for r in results:
+                source = Source(title=r.title or r.url, url=r.url, content=r.content, subquery=sq)
+                all_sources.append(source)
+                if source.url and source.url not in seen_urls:
+                    seen_urls.add(source.url)
+                    if bus:
+                        await bus.emit(EventType.SOURCE, source=source.model_dump())
 
     logger.info("Collected %d sources (%d unique)", len(all_sources), len(seen_urls))
     if bus:

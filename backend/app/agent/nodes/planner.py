@@ -8,6 +8,7 @@ from langchain_core.runnables import RunnableConfig
 
 from ...core.config import get_settings
 from ...core.logging import get_logger
+from ...observability.metrics import LLM_CALLS, observe_node
 from ...providers.llm import get_llm_provider
 from ...schemas.events import EventType
 from ...services.event_bus import get_event_bus
@@ -36,12 +37,14 @@ async def plan_queries(state: AgentState, config: RunnableConfig) -> Dict:
             detail="Generating sub-queries",
         )
 
-    llm = get_llm_provider(settings).chat_model()
-    resp = await llm.ainvoke(
-        [SystemMessage(content=PLANNER_SYSTEM),
-         HumanMessage(content=planner_prompt(query, n))]
-    )
-    subqueries = parse_query_list(resp.content, fallback=query, n=n)
+    async with observe_node("plan_queries"):
+        llm = get_llm_provider(settings).chat_model()
+        LLM_CALLS.labels(model=settings.openai_model, kind="plan").inc()
+        resp = await llm.ainvoke(
+            [SystemMessage(content=PLANNER_SYSTEM),
+             HumanMessage(content=planner_prompt(query, n))]
+        )
+        subqueries = parse_query_list(resp.content, fallback=query, n=n)
     logger.info("Planned %d sub-queries for query: %s", len(subqueries), query)
 
     if bus:

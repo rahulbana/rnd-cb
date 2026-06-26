@@ -121,6 +121,28 @@ Open `http://localhost:5173`. The Vite dev server proxies `/api` to the backend.
 > Without a `TAVILY_API_KEY`, the agent automatically falls back to DuckDuckGo,
 > which needs no key — so it works out of the box with just an OpenAI key.
 
+## Observability
+
+Built-in application + agent observability:
+
+* **Health probes**
+  * `GET /api/health` — status snapshot (version, uptime, model, provider)
+  * `GET /api/health/live` — liveness probe (process is up)
+  * `GET /api/health/ready` — readiness probe (deps configured; returns 503 if not)
+* **Prometheus metrics** — `GET /metrics` (root, for scraping):
+  * HTTP: `http_requests_total`, `http_request_duration_seconds`, `http_requests_in_progress`
+  * Agent: `agent_runs_total{status}`, `agent_run_duration_seconds`, `agent_runs_in_progress`,
+    `agent_sources_found`, `agent_node_duration_seconds{node}`
+  * Providers: `search_calls_total{provider,status}`, `search_results_total{provider}`,
+    `llm_calls_total{model,kind}`, `llm_tokens_streamed_total{model}`
+* **Access logs** — one structured line per request (`METHOD path -> status (ms)`),
+  via a pure-ASGI middleware that doesn't buffer the SSE stream.
+* **Per-run summary** — a `stats` SSE event + log line at the end of each run
+  (duration, sub-queries, sources, report size). The UI shows these as a stat row.
+
+Point Prometheus at `/metrics` and wire `/api/health/live` + `/api/health/ready`
+to your orchestrator's liveness/readiness probes.
+
 ## API
 
 `POST /api/search` → `text/event-stream`
@@ -131,4 +153,4 @@ Request body:
 ```
 
 Streamed event types: `run_start`, `node_start`, `tool_call`, `tool_result`,
-`subqueries`, `source`, `token`, `report`, `node_end`, `done`, `error`.
+`subqueries`, `source`, `token`, `report`, `node_end`, `stats`, `done`, `error`.

@@ -11,6 +11,7 @@ const initialState = {
   subqueries: [],
   sources: [],
   report: "",
+  stats: null,
   error: null,
 };
 
@@ -36,6 +37,14 @@ function applyEvent(state, ev) {
     case EVENT_TYPES.REPORT:
       if (ev.report) next.report = ev.report;
       if (ev.sources) next.sources = ev.sources;
+      break;
+    case EVENT_TYPES.STATS:
+      next.stats = {
+        durationMs: ev.duration_ms,
+        subqueries: ev.subqueries,
+        sources: ev.sources,
+        reportChars: ev.report_chars,
+      };
       break;
     case EVENT_TYPES.ERROR:
       next.error = ev.error;

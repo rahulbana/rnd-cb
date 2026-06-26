@@ -8,6 +8,7 @@ from langchain_core.runnables import RunnableConfig
 
 from ...core.config import get_settings
 from ...core.logging import get_logger
+from ...observability.metrics import LLM_CALLS, LLM_TOKENS, observe_node
 from ...providers.llm import get_llm_provider
 from ...schemas.events import EventType
 from ...schemas.source import Source
@@ -45,14 +46,17 @@ async def synthesize(state: AgentState, config: RunnableConfig) -> Dict:
     )
 
     report_parts: List[str] = []
-    async for chunk in llm.astream(
-        [SystemMessage(content=SYNTH_SYSTEM), HumanMessage(content=prompt)]
-    ):
-        token = chunk.content or ""
-        if token:
-            report_parts.append(token)
-            if bus:
-                await bus.emit(EventType.TOKEN, text=token)
+    async with observe_node("synthesize"):
+        LLM_CALLS.labels(model=settings.openai_model, kind="synthesize").inc()
+        async for chunk in llm.astream(
+            [SystemMessage(content=SYNTH_SYSTEM), HumanMessage(content=prompt)]
+        ):
+            token = chunk.content or ""
+            if token:
+                report_parts.append(token)
+                LLM_TOKENS.labels(model=settings.openai_model).inc()
+                if bus:
+                    await bus.emit(EventType.TOKEN, text=token)
 
     report = "".join(report_parts)
     logger.info("Synthesized report (%d chars) from %d sources", len(report), len(numbered))

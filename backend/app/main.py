@@ -9,9 +9,12 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
 from .api import api_router
+from .api.routes import metrics as metrics_routes
 from .core.config import Settings, get_settings
 from .core.exceptions import AppError
 from .core.logging import configure_logging, get_logger
+from .core.runtime import APP_VERSION
+from .observability import ObservabilityMiddleware
 
 
 def create_app(settings: Settings | None = None) -> FastAPI:
@@ -25,8 +28,9 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     )
     logger = get_logger(__name__)
 
-    app = FastAPI(title="Deep Search Agent", version="2.0.0")
+    app = FastAPI(title="Deep Search Agent", version=APP_VERSION)
 
+    # Observability middleware runs outermost (added last = wraps everything).
     origins = ["*"] if settings.frontend_origin == "*" else [settings.frontend_origin]
     app.add_middleware(
         CORSMiddleware,
@@ -35,8 +39,10 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         allow_methods=["*"],
         allow_headers=["*"],
     )
+    app.add_middleware(ObservabilityMiddleware)
 
     app.include_router(api_router, prefix=settings.api_prefix)
+    app.include_router(metrics_routes.router)  # /metrics at root (Prometheus convention)
 
     @app.exception_handler(AppError)
     async def _app_error_handler(_: Request, exc: AppError) -> JSONResponse:
