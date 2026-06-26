@@ -24,25 +24,49 @@ over **Server-Sent Events**, so you can watch the backend work live.
 
 ## Project layout
 
+The backend is organised into clean, swappable layers (config/transport,
+schemas, providers, agent, services, API):
+
 ```
-backend/
-  app/
-    main.py            FastAPI app + SSE streaming endpoint
-    config.py          Env-based settings
-    events.py          Async event emitter (queue → SSE)
-    agent/
-      graph.py         LangGraph wiring (plan → search → synthesize)
-      state.py         Graph state schema
-      nodes.py         Node implementations (LLM planning + synthesis)
-      tools.py         Web search tools (Tavily / DuckDuckGo)
-  requirements.txt
-  .env.example
-frontend/
-  src/
-    App.jsx            State + event handling
-    api.js             SSE-over-fetch client
-    components/        SearchBox, AgentTimeline, ResourceList, Report
+backend/app/
+  main.py                  create_app() factory + ASGI entrypoint
+  core/                    cross-cutting concerns
+    config.py              pydantic-settings Settings (single source of config)
+    logging.py             structured logging setup
+    exceptions.py          app-specific exception hierarchy
+  schemas/                 pydantic models
+    search.py              request/response models
+    source.py              Source / SearchResult / RawResult
+    events.py              EventType enum (SSE wire contract)
+  providers/               pluggable integrations (registry + factory each)
+    llm/                   base + openai_provider + factory
+    search/                base + tavily + duckduckgo + factory
+  agent/                   LangGraph agent
+    state.py               graph state
+    prompts.py             centralised prompt templates
+    nodes/                 planner / searcher / synthesizer (one file each)
+    graph.py               wiring (plan → search → synthesize)
+  services/                orchestration
+    event_bus.py           async queue → SSE bridge
+    search_service.py      runs the agent, yields a stream of events
+  api/                     transport layer
+    deps.py                FastAPI dependency injection
+    router.py              aggregate router
+    routes/                health + search endpoints
+
+frontend/src/
+  App.jsx                  state + event handling
+  api.js                   SSE-over-fetch client
+  components/              SearchBox, AgentTimeline, ResourceList, Report
 ```
+
+### Extending it
+
+* **Add an LLM vendor** — implement `BaseLLMProvider` and
+  `register_llm_provider("name", Builder)`; set `LLM_PROVIDER=name`.
+* **Add a search backend** — implement `BaseSearchProvider` and
+  `register_search_provider("name", Builder)`; set `SEARCH_PROVIDER=name`.
+* **Add a graph step** — drop a node in `agent/nodes/` and wire it in `graph.py`.
 
 ## Quick start
 

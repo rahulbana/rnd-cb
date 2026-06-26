@@ -1,20 +1,9 @@
 """State schema for the deep-search LangGraph agent."""
 from __future__ import annotations
 
-from typing import Annotated, List, TypedDict
-import operator
+from typing import List, TypedDict
 
-
-class Source(TypedDict):
-    title: str
-    url: str
-    content: str
-    subquery: str
-
-
-class SearchResult(TypedDict):
-    subquery: str
-    sources: List[Source]
+from ..schemas.source import Source
 
 
 class AgentState(TypedDict, total=False):
@@ -25,8 +14,7 @@ class AgentState(TypedDict, total=False):
     # Planning
     subqueries: List[str]
 
-    # Search (reducer appends results as parallel/sequential searches complete)
-    search_results: Annotated[List[SearchResult], operator.add]
+    # Search
     sources: List[Source]
 
     # Output

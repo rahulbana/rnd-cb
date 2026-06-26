@@ -1,10 +1,15 @@
-"""Assemble the deep-search agent as a LangGraph state graph."""
+"""Assemble the deep-search agent as a LangGraph state graph.
+
+    plan_queries -> search -> synthesize
+"""
 from __future__ import annotations
 
-from langgraph.graph import StateGraph, START, END
+from functools import lru_cache
 
-from .state import AgentState
+from langgraph.graph import END, START, StateGraph
+
 from .nodes import plan_queries, search, synthesize
+from .state import AgentState
 
 
 def build_graph():
@@ -22,5 +27,7 @@ def build_graph():
     return graph.compile()
 
 
-# Compiled once at import time and reused across requests.
-agent_graph = build_graph()
+@lru_cache
+def get_graph():
+    """Compiled graph, built once and reused across requests."""
+    return build_graph()

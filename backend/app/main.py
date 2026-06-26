@@ -1,93 +1,48 @@
-"""FastAPI application exposing the deep-search agent over Server-Sent Events.
+"""Application entrypoint: builds the FastAPI app via a factory.
 
-The /api/search endpoint runs the LangGraph agent and streams every progress
-event (node start/end, tool calls, sources found, report tokens) to the browser
-so the React frontend can show what's happening on the backend in real time.
+Run with:  uvicorn app.main:app --reload --port 8000
 """
 from __future__ import annotations
 
-import asyncio
-import json
-from typing import AsyncGenerator
-
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import StreamingResponse
-from pydantic import BaseModel
+from fastapi.responses import JSONResponse
 
-from .agent.graph import agent_graph
-from .config import settings
-from .events import DONE, EventEmitter
-
-app = FastAPI(title="Deep Search Agent", version="1.0.0")
-
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=[settings.FRONTEND_ORIGIN] if settings.FRONTEND_ORIGIN != "*" else ["*"],
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
+from .api import api_router
+from .core.config import Settings, get_settings
+from .core.exceptions import AppError
+from .core.logging import configure_logging, get_logger
 
 
-class SearchRequest(BaseModel):
-    query: str
-    num_subqueries: int | None = None
+def create_app(settings: Settings | None = None) -> FastAPI:
+    settings = settings or get_settings()
+    configure_logging(settings.log_level)
+    logger = get_logger(__name__)
 
+    app = FastAPI(title="Deep Search Agent", version="2.0.0")
 
-@app.get("/api/health")
-async def health() -> dict:
-    return {
-        "status": "ok",
-        "model": settings.OPENAI_MODEL,
-        "search_provider": "tavily" if settings.TAVILY_API_KEY else "duckduckgo",
-        "openai_configured": bool(settings.OPENAI_API_KEY),
-    }
-
-
-def _sse(event: dict) -> str:
-    """Format a dict as a Server-Sent Event frame."""
-    return f"data: {json.dumps(event)}\n\n"
-
-
-async def _run_agent(emitter: EventEmitter, query: str, num_subqueries: int) -> None:
-    """Drive the LangGraph agent, emitting a final 'done'/'error' event."""
-    try:
-        await emitter.emit("run_start", query=query)
-        await agent_graph.ainvoke(
-            {"query": query, "num_subqueries": num_subqueries},
-            config={"configurable": {"emitter": emitter}},
-        )
-        await emitter.emit("done")
-    except Exception as exc:  # pragma: no cover - surfaced to the client
-        await emitter.emit("error", error=str(exc))
-    finally:
-        await emitter.close()
-
-
-async def _event_stream(query: str, num_subqueries: int) -> AsyncGenerator[str, None]:
-    emitter = EventEmitter()
-    task = asyncio.create_task(_run_agent(emitter, query, num_subqueries))
-    try:
-        while True:
-            item = await emitter.queue.get()
-            if item is DONE:
-                break
-            yield _sse(item)
-    finally:
-        if not task.done():
-            task.cancel()
-
-
-@app.post("/api/search")
-async def search(req: SearchRequest) -> StreamingResponse:
-    n = req.num_subqueries or settings.NUM_SUBQUERIES
-    return StreamingResponse(
-        _event_stream(req.query, n),
-        media_type="text/event-stream",
-        headers={
-            "Cache-Control": "no-cache",
-            "Connection": "keep-alive",
-            "X-Accel-Buffering": "no",
-        },
+    origins = ["*"] if settings.frontend_origin == "*" else [settings.frontend_origin]
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=origins,
+        allow_credentials=True,
+        allow_methods=["*"],
+        allow_headers=["*"],
     )
+
+    app.include_router(api_router, prefix=settings.api_prefix)
+
+    @app.exception_handler(AppError)
+    async def _app_error_handler(_: Request, exc: AppError) -> JSONResponse:
+        logger.error("AppError: %s", exc.message)
+        return JSONResponse(status_code=exc.status_code, content={"error": exc.message})
+
+    logger.info(
+        "Deep Search Agent ready | model=%s | search=%s",
+        settings.openai_model,
+        settings.resolved_search_provider,
+    )
+    return app
+
+
+app = create_app()
