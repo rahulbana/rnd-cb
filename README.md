@@ -55,9 +55,20 @@ backend/app/
     routes/                health + search endpoints
 
 frontend/src/
-  App.jsx                  state + event handling
-  api.js                   SSE-over-fetch client
-  components/              SearchBox, AgentTimeline, ResourceList, Report
+  App.jsx                  thin composition root
+  config.js                runtime config from VITE_* env vars
+  constants/events.js      EventType + node labels (mirrors backend contract)
+  api/
+    sse.js                 SSE frame parser (async generator)
+    searchApi.js           streamSearch() / getHealth()
+  hooks/
+    useDeepSearch.js       run state machine (reducer + event reduction)
+  utils/format.js          hostname / timestamp / markdown download helpers
+  features/
+    search/SearchBox.jsx
+    timeline/              AgentTimeline + EventItem
+    resources/             ResourceList + ResourceItem
+    report/                Report + ReportActions
 ```
 
 ### Extending it

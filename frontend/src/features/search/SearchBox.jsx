@@ -1,8 +1,10 @@
 import React, { useState } from "react";
 
+import { config } from "../../config";
+
 export default function SearchBox({ onSubmit, running, onCancel }) {
   const [query, setQuery] = useState("");
-  const [n, setN] = useState(4);
+  const [n, setN] = useState(config.defaultSubqueries);
 
   const submit = (e) => {
     e.preventDefault();
