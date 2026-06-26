@@ -20,12 +20,13 @@ from .state import AgentState, Source
 from .tools import get_search_tool
 
 
-def _llm(streaming: bool = False) -> ChatOpenAI:
+def _llm(streaming: bool = False, max_tokens: int | None = None) -> ChatOpenAI:
     return ChatOpenAI(
         model=settings.OPENAI_MODEL,
         api_key=settings.OPENAI_API_KEY,
         temperature=0.2,
         streaming=streaming,
+        max_tokens=max_tokens,
     )
 
 
@@ -145,10 +146,13 @@ async def search(state: AgentState, config: RunnableConfig) -> Dict:
 
 SYNTH_SYSTEM = (
     "You are a meticulous research analyst. Using ONLY the provided search "
-    "results, write a clear, well-structured answer to the user's question in "
-    "Markdown. Cite sources inline using [n] notation that maps to the numbered "
-    "sources. Be objective, note disagreements between sources, and do not "
-    "invent facts that are not supported by the sources."
+    "results, write a comprehensive, in-depth answer to the user's question in "
+    "Markdown. Be thorough: organise the report with a short introduction, "
+    "multiple '##' sections covering each major sub-topic in detail, and a brief "
+    "conclusion. Explain context, nuances, and trade-offs rather than just "
+    "listing facts. Cite sources inline using [n] notation that maps to the "
+    "numbered sources. Be objective, note disagreements between sources, and do "
+    "not invent facts that are not supported by the sources."
 )
 
 
@@ -172,20 +176,24 @@ async def synthesize(state: AgentState, config: RunnableConfig) -> Dict:
     numbered = _dedupe_sources(sources)
     context_blocks = []
     for i, s in enumerate(numbered, start=1):
+        content = (s["content"] or "")[: settings.SOURCE_CONTENT_CHARS]
         context_blocks.append(
-            f"[{i}] {s['title']}\nURL: {s['url']}\n{s['content']}"
+            f"[{i}] {s['title']}\nURL: {s['url']}\n{content}"
         )
     context = "\n\n".join(context_blocks) if context_blocks else "No results found."
 
     prompt = (
         f"User question: {query}\n\n"
         f"Numbered search results:\n\n{context}\n\n"
-        "Write the answer now, citing sources as [n]. End with a short "
-        "'## Sources' section listing each numbered source as a Markdown link."
+        f"Write a detailed, comprehensive answer of roughly "
+        f"{settings.REPORT_TARGET_WORDS} words (longer if the topic warrants it). "
+        "Use multiple Markdown sections and cite sources as [n] throughout. End "
+        "with a '## Sources' section listing each numbered source as a Markdown "
+        "link."
     )
 
     report_parts: List[str] = []
-    async for chunk in _llm(streaming=True).astream(
+    async for chunk in _llm(streaming=True, max_tokens=settings.REPORT_MAX_TOKENS).astream(
         [SystemMessage(content=SYNTH_SYSTEM), HumanMessage(content=prompt)]
     ):
         token = chunk.content or ""
