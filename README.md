@@ -143,6 +143,16 @@ Built-in application + agent observability:
 Point Prometheus at `/metrics` and wire `/api/health/live` + `/api/health/ready`
 to your orchestrator's liveness/readiness probes.
 
+A ready-to-run **Prometheus + Grafana** stack with a pre-built dashboard lives in
+[`ops/`](ops/README.md):
+
+```bash
+cd backend && uvicorn app.main:app --port 8000   # exposes /metrics
+cd ops && docker compose up -d                    # Grafana :3000, Prometheus :9090
+```
+
+Or import `ops/grafana/deep-search-dashboard.json` into an existing Grafana.
+
 ## API
 
 `POST /api/search` → `text/event-stream`
