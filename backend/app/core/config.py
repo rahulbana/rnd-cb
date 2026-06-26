@@ -50,6 +50,11 @@ class Settings(BaseSettings):
     log_max_bytes: int = 10 * 1024 * 1024  # 10 MB per file
     log_backup_count: int = 5  # keep this many rotated files
 
+    # ---- Run history (tracing store) ----
+    persist_runs: bool = True
+    runs_db_path: str = "data/runs.db"
+    runs_list_limit: int = 100
+
     @property
     def resolved_search_provider(self) -> str:
         """Concrete provider name after resolving the 'auto' setting."""

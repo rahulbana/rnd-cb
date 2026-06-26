@@ -153,6 +153,34 @@ cd ops && docker compose up -d                    # Grafana :3000, Prometheus :9
 
 Or import `ops/grafana/deep-search-dashboard.json` into an existing Grafana.
 
+## Run history (tracing)
+
+Every run is persisted to a local **SQLite** store (`data/runs.db` by default) —
+the user query, generated sub-queries, every step, sources, the final report,
+status, and timing. The React app's **History** tab lists past runs and drills
+into any run's full trace (query → sub-queries → steps → sources → report).
+
+* `GET /api/runs?limit=N` — list recent runs (summaries)
+* `GET /api/runs/{id}` — full run record (steps, sources, report)
+
+Toggle with `PERSIST_RUNS` / `RUNS_DB_PATH` in `.env`. This is *content* tracing
+(what each run did), complementing the *aggregate* Prometheus metrics above.
+
+### LangSmith (optional)
+
+Because the agent is built on LangChain/LangGraph, you get full step-level
+tracing in [LangSmith](https://smith.langchain.com) by setting a few env vars —
+no code changes. It's **off by default** since it sends run content (including
+user queries) to LangSmith's cloud:
+
+```env
+LANGCHAIN_TRACING_V2=true
+LANGCHAIN_API_KEY=ls__...
+LANGCHAIN_PROJECT=deep-search-agent
+```
+
+Runs are tagged `deep-search` and carry `run_id` + `query` metadata for search.
+
 ## API
 
 `POST /api/search` → `text/event-stream`
