@@ -42,7 +42,13 @@ class Settings(BaseSettings):
     # ---- API / server ----
     api_prefix: str = "/api"
     frontend_origin: str = "*"
+
+    # ---- Logging ----
     log_level: str = "INFO"
+    log_to_file: bool = False
+    log_file: str = "logs/app.log"
+    log_max_bytes: int = 10 * 1024 * 1024  # 10 MB per file
+    log_backup_count: int = 5  # keep this many rotated files
 
     @property
     def resolved_search_provider(self) -> str:

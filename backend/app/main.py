@@ -16,7 +16,13 @@ from .core.logging import configure_logging, get_logger
 
 def create_app(settings: Settings | None = None) -> FastAPI:
     settings = settings or get_settings()
-    configure_logging(settings.log_level)
+    configure_logging(
+        settings.log_level,
+        log_to_file=settings.log_to_file,
+        log_file=settings.log_file,
+        max_bytes=settings.log_max_bytes,
+        backup_count=settings.log_backup_count,
+    )
     logger = get_logger(__name__)
 
     app = FastAPI(title="Deep Search Agent", version="2.0.0")
