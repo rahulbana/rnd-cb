@@ -222,6 +222,37 @@ def test_review_handles_bad_json():
     assert review.error  # error captured, not raised
 
 
+def test_falls_back_to_json_object_when_schema_unsupported():
+    from openai import BadRequestError
+    from code_review_agent.collector import TargetFile
+
+    err = BadRequestError.__new__(BadRequestError)
+    err.message = "Invalid parameter: 'response_format.json_schema' not supported"
+
+    calls = {"n": 0}
+
+    class _Completions:
+        def create(self, **kwargs):
+            calls["n"] += 1
+            fmt = kwargs["response_format"]["type"]
+            if fmt == "json_schema":
+                raise err  # first attempt: model rejects json_schema
+            assert fmt == "json_object"
+            return _Resp(_payload_all_categories(0))
+
+    class _Chat:
+        completions = _Completions()
+
+    class _Client:
+        chat = _Chat()
+
+    engine = ReviewEngine(_settings(), client=_Client())
+    review = engine.review_file(TargetFile("x.py", "python", "x = 1"))
+    assert review.ok  # succeeded via fallback, no error
+    assert engine._use_json_object is True
+    assert calls["n"] == 2  # one rejected json_schema call, one json_object call
+
+
 def test_review_lenient_json_extraction():
     wrapped = "Here you go:\n```json\n" + _payload_all_categories(0) + "\n```"
     engine = ReviewEngine(_settings(), client=_FakeClient(wrapped))

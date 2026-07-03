@@ -11,6 +11,7 @@ from typing import Callable, Dict, List, Optional
 from openai import (
     APIConnectionError,
     APITimeoutError,
+    BadRequestError,
     OpenAI,
     RateLimitError,
     InternalServerError,
@@ -63,6 +64,10 @@ class ReviewEngine:
         self._schema = build_response_schema(self.categories)
         self._index: SymbolIndex = {}
         self._manifests: List[tuple] = []
+        # Some models/gateways do not support strict json_schema output. When
+        # that is detected we fall back to json_object mode for the rest of the
+        # run (the prompt already fully specifies the required JSON shape).
+        self._use_json_object = False
 
     # -- public API ---------------------------------------------------------
     def review_files(
@@ -205,28 +210,37 @@ class ReviewEngine:
             {"role": "user", "content": user_prompt},
         ]
 
-        last_error: Optional[Exception] = None
-        for attempt in range(self.settings.max_retries + 1):
+        # ``attempts`` counts only retryable-error retries against the budget;
+        # the one-time json_schema -> json_object fallback is independent so it
+        # never gets starved even when ``max_retries`` is 0.
+        attempts = 0
+        fallback_tried = False
+        while True:
             try:
-                response = self.client.chat.completions.create(
-                    model=self.settings.model,
-                    messages=messages,
-                    temperature=self.settings.temperature,
-                    max_tokens=self.settings.max_tokens,
-                    response_format=self._response_format(),
-                )
-                content = response.choices[0].message.content or ""
-                if not content.strip():
-                    raise ValueError("Model returned an empty response.")
-                return content
+                return self._once(messages)
+            except BadRequestError as exc:
+                if (
+                    not self._use_json_object
+                    and not fallback_tried
+                    and _is_response_format_error(exc)
+                ):
+                    logger.info(
+                        "json_schema unsupported for model '%s'; falling back "
+                        "to json_object mode.",
+                        self.settings.model,
+                    )
+                    self._use_json_object = True
+                    fallback_tried = True
+                    continue
+                raise
             except _RETRYABLE as exc:
-                last_error = exc
-                if attempt < self.settings.max_retries:
-                    delay = 2 ** attempt
+                if attempts < self.settings.max_retries:
+                    delay = 2 ** attempts
+                    attempts += 1
                     logger.info(
                         "Retryable error on %s (attempt %d/%d): %s; sleeping %ds",
                         target.path,
-                        attempt + 1,
+                        attempts,
                         self.settings.max_retries,
                         exc,
                         delay,
@@ -234,11 +248,32 @@ class ReviewEngine:
                     time.sleep(delay)
                     continue
                 raise
-        raise last_error or RuntimeError("Model call failed for an unknown reason.")
+        # Unreachable: every path above returns or raises.
+
+    def _once(self, messages: List[dict]) -> str:
+        """Make a single model call and return its non-empty text content."""
+
+        response = self.client.chat.completions.create(
+            model=self.settings.model,
+            messages=messages,
+            temperature=self.settings.temperature,
+            max_tokens=self.settings.max_tokens,
+            response_format=self._response_format(),
+        )
+        content = response.choices[0].message.content or ""
+        if not content.strip():
+            raise ValueError("Model returned an empty response.")
+        return content
 
     def _response_format(self) -> dict:
-        """Prefer strict json_schema; the SDK falls back cleanly if unsupported."""
+        """Return the response_format, preferring strict json_schema.
 
+        Falls back to ``json_object`` for the rest of the run once a model or
+        gateway is found not to support ``json_schema`` (see ``_call_model``).
+        """
+
+        if self._use_json_object:
+            return {"type": "json_object"}
         return {
             "type": "json_schema",
             "json_schema": {
@@ -255,6 +290,13 @@ class ReviewEngine:
             entry = data.get(category.key) or {}
             findings[category.key] = _coerce_finding(entry)
         return findings
+
+
+def _is_response_format_error(exc: BadRequestError) -> bool:
+    """Heuristic: does this 400 indicate json_schema/response_format is unsupported?"""
+
+    text = str(getattr(exc, "message", "") or exc).lower()
+    return "response_format" in text or "json_schema" in text or "json schema" in text
 
 
 def _loads_lenient(raw: str) -> dict:
