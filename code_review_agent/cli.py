@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import argparse
 import logging
+import os
 import sys
 from typing import List, Optional
 
@@ -66,6 +67,14 @@ def build_parser() -> argparse.ArgumentParser:
         help="Path to a .env file to load (defaults to auto-discovery).",
     )
     parser.add_argument(
+        "--no-deps",
+        action="store_true",
+        help=(
+            "Disable resolving definitions of called functions/methods "
+            "(dependency context)."
+        ),
+    )
+    parser.add_argument(
         "--no-color",
         action="store_true",
         help="Disable ANSI colours in 'pretty' output.",
@@ -106,6 +115,9 @@ def main(argv: Optional[List[str]] = None) -> int:
         print(f"Configuration error: {exc}", file=sys.stderr)
         return EXIT_CONFIG_ERROR
 
+    if args.no_deps:
+        settings.resolve_dependencies = False
+
     # 2. Collect target files.
     try:
         targets = collect(
@@ -123,10 +135,19 @@ def main(argv: Optional[List[str]] = None) -> int:
             status = "error" if review.error else f"{review.issue_count} issue(s)"
             logger.info("  reviewed %s -> %s", review.file, status)
 
+    # Scan the surrounding project so cross-file callee definitions can be
+    # resolved even when a single file is reviewed.
+    context_dir = args.path if os.path.isdir(args.path) else os.path.dirname(
+        os.path.abspath(args.path)
+    )
+
     try:
         engine = ReviewEngine(settings)
         report = engine.review_files(
-            targets, target_label=args.path, progress=_progress
+            targets,
+            target_label=args.path,
+            context_dir=context_dir,
+            progress=_progress,
         )
     except Exception as exc:  # noqa: BLE001 - top-level guard
         print(f"Runtime error: {exc}", file=sys.stderr)

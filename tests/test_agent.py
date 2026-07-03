@@ -276,6 +276,91 @@ def test_render_full_json_has_summary():
     assert out["summary"]["total_issues"] == 1
 
 
+# --------------------------------------------------------------------------
+# Dependency resolution
+# --------------------------------------------------------------------------
+def test_extract_definitions_python():
+    from code_review_agent.dependencies import extract_definitions
+
+    code = "def helper(a, b):\n    return a + b\n\nclass Foo:\n    def m(self):\n        pass\n"
+    defs = {d.name for d in extract_definitions("u.py", "python", code)}
+    assert {"helper", "Foo", "m"} <= defs
+
+
+def test_find_call_names():
+    from code_review_agent.dependencies import find_call_names
+
+    names = find_call_names("result = helper(1, 2)\nobj.method(x)\n", "python")
+    assert "helper" in names and "method" in names
+    assert "len" not in names  # stopword
+
+
+def test_resolve_dependencies_cross_file():
+    from code_review_agent.dependencies import (
+        build_symbol_index,
+        resolve_dependencies,
+    )
+
+    helper_src = "def charge(amount):\n    return amount * 100\n"
+    caller_src = "from billing import charge\nx = charge(10, 20)\n"
+    index = build_symbol_index([("billing.py", "python", helper_src)])
+
+    deps = resolve_dependencies(
+        file_path="caller.py",
+        language="python",
+        content=caller_src,
+        index=index,
+    )
+    assert len(deps) == 1
+    assert deps[0].name == "charge"
+    assert "def charge(amount)" in deps[0].snippet
+
+
+def test_resolve_skips_same_file_definitions():
+    from code_review_agent.dependencies import (
+        build_symbol_index,
+        resolve_dependencies,
+    )
+
+    src = "def helper():\n    return 1\n\nx = helper()\n"
+    index = build_symbol_index([("same.py", "python", src)])
+    deps = resolve_dependencies(
+        file_path="same.py", language="python", content=src, index=index
+    )
+    assert deps == []  # helper is already visible in the reviewed file
+
+
+def test_dependency_block_rendered_in_prompt():
+    from code_review_agent.dependencies import Definition
+    from code_review_agent.prompts import build_user_prompt
+
+    dep = Definition(
+        name="charge", kind="function", file="billing.py",
+        start_line=1, end_line=2, snippet="def charge(amount):\n    return amount",
+    )
+    prompt = build_user_prompt(
+        file_path="caller.py", language="python", code="charge(1, 2)",
+        categories=DEFAULT_CATEGORIES, dependencies=[dep],
+    )
+    assert "DEPENDENCY DEFINITIONS" in prompt
+    assert "def charge(amount)" in prompt
+
+
+def test_engine_resolves_dependencies_end_to_end(tmp_path):
+    from code_review_agent.collector import TargetFile
+
+    (tmp_path / "billing.py").write_text("def charge(amount):\n    return amount * 100\n")
+    caller = tmp_path / "caller.py"
+    caller.write_text("from billing import charge\nx = charge(10, 20)\n")
+
+    settings = _settings()
+    engine = ReviewEngine(settings, client=_FakeClient(_payload_all_categories(0)))
+    target = TargetFile(str(caller), "python", caller.read_text())
+    engine.review_files([target], target_label=str(caller), context_dir=str(tmp_path))
+    deps = engine._dependencies_for(target)
+    assert any(d.name == "charge" for d in deps)
+
+
 def test_render_pretty_runs():
     review = FileReview(file="x.py", language="python", findings={
         "security": CategoryFinding(status=1, explanation="bad", suggestion="fix", severity="high")

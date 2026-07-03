@@ -3,8 +3,9 @@
 from __future__ import annotations
 
 import json
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Optional, Sequence
 
+from .dependencies import Definition
 from .models import ReviewCategory
 
 SYSTEM_PROMPT = (
@@ -116,6 +117,29 @@ def number_lines(code: str) -> str:
     return "\n".join(f"{i:>{width}} | {line}" for i, line in enumerate(lines, start=1))
 
 
+def build_dependency_block(dependencies: Sequence[Definition]) -> str:
+    """Render resolved callee definitions as context for the reviewer."""
+
+    if not dependencies:
+        return (
+            "DEPENDENCY DEFINITIONS: none resolved. Only flag call/usage errors "
+            "that are evident from the code itself; do not speculate about "
+            "functions whose definitions are not shown.\n\n"
+        )
+
+    parts = [
+        "DEPENDENCY DEFINITIONS (definitions of functions/methods/classes this "
+        "file calls, resolved from the project; use them to verify each call "
+        "is consistent with its definition):\n"
+    ]
+    for d in dependencies:
+        parts.append(
+            f"# {d.kind} `{d.name}` from {d.file}:{d.start_line}\n"
+            f"{d.snippet}\n---"
+        )
+    return "\n".join(parts) + "\n\n"
+
+
 def build_user_prompt(
     *,
     file_path: str,
@@ -123,11 +147,13 @@ def build_user_prompt(
     code: str,
     categories: List[ReviewCategory],
     line_offset: int = 0,
+    dependencies: Optional[Sequence[Definition]] = None,
 ) -> str:
     """Compose the user message that carries the code and the instructions.
 
     ``line_offset`` shifts the displayed line numbers (used when reviewing a
     chunk of a larger file) so cited lines match the original file.
+    ``dependencies`` are resolved callee definitions supplied as context.
     """
 
     perspective_lines = "\n".join(
@@ -178,7 +204,8 @@ def build_user_prompt(
         "- Do not speculate about code you cannot see.\n"
         "- Return a JSON object with exactly one key per perspective. Example "
         f"of a single entry:\n{json.dumps(example, indent=2)}\n\n"
-        "CODE:\n"
+        + build_dependency_block(dependencies or [])
+        + "CODE:\n"
         "```" + language + "\n"
         f"{numbered}\n"
         "```"

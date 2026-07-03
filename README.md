@@ -9,8 +9,12 @@ performance, error handling and best practices — as structured JSON.
 
 - **File or directory** review — point it at one file or a whole tree.
 - **Language-aware** collection — filters directory scans by language extension.
-- **Multi-perspective analysis** — security, data types, harmful code, and more
-  (the perspective list is data-driven and easy to extend).
+- **Multi-perspective analysis** — security, data types, harmful code,
+  dependency/API usage, and more (the perspective list is data-driven and
+  easy to extend).
+- **Dependency-aware** — resolves the definitions of the functions/methods a
+  file calls (across the project) and feeds them to the reviewer, so wrong
+  argument counts/types, misused return values and unsafe callees are caught.
 - **Actionable, exact fixes** — every finding is anchored to a line and ships
   the precise `current_code` → `suggested_code` change, not just prose.
 - **Structured, machine-readable output** — strict JSON schema, plus a
@@ -72,6 +76,7 @@ Positional arguments are **`path`** and **`language`**, exactly as requested.
 | `-m, --model MODEL` | Override the model (else `OPENAI_MODEL`). |
 | `-c, --concurrency N` | Files reviewed in parallel. |
 | `--env-file PATH` | Explicit `.env` location. |
+| `--no-deps` | Disable resolving callee definitions (dependency context). |
 | `--no-color` | Disable ANSI colours in `pretty` output. |
 | `--fail-on-issues` | Exit `1` if any issue is found (for CI). |
 | `-v, --verbose` | Verbose logging to stderr. |
@@ -133,6 +138,28 @@ The `json` format additionally wraps everything with a top-level `summary`
 | `3` | Input error (bad path, nothing to review). |
 | `4` | Runtime error (e.g. all files failed to review). |
 
+## Dependency-aware review
+
+Reviewing a file in isolation misses bugs that only show up when you know what a
+called function actually does. Before reviewing a file, the agent:
+
+1. Builds a symbol index of function/method/class **definitions** across the
+   project (the target directory, or the file's directory for single-file
+   runs). Extraction is a fast, per-language heuristic — no compiler needed.
+2. Detects which symbols the reviewed file **calls**.
+3. Supplies the matching **definitions** to the model as a `DEPENDENCY
+   DEFINITIONS` context block, and asks the dedicated `dependency` perspective
+   to verify each call against its definition — argument count/types, return
+   handling, the callee's contract, and whether depending on it is unsafe.
+
+For example, if `caller.py` calls `charge(cid)` but `billing.py` defines
+`charge(customer_id, amount)`, the reviewer sees the real signature and flags
+the missing `amount` argument with an exact fix. The model is instructed **not**
+to speculate about symbols whose definitions were not resolved.
+
+Disable with `--no-deps` (or `REVIEW_RESOLVE_DEPS=false`); tune the limits via
+`REVIEW_MAX_DEP_DEFS`, `REVIEW_MAX_DEP_CHARS` and `REVIEW_MAX_INDEX_FILES`.
+
 ## Extending the perspectives
 
 Add a `ReviewCategory` to `DEFAULT_CATEGORIES` in
@@ -155,6 +182,7 @@ code_review_agent/
 ├── cli.py         # argument parsing, orchestration, exit codes
 ├── config.py      # .env loading, Settings, review perspectives
 ├── collector.py   # file/directory discovery, language filtering
+├── dependencies.py # symbol index + callee-definition resolution
 ├── prompts.py     # system prompt, JSON schema, user prompt builder
 ├── reviewer.py    # OpenAI calls: retries, concurrency, JSON parsing
 ├── formatter.py   # review / json / pretty renderers

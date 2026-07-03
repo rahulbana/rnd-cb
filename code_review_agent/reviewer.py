@@ -18,6 +18,13 @@ from openai import (
 
 from .collector import TargetFile
 from .config import Settings
+from .dependencies import (
+    Definition,
+    SymbolIndex,
+    build_symbol_index,
+    iter_source_files,
+    resolve_dependencies,
+)
 from .models import (
     CategoryFinding,
     FileReview,
@@ -53,6 +60,7 @@ class ReviewEngine:
             max_retries=0,  # we implement our own backoff below
         )
         self._schema = build_response_schema(self.categories)
+        self._index: SymbolIndex = {}
 
     # -- public API ---------------------------------------------------------
     def review_files(
@@ -60,9 +68,18 @@ class ReviewEngine:
         targets: List[TargetFile],
         *,
         target_label: str,
+        context_dir: Optional[str] = None,
         progress: Optional[Callable[[FileReview], None]] = None,
     ) -> ReviewReport:
-        """Review every target, optionally in parallel, and build a report."""
+        """Review every target, optionally in parallel, and build a report.
+
+        ``context_dir`` is scanned (in addition to the target files) to build
+        the symbol index used for dependency resolution, so cross-file callee
+        definitions can be supplied to the reviewer.
+        """
+
+        if self.settings.resolve_dependencies:
+            self._index = self._build_index(targets, context_dir)
 
         report = ReviewReport(target=target_label, model=self.settings.model)
         results: Dict[str, FileReview] = {}
@@ -93,10 +110,11 @@ class ReviewEngine:
         """Review a single file (chunking large files) and merge findings."""
 
         try:
+            dependencies = self._dependencies_for(target)
             chunks = self._split(target.content)
             merged: Dict[str, CategoryFinding] = {}
             for offset, chunk in chunks:
-                raw = self._call_model(target, chunk, offset)
+                raw = self._call_model(target, chunk, offset, dependencies)
                 findings = self._parse(raw)
                 merged = _merge(merged, findings)
             if not merged:  # empty file edge-case
@@ -114,6 +132,39 @@ class ReviewEngine:
             )
 
     # -- internals ----------------------------------------------------------
+    def _build_index(
+        self, targets: List[TargetFile], context_dir: Optional[str]
+    ) -> SymbolIndex:
+        """Index definitions from the targets plus any surrounding project dir."""
+
+        language = targets[0].language if targets else ""
+        sources: Dict[str, tuple] = {
+            t.path: (t.language, t.content) for t in targets
+        }
+        if context_dir:
+            for path, content in iter_source_files(
+                context_dir,
+                language,
+                max_files=self.settings.max_index_files,
+                max_bytes=self.settings.max_file_bytes,
+            ):
+                sources.setdefault(path, (language, content))
+        return build_symbol_index(
+            (path, lang, content) for path, (lang, content) in sources.items()
+        )
+
+    def _dependencies_for(self, target: TargetFile) -> List[Definition]:
+        if not self.settings.resolve_dependencies or not self._index:
+            return []
+        return resolve_dependencies(
+            file_path=target.path,
+            language=target.language,
+            content=target.content,
+            index=self._index,
+            max_defs=self.settings.max_dependency_defs,
+            max_chars=self.settings.max_dependency_chars,
+        )
+
     def _split(self, code: str):
         """Yield ``(line_offset, chunk_text)`` pairs, splitting large files."""
 
@@ -127,13 +178,20 @@ class ReviewEngine:
             chunks.append((start, "\n".join(chunk_lines)))
         return chunks
 
-    def _call_model(self, target: TargetFile, chunk: str, offset: int) -> str:
+    def _call_model(
+        self,
+        target: TargetFile,
+        chunk: str,
+        offset: int,
+        dependencies: List[Definition],
+    ) -> str:
         user_prompt = build_user_prompt(
             file_path=target.path,
             language=target.language,
             code=chunk,
             categories=self.categories,
             line_offset=offset,
+            dependencies=dependencies,
         )
         messages = [
             {"role": "system", "content": SYSTEM_PROMPT},

@@ -66,6 +66,21 @@ DEFAULT_CATEGORIES: List[ReviewCategory] = [
         ),
     ),
     ReviewCategory(
+        key="dependency",
+        title="Dependency / API Usage",
+        guidance=(
+            "Using the DEPENDENCY DEFINITIONS block (definitions of the "
+            "functions/methods/classes this file calls), verify each call "
+            "against its definition: correct number and types of arguments, "
+            "correct handling of the return value, respect for the callee's "
+            "contract, preconditions and error/exception behaviour, and "
+            "whether relying on the callee introduces a security or "
+            "correctness problem. Flag calls that do not match the definition. "
+            "If a called symbol has no provided definition, do NOT speculate "
+            "about it."
+        ),
+    ),
+    ReviewCategory(
         key="best_practices",
         title="Best Practices & Maintainability",
         guidance=(
@@ -91,6 +106,10 @@ class Settings:
     concurrency: int = 4
     max_file_bytes: int = 400_000  # skip files larger than this
     chunk_lines: int = 400  # split larger files into chunks of this many lines
+    resolve_dependencies: bool = True  # feed callee definitions to the reviewer
+    max_dependency_defs: int = 12  # cap resolved definitions per file
+    max_dependency_chars: int = 6000  # cap total dependency-context size
+    max_index_files: int = 400  # cap files scanned when building the symbol index
     categories: Optional[List[ReviewCategory]] = None
 
     def resolved_categories(self) -> List[ReviewCategory]:
@@ -146,6 +165,12 @@ def load_settings(
         except ValueError:
             return default
 
+    def _bool(name: str, default: bool) -> bool:
+        raw = os.getenv(name)
+        if raw is None:
+            return default
+        return raw.strip().lower() in {"1", "true", "yes", "on"}
+
     return Settings(
         api_key=api_key,
         model=model or os.getenv("OPENAI_MODEL", "gpt-4o-mini"),
@@ -157,4 +182,8 @@ def load_settings(
         concurrency=concurrency or _int("REVIEW_CONCURRENCY", 4),
         max_file_bytes=_int("REVIEW_MAX_FILE_BYTES", 400_000),
         chunk_lines=_int("REVIEW_CHUNK_LINES", 400),
+        resolve_dependencies=_bool("REVIEW_RESOLVE_DEPS", True),
+        max_dependency_defs=_int("REVIEW_MAX_DEP_DEFS", 12),
+        max_dependency_chars=_int("REVIEW_MAX_DEP_CHARS", 6000),
+        max_index_files=_int("REVIEW_MAX_INDEX_FILES", 400),
     )
