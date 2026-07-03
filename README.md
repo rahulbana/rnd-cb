@@ -68,6 +68,44 @@ OPENAI_MODEL=gpt-4o-mini
 Any value can also be supplied as a normal environment variable; existing
 process env vars take precedence over the `.env` file.
 
+## Choosing which reviewers run (`reviewers.yaml`)
+
+Every reviewer can be switched on or off from a YAML file. It is auto-discovered
+as `reviewers.yaml` in the directory you run from, or passed with `--config`.
+
+```yaml
+reviewers:
+  default: true          # fallback for reviewers not listed below
+  security: false        # ...turn individual ones off
+  documentation: false
+```
+
+To run **only** one reviewer, flip the default off and enable just that one:
+
+```yaml
+# only-syntax.yaml
+reviewers:
+  default: false         # everything off...
+  syntax: true           # ...except the syntax reviewer
+```
+
+```bash
+code-review app.py python --config only-syntax.yaml
+# -> the output contains only the "syntax" key; nothing else runs
+```
+
+The file can also override the model and tuning options:
+
+```yaml
+model: gpt-4o
+options:
+  concurrency: 8
+  static_checks: true
+```
+
+Precedence is **CLI flags > `reviewers.yaml` > environment/`.env` > defaults**.
+The repo ships a fully-annotated `reviewers.yaml` with all 14 reviewers listed.
+
 ## Usage
 
 ```bash
@@ -98,6 +136,7 @@ Positional arguments are **`path`** and **`language`**, exactly as requested.
 | `-m, --model MODEL` | Override the model (else `OPENAI_MODEL`). |
 | `-c, --concurrency N` | Files reviewed in parallel. |
 | `--env-file PATH` | Explicit `.env` location. |
+| `--config PATH` | YAML file enabling/disabling reviewers (auto-discovers `reviewers.yaml`). |
 | `--no-deps` | Disable resolving callee definitions (dependency context). |
 | `--no-static` | Disable deterministic AST backstops (syntax, missing docstrings). |
 | `--no-color` | Disable ANSI colours in `pretty` output. |

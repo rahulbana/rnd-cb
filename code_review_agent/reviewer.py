@@ -192,7 +192,10 @@ class ReviewEngine:
             logger.warning("Static checks failed for %s: %s", target.path, exc)
             return
 
+        enabled = {c.key for c in self.categories}
         for key, issues in static.items():
+            if key not in enabled:
+                continue  # reviewer disabled in config -> skip its backstop too
             finding = merged.get(key)
             if finding is None:
                 finding = CategoryFinding(status=0)

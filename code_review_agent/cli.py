@@ -67,6 +67,13 @@ def build_parser() -> argparse.ArgumentParser:
         help="Path to a .env file to load (defaults to auto-discovery).",
     )
     parser.add_argument(
+        "--config",
+        help=(
+            "Path to a YAML config that enables/disables reviewers "
+            "(defaults to auto-discovering reviewers.yaml)."
+        ),
+    )
+    parser.add_argument(
         "--no-deps",
         action="store_true",
         help=(
@@ -117,7 +124,10 @@ def main(argv: Optional[List[str]] = None) -> int:
     # 1. Load configuration / credentials.
     try:
         settings = load_settings(
-            args.env_file, model=args.model, concurrency=args.concurrency
+            args.env_file,
+            model=args.model,
+            concurrency=args.concurrency,
+            config_file=args.config,
         )
     except ConfigError as exc:
         print(f"Configuration error: {exc}", file=sys.stderr)
@@ -137,7 +147,14 @@ def main(argv: Optional[List[str]] = None) -> int:
         print(f"Input error: {exc}", file=sys.stderr)
         return EXIT_INPUT_ERROR
 
-    logger.info("Reviewing %d file(s) with model '%s'", len(targets), settings.model)
+    enabled = [c.key for c in settings.resolved_categories()]
+    logger.info(
+        "Reviewing %d file(s) with model '%s' | %d reviewer(s): %s",
+        len(targets),
+        settings.model,
+        len(enabled),
+        ", ".join(enabled),
+    )
 
     # 3. Run the review.
     def _progress(review: FileReview) -> None:

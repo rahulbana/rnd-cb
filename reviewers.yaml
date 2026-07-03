@@ -1,0 +1,48 @@
+# ===========================================================================
+# Code Review Agent — reviewer configuration
+# ===========================================================================
+# Turn individual reviewers on/off here. This file is auto-discovered when it
+# sits in the directory you run `code-review` from, or point at it explicitly
+# with `--config path/to/reviewers.yaml`.
+#
+# Precedence: CLI flags > this file > environment / .env > built-in defaults.
+# ---------------------------------------------------------------------------
+
+# Optional: override the model used for the run.
+# model: gpt-4o-mini
+
+reviewers:
+  # `default` is the fallback for any reviewer not listed below.
+  #   - Leave it `true` (or omit it) to run everything, then flip individual
+  #     reviewers to `false` to skip them.
+  #   - Set it to `false` to turn everything OFF, then flip only the reviewers
+  #     you want to `true`.  For example, to run ONLY the syntax reviewer:
+  #
+  #       reviewers:
+  #         default: false
+  #         syntax: true
+  #
+  default: true
+
+  syntax: true               # 1  Syntax errors, imports, decorators
+  error_handling: true       # 2  try/except, bare except, cleanup, rethrow
+  exception_handling: true   # 3  specific/custom exceptions, chaining
+  type_safety: true          # 4  missing type hints, call/return types
+  data_validation: true      # 5  None/empty checks, input/schema validation
+  best_practices: true       # 6  PEP 8/257, idioms, magic numbers
+  performance: true          # 7  nested loops, N+1, regex/JSON/file reuse
+  memory: true               # 8  large lists, leaks, cycles, huge dicts
+  resource_management: true  # 9  files/db/sockets/threads cleanup
+  security: true             # 11 injection, secrets, crypto, authn/z, eval
+  code_quality: true         # 16 duplication, dead code, complexity
+  readability: true          # 17 naming, function/class length
+  documentation: true        # 18 docstrings (PEP 257), comments
+  dependency: true           # 20 packages: unused/outdated/CVEs/conflicts
+
+# Optional: override tuning options (same names as REVIEW_* env vars, lower-cased).
+# options:
+#   concurrency: 8
+#   static_checks: true        # deterministic AST backstops (syntax, docstrings)
+#   resolve_dependencies: true
+#   include_manifests: true
+#   max_tokens: 8192

@@ -506,6 +506,67 @@ def test_static_checks_can_be_disabled():
     assert review.findings["documentation"].status == 0  # no backstop
 
 
+# --------------------------------------------------------------------------
+# YAML reviewer configuration
+# --------------------------------------------------------------------------
+def test_select_categories_only_one():
+    from code_review_agent.config import select_categories
+
+    cats = [c.key for c in select_categories({"default": False, "syntax": True})]
+    assert cats == ["syntax"]
+
+
+def test_select_categories_flip_off():
+    from code_review_agent.config import select_categories
+
+    keys = {c.key for c in select_categories({"security": False})}
+    assert "security" not in keys
+    assert "syntax" in keys  # everything else stays on
+
+
+def test_select_categories_none_means_all():
+    from code_review_agent.config import select_categories
+
+    assert len(select_categories(None)) == len(DEFAULT_CATEGORIES)
+
+
+def test_select_categories_empty_raises():
+    from code_review_agent.config import select_categories, ConfigError
+
+    with pytest.raises(ConfigError):
+        select_categories({"default": False})
+
+
+def test_load_settings_with_yaml_config(tmp_path, monkeypatch):
+    from code_review_agent.config import load_settings
+
+    monkeypatch.setenv("OPENAI_API_KEY", "test-key")
+    cfg = tmp_path / "reviewers.yaml"
+    cfg.write_text(
+        "model: gpt-4o\n"
+        "reviewers:\n  default: false\n  syntax: true\n  security: true\n"
+        "options:\n  static_checks: false\n"
+    )
+    settings = load_settings(config_file=str(cfg))
+    assert settings.model == "gpt-4o"
+    assert [c.key for c in settings.resolved_categories()] == ["syntax", "security"]
+    assert settings.static_checks is False
+
+
+def test_config_disabled_reviewer_skips_static_backstop():
+    from code_review_agent.collector import TargetFile
+
+    settings = _settings()
+    # Only syntax enabled -> documentation backstop must not fire.
+    settings.categories = [c for c in DEFAULT_CATEGORIES if c.key == "syntax"]
+    payload = json.dumps({"syntax": {"status": 0, "severity": "none",
+                                     "explanation": "ok", "suggestion": "", "issues": []}})
+    engine = ReviewEngine(settings, client=_FakeClient(payload))
+    review = engine.review_file(TargetFile("f.py", "python", "def f(x):\n    return x\n"))
+    assert set(review.findings) == {"syntax"}
+    assert "documentation" not in review.findings
+
+
 def test_render_pretty_runs():
     review = FileReview(file="x.py", language="python", findings={
         "security": CategoryFinding(status=1, explanation="bad", suggestion="fix", severity="high")

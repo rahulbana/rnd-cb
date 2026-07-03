@@ -2,13 +2,21 @@
 
 from __future__ import annotations
 
+import logging
 import os
 from dataclasses import dataclass
-from typing import List, Optional
+from typing import Dict, List, Optional
 
+import yaml
 from dotenv import load_dotenv
 
 from .models import ReviewCategory
+
+logger = logging.getLogger("code_review_agent")
+
+# Config-file names auto-discovered in the working directory when no explicit
+# --config path is provided.
+CONFIG_FILENAMES = ("reviewers.yaml", "reviewers.yml", ".reviewers.yaml")
 
 # ---------------------------------------------------------------------------
 # Review perspectives
@@ -211,13 +219,79 @@ class ConfigError(Exception):
     """Raised when required configuration is missing or invalid."""
 
 
+def discover_config_file(explicit: Optional[str]) -> Optional[str]:
+    """Return the config path to use: the explicit one, or an auto-discovered one."""
+
+    if explicit:
+        if not os.path.isfile(explicit):
+            raise ConfigError(f"Config file not found: {explicit}")
+        return explicit
+    for name in CONFIG_FILENAMES:
+        if os.path.isfile(name):
+            return name
+    return None
+
+
+def load_yaml_config(path: Optional[str]) -> Dict:
+    """Load and lightly validate a YAML config file (returns {} when absent)."""
+
+    if not path:
+        return {}
+    try:
+        with open(path, "r", encoding="utf-8") as handle:
+            data = yaml.safe_load(handle)
+    except (OSError, yaml.YAMLError) as exc:
+        raise ConfigError(f"Could not read config file '{path}': {exc}") from exc
+    if data is None:
+        return {}
+    if not isinstance(data, dict):
+        raise ConfigError(
+            f"Config file '{path}' must be a mapping at the top level."
+        )
+    return data
+
+
+def select_categories(reviewers_cfg: Optional[Dict]) -> List[ReviewCategory]:
+    """Filter the default perspectives by a ``reviewers`` on/off mapping.
+
+    The mapping keys are reviewer names; values are booleans. A special
+    ``default`` key sets the fallback for any reviewer not explicitly listed
+    (so ``default: false`` plus ``syntax: true`` runs only the syntax reviewer).
+    Unknown reviewer names are ignored with a warning. When no mapping is given,
+    every reviewer is enabled.
+    """
+
+    if not reviewers_cfg:
+        return list(DEFAULT_CATEGORIES)
+
+    valid = {c.key for c in DEFAULT_CATEGORIES}
+    default_enabled = bool(reviewers_cfg.get("default", True))
+
+    unknown = set(reviewers_cfg) - valid - {"default"}
+    for name in sorted(unknown):
+        logger.warning("Ignoring unknown reviewer in config: '%s'", name)
+
+    selected = [
+        c
+        for c in DEFAULT_CATEGORIES
+        if bool(reviewers_cfg.get(c.key, default_enabled))
+    ]
+    if not selected:
+        raise ConfigError(
+            "No reviewers are enabled. Enable at least one under 'reviewers:' "
+            "in your config file."
+        )
+    return selected
+
+
 def load_settings(
     env_file: Optional[str] = None,
     *,
     model: Optional[str] = None,
     concurrency: Optional[int] = None,
+    config_file: Optional[str] = None,
 ) -> Settings:
-    """Build :class:`Settings` from a ``.env`` file and the environment.
+    """Build :class:`Settings` from a ``.env`` file, environment, and YAML config.
 
     Environment variables (``.env`` or process env) that are honoured:
 
@@ -226,7 +300,16 @@ def load_settings(
     * ``OPENAI_BASE_URL``  (optional, for Azure/OpenAI-compatible gateways)
     * ``REVIEW_TEMPERATURE``, ``REVIEW_MAX_TOKENS``, ``REVIEW_TIMEOUT``,
       ``REVIEW_MAX_RETRIES``, ``REVIEW_CONCURRENCY``, ``REVIEW_MAX_FILE_BYTES``
+
+    ``config_file`` (or an auto-discovered ``reviewers.yaml``) may enable/disable
+    individual reviewers and override ``model`` and a few options. Precedence:
+    explicit function arguments > YAML > environment > built-in defaults.
     """
+
+    cfg = load_yaml_config(discover_config_file(config_file))
+    reviewers_cfg = cfg.get("reviewers") if isinstance(cfg.get("reviewers"), dict) else None
+    options = cfg.get("options") if isinstance(cfg.get("options"), dict) else {}
+    categories = select_categories(reviewers_cfg)
 
     # ``load_dotenv`` will look for a .env in the CWD / parents when no path is
     # given. Existing process env vars take precedence (override=False).
@@ -242,42 +325,63 @@ def load_settings(
             "or export the variable before running."
         )
 
-    def _float(name: str, default: float) -> float:
+    # Each ``_*`` helper resolves a value with precedence:
+    # YAML options entry (``opt``) > environment variable > built-in default.
+    def _float(opt: str, name: str, default: float) -> float:
+        if opt in options:
+            try:
+                return float(options[opt])
+            except (TypeError, ValueError):
+                pass
         raw = os.getenv(name)
         try:
             return float(raw) if raw is not None else default
         except ValueError:
             return default
 
-    def _int(name: str, default: int) -> int:
+    def _int(opt: str, name: str, default: int) -> int:
+        if opt in options:
+            try:
+                return int(options[opt])
+            except (TypeError, ValueError):
+                pass
         raw = os.getenv(name)
         try:
             return int(raw) if raw is not None else default
         except ValueError:
             return default
 
-    def _bool(name: str, default: bool) -> bool:
+    def _bool(opt: str, name: str, default: bool) -> bool:
+        if opt in options:
+            return bool(options[opt])
         raw = os.getenv(name)
         if raw is None:
             return default
         return raw.strip().lower() in {"1", "true", "yes", "on"}
 
+    model_final = (
+        model
+        or (str(cfg["model"]) if cfg.get("model") else None)
+        or os.getenv("OPENAI_MODEL", "gpt-4o-mini")
+    )
+
     return Settings(
         api_key=api_key,
-        model=model or os.getenv("OPENAI_MODEL", "gpt-4o-mini"),
+        model=model_final,
         base_url=os.getenv("OPENAI_BASE_URL") or None,
-        temperature=_float("REVIEW_TEMPERATURE", 0.0),
-        max_tokens=_int("REVIEW_MAX_TOKENS", 8192),
-        request_timeout=_float("REVIEW_TIMEOUT", 90.0),
-        max_retries=_int("REVIEW_MAX_RETRIES", 4),
-        concurrency=concurrency or _int("REVIEW_CONCURRENCY", 4),
-        max_file_bytes=_int("REVIEW_MAX_FILE_BYTES", 400_000),
-        chunk_lines=_int("REVIEW_CHUNK_LINES", 400),
-        resolve_dependencies=_bool("REVIEW_RESOLVE_DEPS", True),
-        max_dependency_defs=_int("REVIEW_MAX_DEP_DEFS", 12),
-        max_dependency_chars=_int("REVIEW_MAX_DEP_CHARS", 6000),
-        max_index_files=_int("REVIEW_MAX_INDEX_FILES", 400),
-        include_manifests=_bool("REVIEW_INCLUDE_MANIFESTS", True),
-        max_manifest_chars=_int("REVIEW_MAX_MANIFEST_CHARS", 4000),
-        static_checks=_bool("REVIEW_STATIC_CHECKS", True),
+        temperature=_float("temperature", "REVIEW_TEMPERATURE", 0.0),
+        max_tokens=_int("max_tokens", "REVIEW_MAX_TOKENS", 8192),
+        request_timeout=_float("timeout", "REVIEW_TIMEOUT", 90.0),
+        max_retries=_int("max_retries", "REVIEW_MAX_RETRIES", 4),
+        concurrency=concurrency or _int("concurrency", "REVIEW_CONCURRENCY", 4),
+        max_file_bytes=_int("max_file_bytes", "REVIEW_MAX_FILE_BYTES", 400_000),
+        chunk_lines=_int("chunk_lines", "REVIEW_CHUNK_LINES", 400),
+        resolve_dependencies=_bool("resolve_dependencies", "REVIEW_RESOLVE_DEPS", True),
+        max_dependency_defs=_int("max_dependency_defs", "REVIEW_MAX_DEP_DEFS", 12),
+        max_dependency_chars=_int("max_dependency_chars", "REVIEW_MAX_DEP_CHARS", 6000),
+        max_index_files=_int("max_index_files", "REVIEW_MAX_INDEX_FILES", 400),
+        include_manifests=_bool("include_manifests", "REVIEW_INCLUDE_MANIFESTS", True),
+        max_manifest_chars=_int("max_manifest_chars", "REVIEW_MAX_MANIFEST_CHARS", 4000),
+        static_checks=_bool("static_checks", "REVIEW_STATIC_CHECKS", True),
+        categories=categories,
     )
