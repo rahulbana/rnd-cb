@@ -26,4 +26,4 @@ dev = [
 code-review = "code_review_agent.cli:main"
 
 [tool.setuptools]
-packages = ["code_review_agent"]
+packages = ["code_review_agent", "code_review_agent.reviewers"]

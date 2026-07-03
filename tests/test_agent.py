@@ -13,11 +13,16 @@ from code_review_agent.collector import (
     extensions_for,
     normalize_language,
 )
-from code_review_agent.config import DEFAULT_CATEGORIES, Settings
+from code_review_agent.config import Settings
+from code_review_agent.engine import ReviewEngine
 from code_review_agent.formatter import render, to_review_json
 from code_review_agent.models import CategoryFinding, FileReview, ReviewReport
 from code_review_agent.prompts import build_response_schema, build_user_prompt
-from code_review_agent.reviewer import ReviewEngine
+from code_review_agent.reviewers import all_reviewer_classes
+
+# Instantiated copy of every reviewer — the tests use this the way the old
+# code used the flat DEFAULT_CATEGORIES list (each item exposes key/title).
+DEFAULT_CATEGORIES = [cls() for cls in all_reviewer_classes()]
 
 
 # --------------------------------------------------------------------------
@@ -187,7 +192,7 @@ def test_review_file_includes_exact_code_fix():
 
 
 def test_status_inferred_from_issues_when_missing():
-    from code_review_agent.reviewer import _coerce_finding
+    from code_review_agent.engine import _coerce_finding
 
     finding = _coerce_finding(
         {
@@ -510,31 +515,31 @@ def test_static_checks_can_be_disabled():
 # YAML reviewer configuration
 # --------------------------------------------------------------------------
 def test_select_categories_only_one():
-    from code_review_agent.config import select_categories
+    from code_review_agent.config import select_reviewers
 
-    cats = [c.key for c in select_categories({"default": False, "syntax": True})]
+    cats = [c.key for c in select_reviewers({"default": False, "syntax": True})]
     assert cats == ["syntax"]
 
 
 def test_select_categories_flip_off():
-    from code_review_agent.config import select_categories
+    from code_review_agent.config import select_reviewers
 
-    keys = {c.key for c in select_categories({"security": False})}
+    keys = {c.key for c in select_reviewers({"security": False})}
     assert "security" not in keys
     assert "syntax" in keys  # everything else stays on
 
 
 def test_select_categories_none_means_all():
-    from code_review_agent.config import select_categories
+    from code_review_agent.config import select_reviewers
 
-    assert len(select_categories(None)) == len(DEFAULT_CATEGORIES)
+    assert len(select_reviewers(None)) == len(DEFAULT_CATEGORIES)
 
 
 def test_select_categories_empty_raises():
-    from code_review_agent.config import select_categories, ConfigError
+    from code_review_agent.config import select_reviewers, ConfigError
 
     with pytest.raises(ConfigError):
-        select_categories({"default": False})
+        select_reviewers({"default": False})
 
 
 def test_load_settings_with_yaml_config(tmp_path, monkeypatch):
@@ -549,8 +554,55 @@ def test_load_settings_with_yaml_config(tmp_path, monkeypatch):
     )
     settings = load_settings(config_file=str(cfg))
     assert settings.model == "gpt-4o"
-    assert [c.key for c in settings.resolved_categories()] == ["syntax", "security"]
+    assert [c.key for c in settings.resolved_reviewers()] == ["syntax", "security"]
     assert settings.static_checks is False
+
+
+def test_select_reviewers_per_reviewer_model():
+    from code_review_agent.config import select_reviewers
+
+    reviewers = select_reviewers(
+        {"default": True, "security": {"enabled": True, "model": "gpt-4o"}}
+    )
+    by_key = {r.key: r for r in reviewers}
+    assert by_key["security"].model == "gpt-4o"
+    assert by_key["syntax"].model is None  # uses the run default
+
+
+def test_engine_groups_reviewers_by_model():
+    from code_review_agent.collector import TargetFile
+    from code_review_agent.config import select_reviewers
+
+    reviewers = select_reviewers(
+        {"default": True, "security": {"model": "gpt-4o"}}
+    )
+    settings = _settings()
+    settings.reviewers = reviewers
+
+    seen = []
+
+    class _Completions:
+        def create(self, **kwargs):
+            keys = list(kwargs["response_format"]["json_schema"]["schema"]["properties"])
+            seen.append((kwargs["model"], tuple(keys)))
+            payload = {k: {"status": 0, "severity": "none", "explanation": "ok",
+                           "suggestion": "", "issues": []} for k in keys}
+            return _Resp(json.dumps(payload))
+
+    class _Chat:
+        completions = _Completions()
+
+    class _Client:
+        chat = _Chat()
+
+    engine = ReviewEngine(settings, client=_Client())
+    review = engine.review_file(TargetFile("f.py", "python", '"""D."""\nx = 1\n'))
+    # Two groups: security on gpt-4o alone, the rest on the default model.
+    models = sorted(m for m, _ in seen)
+    assert models == ["gpt-4o", "gpt-4o-mini"]
+    sec_call = [keys for m, keys in seen if m == "gpt-4o"][0]
+    assert sec_call == ("security",)
+    assert len(review.findings) == len(DEFAULT_CATEGORIES)  # all reviewers reported
 
 
 def test_config_disabled_reviewer_skips_static_backstop():
@@ -558,7 +610,7 @@ def test_config_disabled_reviewer_skips_static_backstop():
 
     settings = _settings()
     # Only syntax enabled -> documentation backstop must not fire.
-    settings.categories = [c for c in DEFAULT_CATEGORIES if c.key == "syntax"]
+    settings.reviewers = [c for c in DEFAULT_CATEGORIES if c.key == "syntax"]
     payload = json.dumps({"syntax": {"status": 0, "severity": "none",
                                      "explanation": "ok", "suggestion": "", "issues": []}})
     engine = ReviewEngine(settings, client=_FakeClient(payload))

@@ -24,6 +24,16 @@ reviewers:
   #
   default: true
 
+  # Each reviewer is either a boolean (on/off) or a mapping that can also give
+  # that reviewer its OWN model, e.g.:
+  #
+  #       security:
+  #         enabled: true
+  #         model: gpt-4o        # run the security reviewer on a stronger model
+  #
+  # Reviewers sharing a model are batched into one call; a reviewer with its own
+  # model gets its own call.
+
   syntax: true               # 1  Syntax errors, imports, decorators
   error_handling: true       # 2  try/except, bare except, cleanup, rethrow
   exception_handling: true   # 3  specific/custom exceptions, chaining

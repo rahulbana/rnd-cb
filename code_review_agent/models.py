@@ -56,15 +56,6 @@ SEVERITY_ORDER = {
 }
 
 
-@dataclass(frozen=True)
-class ReviewCategory:
-    """Definition of a single perspective the reviewer evaluates."""
-
-    key: str
-    title: str
-    guidance: str
-
-
 @dataclass
 class Issue:
     """A single concrete problem with an exact code fix."""

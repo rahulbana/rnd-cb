@@ -6,7 +6,7 @@ import json
 from typing import Any, Dict, List, Optional, Sequence
 
 from .dependencies import Definition
-from .models import ReviewCategory
+from .reviewers.base import Reviewer
 
 SYSTEM_PROMPT = (
     "You are a senior application security engineer and staff-level code "
@@ -21,7 +21,7 @@ SYSTEM_PROMPT = (
 )
 
 
-def build_response_schema(categories: List[ReviewCategory]) -> Dict[str, Any]:
+def build_response_schema(categories: List[Reviewer]) -> Dict[str, Any]:
     """Build a strict JSON schema so the model returns a predictable object."""
 
     issue_schema = {
@@ -160,7 +160,7 @@ def build_user_prompt(
     file_path: str,
     language: str,
     code: str,
-    categories: List[ReviewCategory],
+    categories: List[Reviewer],
     line_offset: int = 0,
     dependencies: Optional[Sequence[Definition]] = None,
     manifests: Optional[Sequence[tuple]] = None,

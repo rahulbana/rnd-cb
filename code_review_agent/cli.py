@@ -11,9 +11,9 @@ from typing import List, Optional
 from . import __version__
 from .collector import CollectorError, collect
 from .config import ConfigError, load_settings
+from .engine import ReviewEngine
 from .formatter import render
 from .models import FileReview
-from .reviewer import ReviewEngine
 
 logger = logging.getLogger("code_review_agent")
 
@@ -147,7 +147,7 @@ def main(argv: Optional[List[str]] = None) -> int:
         print(f"Input error: {exc}", file=sys.stderr)
         return EXIT_INPUT_ERROR
 
-    enabled = [c.key for c in settings.resolved_categories()]
+    enabled = [r.key for r in settings.resolved_reviewers()]
     logger.info(
         "Reviewing %d file(s) with model '%s' | %d reviewer(s): %s",
         len(targets),

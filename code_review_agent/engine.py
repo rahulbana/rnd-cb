@@ -31,7 +31,6 @@ from .models import (
     CategoryFinding,
     FileReview,
     Issue,
-    ReviewCategory,
     ReviewReport,
     Severity,
     SEVERITY_ORDER,
@@ -41,6 +40,7 @@ from .prompts import (
     build_response_schema,
     build_user_prompt,
 )
+from .reviewers.base import Reviewer
 from .static_checks import run_static_checks
 
 logger = logging.getLogger("code_review_agent")
@@ -55,14 +55,25 @@ class ReviewEngine:
 
     def __init__(self, settings: Settings, client: Optional[OpenAI] = None) -> None:
         self.settings = settings
-        self.categories: List[ReviewCategory] = settings.resolved_categories()
+        self.reviewers: List[Reviewer] = settings.resolved_reviewers()
         self.client = client or OpenAI(
             api_key=settings.api_key,
             base_url=settings.base_url,
             timeout=settings.request_timeout,
             max_retries=0,  # we implement our own backoff below
         )
-        self._schema = build_response_schema(self.categories)
+        # Group reviewers by the LLM model they run on. Reviewers that share a
+        # model are batched into a single call; a reviewer with its own model
+        # (from config) forms its own group. This keeps the common case at one
+        # call per file while allowing a distinct model per reviewer.
+        self._groups: Dict[str, List[Reviewer]] = {}
+        for reviewer in self.reviewers:
+            model_name = reviewer.model or settings.model
+            self._groups.setdefault(model_name, []).append(reviewer)
+        self._schemas: Dict[str, dict] = {
+            model_name: build_response_schema(revs)
+            for model_name, revs in self._groups.items()
+        }
         self._index: SymbolIndex = {}
         self._manifests: List[tuple] = []
         # Some models/gateways do not support strict json_schema output. When
@@ -126,11 +137,15 @@ class ReviewEngine:
             chunks = self._split(target.content)
             merged: Dict[str, CategoryFinding] = {}
             for offset, chunk in chunks:
-                raw = self._call_model(target, chunk, offset, dependencies)
-                findings = self._parse(raw)
-                merged = _merge(merged, findings)
+                chunk_findings: Dict[str, CategoryFinding] = {}
+                for model_name, reviewers in self._groups.items():
+                    raw = self._call_model(
+                        target, chunk, offset, dependencies, reviewers, model_name
+                    )
+                    chunk_findings.update(self._parse(raw, reviewers))
+                merged = _merge(merged, chunk_findings)
             if not merged:  # empty file edge-case
-                merged = {c.key: CategoryFinding(status=0) for c in self.categories}
+                merged = {r.key: CategoryFinding(status=0) for r in self.reviewers}
             if self.settings.static_checks:
                 self._apply_static_checks(target, merged)
             return FileReview(
@@ -192,7 +207,7 @@ class ReviewEngine:
             logger.warning("Static checks failed for %s: %s", target.path, exc)
             return
 
-        enabled = {c.key for c in self.categories}
+        enabled = {r.key for r in self.reviewers}
         for key, issues in static.items():
             if key not in enabled:
                 continue  # reviewer disabled in config -> skip its backstop too
@@ -247,12 +262,14 @@ class ReviewEngine:
         chunk: str,
         offset: int,
         dependencies: List[Definition],
+        reviewers: List[Reviewer],
+        model_name: str,
     ) -> str:
         user_prompt = build_user_prompt(
             file_path=target.path,
             language=target.language,
             code=chunk,
-            categories=self.categories,
+            categories=reviewers,
             line_offset=offset,
             dependencies=dependencies,
             manifests=self._manifests,
@@ -261,6 +278,7 @@ class ReviewEngine:
             {"role": "system", "content": SYSTEM_PROMPT},
             {"role": "user", "content": user_prompt},
         ]
+        schema = self._schemas[model_name]
 
         # ``attempts`` counts only retryable-error retries against the budget;
         # the one-time json_schema -> json_object fallback is independent so it
@@ -269,7 +287,7 @@ class ReviewEngine:
         fallback_tried = False
         while True:
             try:
-                return self._once(messages)
+                return self._once(messages, model_name, schema)
             except BadRequestError as exc:
                 if (
                     not self._use_json_object
@@ -279,7 +297,7 @@ class ReviewEngine:
                     logger.info(
                         "json_schema unsupported for model '%s'; falling back "
                         "to json_object mode.",
-                        self.settings.model,
+                        model_name,
                     )
                     self._use_json_object = True
                     fallback_tried = True
@@ -302,22 +320,22 @@ class ReviewEngine:
                 raise
         # Unreachable: every path above returns or raises.
 
-    def _once(self, messages: List[dict]) -> str:
+    def _once(self, messages: List[dict], model_name: str, schema: dict) -> str:
         """Make a single model call and return its non-empty text content."""
 
         response = self.client.chat.completions.create(
-            model=self.settings.model,
+            model=model_name,
             messages=messages,
             temperature=self.settings.temperature,
             max_tokens=self.settings.max_tokens,
-            response_format=self._response_format(),
+            response_format=self._response_format(schema),
         )
         content = response.choices[0].message.content or ""
         if not content.strip():
             raise ValueError("Model returned an empty response.")
         return content
 
-    def _response_format(self) -> dict:
+    def _response_format(self, schema: dict) -> dict:
         """Return the response_format, preferring strict json_schema.
 
         Falls back to ``json_object`` for the rest of the run once a model or
@@ -331,16 +349,18 @@ class ReviewEngine:
             "json_schema": {
                 "name": "code_review",
                 "strict": True,
-                "schema": self._schema,
+                "schema": schema,
             },
         }
 
-    def _parse(self, raw: str) -> Dict[str, CategoryFinding]:
+    def _parse(
+        self, raw: str, reviewers: List[Reviewer]
+    ) -> Dict[str, CategoryFinding]:
         data = _loads_lenient(raw)
         findings: Dict[str, CategoryFinding] = {}
-        for category in self.categories:
-            entry = data.get(category.key) or {}
-            findings[category.key] = _coerce_finding(entry)
+        for reviewer in reviewers:
+            entry = data.get(reviewer.key) or {}
+            findings[reviewer.key] = _coerce_finding(entry)
         return findings
 
 

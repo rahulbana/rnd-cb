@@ -94,10 +94,24 @@ code-review app.py python --config only-syntax.yaml
 # -> the output contains only the "syntax" key; nothing else runs
 ```
 
-The file can also override the model and tuning options:
+A reviewer entry can also be a mapping that gives that reviewer **its own
+model** — handy for running, say, the security reviewer on a stronger model
+while the rest use a cheaper one:
 
 ```yaml
-model: gpt-4o
+reviewers:
+  default: true
+  security:
+    enabled: true
+    model: gpt-4o        # security runs on gpt-4o; everything else on the default
+```
+
+Reviewers that share a model are batched into a single call; a reviewer with a
+distinct model gets its own call. The file can also override the default model
+and tuning options:
+
+```yaml
+model: gpt-4o-mini
 options:
   concurrency: 8
   static_checks: true
@@ -258,13 +272,25 @@ The test suite injects a fake OpenAI client, so it runs offline and for free.
 
 ```
 code_review_agent/
-├── cli.py         # argument parsing, orchestration, exit codes
-├── config.py      # .env loading, Settings, review perspectives
-├── collector.py   # file/directory discovery, language filtering
+├── cli.py          # argument parsing, orchestration, exit codes
+├── config.py       # .env + YAML loading, Settings, reviewer selection
+├── collector.py    # file/directory discovery, language filtering
 ├── dependencies.py # symbol index + callee-definition resolution
-├── static_checks.py # deterministic AST backstops (syntax, docstrings)
-├── prompts.py     # system prompt, JSON schema, user prompt builder
-├── reviewer.py    # OpenAI calls: retries, concurrency, JSON parsing
-├── formatter.py   # review / json / pretty renderers
-└── models.py      # dataclasses + the stable output contract
+├── static_checks.py# deterministic AST backstops (syntax, docstrings)
+├── prompts.py      # system prompt, JSON schema, user prompt builder
+├── engine.py       # OpenAI calls: model grouping, retries, concurrency
+├── formatter.py    # review / json / pretty renderers
+├── models.py       # dataclasses + the stable output contract
+└── reviewers/      # one module per reviewer
+    ├── base.py     # Reviewer base class
+    ├── registry.py # ordered registry of all reviewers
+    ├── security.py # …one file per perspective (security, syntax, …)
+    └── …
 ```
+
+Each reviewer is a small self-contained class (`reviewers/<name>.py`) subclassing
+`Reviewer`. To add one, drop in a module and register it in `registry.py`; the
+prompt, schema, engine, config and output all pick it up. A reviewer can declare
+its own `default_model`, or be given one per run from `reviewers.yaml` — the
+engine groups reviewers by model so same-model reviewers share a call while a
+reviewer with a distinct model gets its own.

@@ -5,188 +5,22 @@ from __future__ import annotations
 import logging
 import os
 from dataclasses import dataclass
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, Tuple
 
 import yaml
 from dotenv import load_dotenv
 
-from .models import ReviewCategory
+from .reviewers import (
+    Reviewer,
+    all_reviewer_classes,
+    reviewer_classes_by_key,
+)
 
 logger = logging.getLogger("code_review_agent")
 
 # Config-file names auto-discovered in the working directory when no explicit
 # --config path is provided.
 CONFIG_FILENAMES = ("reviewers.yaml", "reviewers.yml", ".reviewers.yaml")
-
-# ---------------------------------------------------------------------------
-# Review perspectives
-# ---------------------------------------------------------------------------
-# These are the "perspectives" the agent inspects. The list is intentionally
-# data-driven so it is trivial to extend without touching the review engine.
-DEFAULT_CATEGORIES: List[ReviewCategory] = [
-    ReviewCategory(
-        key="syntax",
-        title="Syntax Review",
-        guidance=(
-            "Check for: syntax errors; invalid or inconsistent indentation; "
-            "missing imports (names used but never imported); circular "
-            "imports; unused imports; duplicate imports; invalid or misapplied "
-            "decorators."
-        ),
-    ),
-    ReviewCategory(
-        key="error_handling",
-        title="Error Handling",
-        guidance=(
-            "Check for: missing try/except around fallible operations; try "
-            "blocks that are too large or wrap unrelated code; swallowed "
-            "exceptions (caught then ignored); bare `except:`; incorrect "
-            "exception hierarchy ordering; raising generic `Exception`; "
-            "missing `finally`; missing cleanup of resources on error paths; "
-            "incorrect re-raise (losing the original traceback, e.g. `raise e` "
-            "vs bare `raise`)."
-        ),
-    ),
-    ReviewCategory(
-        key="exception_handling",
-        title="Exception Handling",
-        guidance=(
-            "Check that exceptions are specific rather than broad; that custom "
-            "exception types are defined and used where appropriate; and that "
-            "exception chaining (`raise ... from ...`) is used to preserve "
-            "context."
-        ),
-    ),
-    ReviewCategory(
-        key="type_safety",
-        title="Type Safety",
-        guidance=(
-            "Check for missing type hints on functions, parameters, returns "
-            "and important variables. Using the DEPENDENCY DEFINITIONS block "
-            "when present, flag calls whose argument or return types are "
-            "inconsistent with the callee's signature."
-        ),
-    ),
-    ReviewCategory(
-        key="data_validation",
-        title="Data Validation",
-        guidance=(
-            "Check for: missing None checks; missing empty-string checks; "
-            "missing input validation on external/user data; missing schema "
-            "validation; where an Enum would be safer than magic strings; and "
-            "missing dataclass/`__post_init__` validation."
-        ),
-    ),
-    ReviewCategory(
-        key="best_practices",
-        title="Python Best Practices",
-        guidance=(
-            "Check adherence to: PEP 8 (style) and PEP 257 (docstrings); "
-            "naming conventions; avoiding magic numbers; using list "
-            "comprehensions, context managers, generators, `enumerate`, `zip`, "
-            "the walrus operator, `match`-`case`, and f-strings where they "
-            "make the code clearer and more idiomatic."
-        ),
-    ),
-    ReviewCategory(
-        key="performance",
-        title="Performance Review",
-        guidance=(
-            "Check for: nested loops with poor complexity; repeated DB calls "
-            "(N+1); repeated API calls; regex compiled inside loops instead of "
-            "once; large memory allocations; costly sorting; repeated object "
-            "creation; inefficient string concatenation in loops; repeated "
-            "JSON parsing; and repeatedly opening the same file."
-        ),
-    ),
-    ReviewCategory(
-        key="memory",
-        title="Memory Review",
-        guidance=(
-            "Check for: unnecessarily large lists (use generators); memory "
-            "leaks; cache misuse (unbounded caches); reference cycles; overuse "
-            "of global variables; huge dictionaries; and copying data instead "
-            "of using a view/slice/iterator."
-        ),
-    ),
-    ReviewCategory(
-        key="resource_management",
-        title="Resource Management",
-        guidance=(
-            "Check that files, database handles, network connections, sockets "
-            "and threads are always released: prefer context managers (`with`) "
-            "over manual close, ensure cleanup on every path, and verify "
-            "threads/pools are joined or shut down."
-        ),
-    ),
-    ReviewCategory(
-        key="security",
-        title="Security Review",
-        guidance=(
-            "Check for: SQL injection; command injection; path traversal; "
-            "unsafe `pickle`; unsafe `yaml.load`; hardcoded passwords or API "
-            "keys; weak hashing (MD5/SHA1 for secrets); `random` instead of "
-            "`secrets`; missing JWT validation; missing authentication or "
-            "authorization; CSRF; XSS; SSRF; open redirect; insecure "
-            "deserialization; unsafe `eval()`/`exec()`; `subprocess(..., "
-            "shell=True)`; insecure temp-file creation; and overly permissive "
-            "file permissions."
-        ),
-    ),
-    ReviewCategory(
-        key="code_quality",
-        title="Code Quality",
-        guidance=(
-            "Check for: duplicate code; overly long methods; overly long "
-            "classes; dead code; unused variables; unused methods; deep "
-            "nesting; high cyclomatic complexity; and general code smells."
-        ),
-    ),
-    ReviewCategory(
-        key="readability",
-        title="Readability",
-        guidance=(
-            "Check: clear naming; reasonable function and class length; "
-            "descriptive variable names; and boolean names that read as "
-            "predicates (`is_`, `has_`, `should_`)."
-        ),
-    ),
-    ReviewCategory(
-        key="documentation",
-        title="Documentation",
-        guidance=(
-            "Every module, class, method and function MUST have a docstring. "
-            "Treat a missing docstring as a definite issue (status = 1) and "
-            "emit one issue per undocumented symbol. This is an objective, "
-            "non-negotiable check: report it even for short, trivial, "
-            "one-line, or self-explanatory functions, for private/helper "
-            "functions, and for the module-level docstring at the very top of "
-            "the file. Do NOT skip a missing docstring on the grounds that the "
-            "code is simple or obvious. Docstrings should follow PEP 257 "
-            "(imperative one-line summary, blank line before any longer body) "
-            "and, where the symbol takes parameters, returns a value, or raises "
-            "exceptions, document them (Args/Returns/Raises or an equivalent "
-            "style). Also flag empty, placeholder ('TODO'), or stale docstrings "
-            "that no longer match the code, non-obvious logic that lacks "
-            "explanatory comments, and comments that are misleading or "
-            "redundant. When suggesting a fix, provide the exact docstring or "
-            "comment text to add."
-        ),
-    ),
-    ReviewCategory(
-        key="dependency",
-        title="Dependency Review",
-        guidance=(
-            "Using the PROJECT DEPENDENCIES manifest block when present, check "
-            "for: packages imported but not declared, and packages declared "
-            "but unused; outdated packages; known CVEs / vulnerable versions "
-            "(based on your knowledge — say so if unsure); duplicate packages; "
-            "version conflicts; and requirements.txt hygiene (unpinned or "
-            "loosely pinned versions). Do not fabricate CVE identifiers."
-        ),
-    ),
-]
-
 
 @dataclass
 class Settings:
@@ -209,10 +43,14 @@ class Settings:
     include_manifests: bool = True  # feed requirements/pyproject to the reviewer
     max_manifest_chars: int = 4000  # cap dependency-manifest context size
     static_checks: bool = True  # deterministic AST backstops (syntax, docstrings)
-    categories: Optional[List[ReviewCategory]] = None
+    reviewers: Optional[List[Reviewer]] = None
 
-    def resolved_categories(self) -> List[ReviewCategory]:
-        return self.categories or DEFAULT_CATEGORIES
+    def resolved_reviewers(self) -> List[Reviewer]:
+        """Return the reviewers to run (all of them when none were selected)."""
+
+        if self.reviewers is not None:
+            return self.reviewers
+        return [cls() for cls in all_reviewer_classes()]
 
 
 class ConfigError(Exception):
@@ -251,31 +89,53 @@ def load_yaml_config(path: Optional[str]) -> Dict:
     return data
 
 
-def select_categories(reviewers_cfg: Optional[Dict]) -> List[ReviewCategory]:
-    """Filter the default perspectives by a ``reviewers`` on/off mapping.
+def _reviewer_entry(value, default_enabled: bool) -> Tuple[bool, Optional[str]]:
+    """Interpret a single ``reviewers:`` entry as ``(enabled, model_override)``.
 
-    The mapping keys are reviewer names; values are booleans. A special
-    ``default`` key sets the fallback for any reviewer not explicitly listed
-    (so ``default: false`` plus ``syntax: true`` runs only the syntax reviewer).
-    Unknown reviewer names are ignored with a warning. When no mapping is given,
-    every reviewer is enabled.
+    An entry may be a boolean (on/off) or a mapping such as
+    ``{enabled: true, model: gpt-4o}`` to give that reviewer its own LLM model.
     """
 
-    if not reviewers_cfg:
-        return list(DEFAULT_CATEGORIES)
+    if isinstance(value, bool):
+        return value, None
+    if isinstance(value, dict):
+        enabled = bool(value.get("enabled", True))
+        model = value.get("model")
+        return enabled, (str(model) if model else None)
+    if value is None:
+        return default_enabled, None
+    return bool(value), None
 
-    valid = {c.key for c in DEFAULT_CATEGORIES}
+
+def select_reviewers(reviewers_cfg: Optional[Dict]) -> List[Reviewer]:
+    """Build the list of enabled :class:`Reviewer` instances from config.
+
+    ``reviewers_cfg`` maps reviewer names to a boolean (on/off) or a mapping
+    ``{enabled, model}``. A special ``default`` key sets the fallback for any
+    reviewer not explicitly listed — so ``default: false`` plus ``syntax: true``
+    runs only the syntax reviewer. Unknown reviewer names are ignored with a
+    warning. When no mapping is given, every reviewer runs on the default model.
+    """
+
+    classes = all_reviewer_classes()
+    if not reviewers_cfg:
+        return [cls() for cls in classes]
+
+    by_key = reviewer_classes_by_key()
     default_enabled = bool(reviewers_cfg.get("default", True))
 
-    unknown = set(reviewers_cfg) - valid - {"default"}
-    for name in sorted(unknown):
+    for name in sorted(set(reviewers_cfg) - set(by_key) - {"default"}):
         logger.warning("Ignoring unknown reviewer in config: '%s'", name)
 
-    selected = [
-        c
-        for c in DEFAULT_CATEGORIES
-        if bool(reviewers_cfg.get(c.key, default_enabled))
-    ]
+    selected: List[Reviewer] = []
+    for cls in classes:
+        if cls.key in reviewers_cfg:
+            enabled, model = _reviewer_entry(reviewers_cfg[cls.key], default_enabled)
+        else:
+            enabled, model = default_enabled, None
+        if enabled:
+            selected.append(cls(model=model))
+
     if not selected:
         raise ConfigError(
             "No reviewers are enabled. Enable at least one under 'reviewers:' "
@@ -309,7 +169,7 @@ def load_settings(
     cfg = load_yaml_config(discover_config_file(config_file))
     reviewers_cfg = cfg.get("reviewers") if isinstance(cfg.get("reviewers"), dict) else None
     options = cfg.get("options") if isinstance(cfg.get("options"), dict) else {}
-    categories = select_categories(reviewers_cfg)
+    reviewers = select_reviewers(reviewers_cfg)
 
     # ``load_dotenv`` will look for a .env in the CWD / parents when no path is
     # given. Existing process env vars take precedence (override=False).
@@ -383,5 +243,5 @@ def load_settings(
         include_manifests=_bool("include_manifests", "REVIEW_INCLUDE_MANIFESTS", True),
         max_manifest_chars=_int("max_manifest_chars", "REVIEW_MAX_MANIFEST_CHARS", 4000),
         static_checks=_bool("static_checks", "REVIEW_STATIC_CHECKS", True),
-        categories=categories,
+        reviewers=reviewers,
     )
