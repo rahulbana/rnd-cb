@@ -98,7 +98,36 @@ def _format_file(review: FileReview, c, color: bool) -> List[str]:
                 lines.append(f"        {c('why:', _CYAN)} {finding.explanation}")
             if finding.suggestion:
                 lines.append(f"        {c('fix:', _CYAN)} {finding.suggestion}")
+            for issue in finding.issues:
+                lines.extend(_format_issue(issue, c))
     return lines
+
+
+def _format_issue(issue, c) -> List[str]:
+    out: List[str] = []
+    loc = _location(issue)
+    header = f"        - {loc}".rstrip()
+    out.append(header)
+    if issue.explanation:
+        out.append(f"          {issue.explanation}")
+    if issue.current_code:
+        out.append(f"          {c('current:', _CYAN)}")
+        for ln in issue.current_code.splitlines() or [""]:
+            out.append(c(f"          - {ln}", _RED))
+    if issue.suggested_code:
+        label = "add:" if not issue.current_code else "suggested:"
+        out.append(f"          {c(label, _CYAN)}")
+        for ln in issue.suggested_code.splitlines() or [""]:
+            out.append(c(f"          + {ln}", _GREEN))
+    return out
+
+
+def _location(issue) -> str:
+    if issue.line and issue.end_line and issue.end_line != issue.line:
+        return f"lines {issue.line}-{issue.end_line}:"
+    if issue.line:
+        return f"line {issue.line}:"
+    return "suggested addition:"
 
 
 def render(report: ReviewReport, fmt: str, *, color: bool = True) -> str:

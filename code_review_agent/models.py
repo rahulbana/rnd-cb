@@ -1,11 +1,25 @@
 """Data models used across the code review agent.
 
-The public review contract is intentionally small and stable:
+The public review contract is intentionally small and stable. Each perspective
+maps to a category object:
 
     {
-        "security":     {"status": 0|1, "explanation": str, "suggestion": str},
-        "data_type":    {"status": 0|1, "explanation": str, "suggestion": str},
-        "harmful_code": {"status": 0|1, "explanation": str, "suggestion": str},
+        "security": {
+            "status": 0|1,
+            "severity": "none|low|medium|high|critical",
+            "explanation": str,
+            "suggestion": str,
+            "issues": [
+                {
+                    "line": int|null,
+                    "end_line": int|null,
+                    "explanation": str,
+                    "current_code": str,     # exact code to change ("" if pure addition)
+                    "suggested_code": str    # exact code to add / replace with
+                },
+                ...
+            ]
+        },
         ...
     }
 
@@ -17,9 +31,9 @@ Status convention
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field, asdict
+from dataclasses import dataclass, field
 from enum import Enum
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Optional
 
 
 class Severity(str, Enum):
@@ -32,6 +46,16 @@ class Severity(str, Enum):
     CRITICAL = "critical"
 
 
+# Ordering used to compute the "worst" severity across a category's issues.
+SEVERITY_ORDER = {
+    Severity.NONE.value: 0,
+    Severity.LOW.value: 1,
+    Severity.MEDIUM.value: 2,
+    Severity.HIGH.value: 3,
+    Severity.CRITICAL.value: 4,
+}
+
+
 @dataclass(frozen=True)
 class ReviewCategory:
     """Definition of a single perspective the reviewer evaluates."""
@@ -42,6 +66,28 @@ class ReviewCategory:
 
 
 @dataclass
+class Issue:
+    """A single concrete problem with an exact code fix."""
+
+    explanation: str = ""
+    line: Optional[int] = None
+    end_line: Optional[int] = None
+    current_code: str = ""  # exact existing snippet ("" for pure additions)
+    suggested_code: str = ""  # exact code to add / replace the current snippet
+    severity: str = Severity.MEDIUM.value
+
+    def to_dict(self) -> Dict[str, Any]:
+        return {
+            "line": self.line,
+            "end_line": self.end_line,
+            "severity": self.severity,
+            "explanation": self.explanation,
+            "current_code": self.current_code,
+            "suggested_code": self.suggested_code,
+        }
+
+
+@dataclass
 class CategoryFinding:
     """Result for a single category of a single file."""
 
@@ -49,6 +95,7 @@ class CategoryFinding:
     explanation: str = ""
     suggestion: str = ""
     severity: str = Severity.NONE.value
+    issues: List[Issue] = field(default_factory=list)
 
     def to_dict(self) -> Dict[str, Any]:
         return {
@@ -56,6 +103,7 @@ class CategoryFinding:
             "severity": self.severity,
             "explanation": self.explanation,
             "suggestion": self.suggestion,
+            "issues": [issue.to_dict() for issue in self.issues],
         }
 
 

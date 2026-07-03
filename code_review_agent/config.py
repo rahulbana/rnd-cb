@@ -85,11 +85,12 @@ class Settings:
     model: str = "gpt-4o-mini"
     base_url: Optional[str] = None
     temperature: float = 0.0
-    max_tokens: int = 4096
-    request_timeout: float = 60.0
+    max_tokens: int = 8192
+    request_timeout: float = 90.0
     max_retries: int = 4
     concurrency: int = 4
-    max_file_bytes: int = 200_000  # skip files larger than this
+    max_file_bytes: int = 400_000  # skip files larger than this
+    chunk_lines: int = 400  # split larger files into chunks of this many lines
     categories: Optional[List[ReviewCategory]] = None
 
     def resolved_categories(self) -> List[ReviewCategory]:
@@ -150,9 +151,10 @@ def load_settings(
         model=model or os.getenv("OPENAI_MODEL", "gpt-4o-mini"),
         base_url=os.getenv("OPENAI_BASE_URL") or None,
         temperature=_float("REVIEW_TEMPERATURE", 0.0),
-        max_tokens=_int("REVIEW_MAX_TOKENS", 4096),
-        request_timeout=_float("REVIEW_TIMEOUT", 60.0),
+        max_tokens=_int("REVIEW_MAX_TOKENS", 8192),
+        request_timeout=_float("REVIEW_TIMEOUT", 90.0),
         max_retries=_int("REVIEW_MAX_RETRIES", 4),
         concurrency=concurrency or _int("REVIEW_CONCURRENCY", 4),
-        max_file_bytes=_int("REVIEW_MAX_FILE_BYTES", 200_000),
+        max_file_bytes=_int("REVIEW_MAX_FILE_BYTES", 400_000),
+        chunk_lines=_int("REVIEW_CHUNK_LINES", 400),
     )

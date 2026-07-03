@@ -18,7 +18,15 @@ from openai import (
 
 from .collector import TargetFile
 from .config import Settings
-from .models import CategoryFinding, FileReview, ReviewCategory, ReviewReport, Severity
+from .models import (
+    CategoryFinding,
+    FileReview,
+    Issue,
+    ReviewCategory,
+    ReviewReport,
+    Severity,
+    SEVERITY_ORDER,
+)
 from .prompts import (
     SYSTEM_PROMPT,
     build_response_schema,
@@ -29,6 +37,7 @@ logger = logging.getLogger("code_review_agent")
 
 _RETRYABLE = (APIConnectionError, APITimeoutError, RateLimitError, InternalServerError)
 _VALID_SEVERITIES = {s.value for s in Severity}
+_ISSUE_SEVERITIES = _VALID_SEVERITIES - {Severity.NONE.value}
 
 
 class ReviewEngine:
@@ -81,13 +90,19 @@ class ReviewEngine:
         return report
 
     def review_file(self, target: TargetFile) -> FileReview:
-        """Review a single file and normalise the model response."""
+        """Review a single file (chunking large files) and merge findings."""
 
         try:
-            raw = self._call_model(target)
-            findings = self._parse(raw)
+            chunks = self._split(target.content)
+            merged: Dict[str, CategoryFinding] = {}
+            for offset, chunk in chunks:
+                raw = self._call_model(target, chunk, offset)
+                findings = self._parse(raw)
+                merged = _merge(merged, findings)
+            if not merged:  # empty file edge-case
+                merged = {c.key: CategoryFinding(status=0) for c in self.categories}
             return FileReview(
-                file=target.path, language=target.language, findings=findings
+                file=target.path, language=target.language, findings=merged
             )
         except Exception as exc:  # noqa: BLE001 - surfaced per-file, never fatal
             logger.warning("Failed to review %s: %s", target.path, exc)
@@ -99,12 +114,26 @@ class ReviewEngine:
             )
 
     # -- internals ----------------------------------------------------------
-    def _call_model(self, target: TargetFile) -> str:
+    def _split(self, code: str):
+        """Yield ``(line_offset, chunk_text)`` pairs, splitting large files."""
+
+        lines = code.splitlines()
+        limit = max(50, self.settings.chunk_lines)
+        if len(lines) <= limit:
+            return [(0, code)]
+        chunks = []
+        for start in range(0, len(lines), limit):
+            chunk_lines = lines[start : start + limit]
+            chunks.append((start, "\n".join(chunk_lines)))
+        return chunks
+
+    def _call_model(self, target: TargetFile, chunk: str, offset: int) -> str:
         user_prompt = build_user_prompt(
             file_path=target.path,
             language=target.language,
-            code=target.content,
+            code=chunk,
             categories=self.categories,
+            line_offset=offset,
         )
         messages = [
             {"role": "system", "content": SYSTEM_PROMPT},
@@ -140,7 +169,6 @@ class ReviewEngine:
                     time.sleep(delay)
                     continue
                 raise
-        # Should be unreachable, but keep the type checker and runtime honest.
         raise last_error or RuntimeError("Model call failed for an unknown reason.")
 
     def _response_format(self) -> dict:
@@ -183,25 +211,106 @@ def _loads_lenient(raw: str) -> dict:
     raise ValueError("Model response was not valid JSON.")
 
 
+def _to_int_or_none(value) -> Optional[int]:
+    try:
+        if value is None or value == "":
+            return None
+        return int(value)
+    except (TypeError, ValueError):
+        return None
+
+
+def _coerce_issue(entry: dict) -> Optional[Issue]:
+    if not isinstance(entry, dict):
+        return None
+    severity = str(entry.get("severity", "")).strip().lower()
+    if severity not in _ISSUE_SEVERITIES:
+        severity = Severity.MEDIUM.value
+    return Issue(
+        explanation=str(entry.get("explanation", "")).strip(),
+        line=_to_int_or_none(entry.get("line")),
+        end_line=_to_int_or_none(entry.get("end_line")),
+        current_code=str(entry.get("current_code", "")),
+        suggested_code=str(entry.get("suggested_code", "")),
+        severity=severity,
+    )
+
+
 def _coerce_finding(entry: dict) -> CategoryFinding:
     """Coerce an arbitrary dict into a well-formed :class:`CategoryFinding`."""
 
     if not isinstance(entry, dict):
         return CategoryFinding(status=0, explanation="No data returned.", suggestion="")
 
+    raw_issues = entry.get("issues")
+    issues: List[Issue] = []
+    if isinstance(raw_issues, list):
+        for item in raw_issues:
+            coerced = _coerce_issue(item)
+            if coerced is not None:
+                issues.append(coerced)
+
     status = 1 if entry.get("status") in (1, "1", True) else 0
+    # If the model flagged status but gave no issues, keep status; if it gave
+    # issues but forgot status, treat it as an issue. This makes the two
+    # signals self-consistent and robust to sloppy responses.
+    if issues:
+        status = 1
+
     explanation = str(entry.get("explanation", "")).strip()
     suggestion = str(entry.get("suggestion", "")).strip()
 
     severity = str(entry.get("severity", "")).strip().lower()
-    if severity not in _VALID_SEVERITIES:
-        severity = Severity.MEDIUM.value if status == 1 else Severity.NONE.value
     if status == 0:
         severity = Severity.NONE.value
+    else:
+        worst = _worst_severity(issues)
+        if severity not in _ISSUE_SEVERITIES:
+            severity = worst or Severity.MEDIUM.value
+        elif worst and SEVERITY_ORDER[worst] > SEVERITY_ORDER[severity]:
+            severity = worst
 
     return CategoryFinding(
         status=status,
         explanation=explanation,
         suggestion=suggestion,
         severity=severity,
+        issues=issues,
     )
+
+
+def _worst_severity(issues: List[Issue]) -> Optional[str]:
+    if not issues:
+        return None
+    return max((i.severity for i in issues), key=lambda s: SEVERITY_ORDER.get(s, 0))
+
+
+def _merge(
+    base: Dict[str, CategoryFinding], new: Dict[str, CategoryFinding]
+) -> Dict[str, CategoryFinding]:
+    """Merge per-chunk findings: OR statuses, concat issues, keep worst severity."""
+
+    if not base:
+        return new
+    for key, finding in new.items():
+        if key not in base:
+            base[key] = finding
+            continue
+        existing = base[key]
+        existing.issues.extend(finding.issues)
+        if finding.status == 1:
+            existing.status = 1
+        # Merge summaries without losing information.
+        if finding.explanation and finding.explanation not in existing.explanation:
+            existing.explanation = (
+                f"{existing.explanation} {finding.explanation}".strip()
+            )
+        if finding.suggestion and finding.suggestion not in existing.suggestion:
+            existing.suggestion = (
+                f"{existing.suggestion} {finding.suggestion}".strip()
+            )
+        worst = _worst_severity(existing.issues)
+        existing.severity = (
+            worst or Severity.NONE.value if existing.status == 1 else Severity.NONE.value
+        )
+    return base

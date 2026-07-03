@@ -64,6 +64,20 @@ def _payload_all_categories(status=0):
                 "severity": "high" if status else "none",
                 "explanation": "test",
                 "suggestion": "fix" if status else "",
+                "issues": (
+                    [
+                        {
+                            "line": 3,
+                            "end_line": 3,
+                            "severity": "high",
+                            "explanation": "problem here",
+                            "current_code": "os.system(cmd)",
+                            "suggested_code": "subprocess.run(shlex.split(cmd), check=True)",
+                        }
+                    ]
+                    if status
+                    else []
+                ),
             }
             for c in DEFAULT_CATEGORIES
         }
@@ -159,6 +173,45 @@ def test_review_file_with_issue():
     assert not review.ok
     assert review.issue_count == len(DEFAULT_CATEGORIES)
     assert review.findings["security"].severity == "high"
+
+
+def test_review_file_includes_exact_code_fix():
+    engine = ReviewEngine(_settings(), client=_FakeClient(_payload_all_categories(1)))
+    from code_review_agent.collector import TargetFile
+
+    review = engine.review_file(TargetFile("x.py", "python", "os.system(cmd)"))
+    issue = review.findings["security"].issues[0]
+    assert issue.line == 3
+    assert issue.current_code == "os.system(cmd)"
+    assert "subprocess.run" in issue.suggested_code
+
+
+def test_status_inferred_from_issues_when_missing():
+    from code_review_agent.reviewer import _coerce_finding
+
+    finding = _coerce_finding(
+        {
+            "status": 0,  # model contradicts itself
+            "issues": [
+                {"line": 1, "severity": "critical", "explanation": "x",
+                 "current_code": "a", "suggested_code": "b"}
+            ],
+        }
+    )
+    assert finding.status == 1
+    assert finding.severity == "critical"
+
+
+def test_large_file_is_chunked_and_merged():
+    from code_review_agent.collector import TargetFile
+
+    settings = _settings()
+    settings.chunk_lines = 50
+    engine = ReviewEngine(settings, client=_FakeClient(_payload_all_categories(1)))
+    big = "\n".join(f"line{i}" for i in range(130))  # 3 chunks of 50
+    review = engine.review_file(TargetFile("big.py", "python", big))
+    # Each chunk contributes one issue per category -> 3 issues merged.
+    assert len(review.findings["security"].issues) == 3
 
 
 def test_review_handles_bad_json():

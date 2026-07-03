@@ -11,11 +11,14 @@ performance, error handling and best practices — as structured JSON.
 - **Language-aware** collection — filters directory scans by language extension.
 - **Multi-perspective analysis** — security, data types, harmful code, and more
   (the perspective list is data-driven and easy to extend).
+- **Actionable, exact fixes** — every finding is anchored to a line and ships
+  the precise `current_code` → `suggested_code` change, not just prose.
 - **Structured, machine-readable output** — strict JSON schema, plus a
-  human-friendly console view.
+  human-friendly console view with `-`/`+` diffs.
 - **Enterprise-ready** — concurrency, retry with exponential backoff,
-  per-file fault isolation, file-size guards, CI-friendly exit codes, and
-  support for OpenAI-compatible / Azure gateways.
+  per-file fault isolation, large-file chunking, file-size guards, robust
+  response parsing, CI-friendly exit codes, and support for
+  OpenAI-compatible / Azure gateways.
 - **Keys from `.env`** — credentials never live in code.
 
 ## Installation
@@ -78,24 +81,44 @@ You can also run it as a module: `python -m code_review_agent <path> <language>`
 ## Output format
 
 The default `review` format matches the requested contract. For a **single
-file** it is the review object directly:
+file** it is the review object directly. Every flagged perspective carries an
+`issues` array where each issue pins the problem to a **line** and gives the
+**exact code to change** (`current_code`) and the **exact replacement/addition**
+(`suggested_code`) so a fix can be applied directly:
 
 ```json
 {
-  "security":     {"status": 1, "severity": "critical", "explanation": "...", "suggestion": "..."},
-  "data_type":    {"status": 0, "severity": "none",     "explanation": "...", "suggestion": ""},
-  "harmful_code": {"status": 1, "severity": "high",     "explanation": "...", "suggestion": "..."},
-  "performance":    {"status": 0, "severity": "none", "explanation": "...", "suggestion": ""},
-  "error_handling": {"status": 1, "severity": "medium", "explanation": "...", "suggestion": "..."},
-  "best_practices": {"status": 0, "severity": "none", "explanation": "...", "suggestion": ""}
+  "security": {
+    "status": 1,
+    "severity": "critical",
+    "explanation": "Command injection via os.system.",
+    "suggestion": "Use subprocess with an argument list.",
+    "issues": [
+      {
+        "line": 3,
+        "end_line": 3,
+        "severity": "critical",
+        "explanation": "os.system runs an unsanitized string.",
+        "current_code": "    os.system(cmd)",
+        "suggested_code": "    subprocess.run(shlex.split(cmd), check=True)"
+      }
+    ]
+  },
+  "data_type":    {"status": 0, "severity": "none", "explanation": "...", "suggestion": "", "issues": []},
+  "harmful_code": {"status": 0, "severity": "none", "explanation": "...", "suggestion": "", "issues": []}
 }
 ```
 
 For a **directory** it is a list of `{ "file": ..., "review": {...} }` objects.
 
 **Status convention:** `status = 1` means an issue was found for that
-perspective; `status = 0` means it is clean. `severity` is an added,
-human-friendly ranking (`none`/`low`/`medium`/`high`/`critical`).
+perspective; `status = 0` means it is clean. `severity` is a human-friendly
+ranking (`none`/`low`/`medium`/`high`/`critical`).
+
+**Exact code fixes:** each `issues[]` entry contains `line`/`end_line` anchors,
+`current_code` (the exact snippet to change, or `""` for a pure addition) and
+`suggested_code` (the exact code to apply). The `pretty` format renders these
+as a `-`/`+` diff.
 
 The `json` format additionally wraps everything with a top-level `summary`
 (files reviewed, files with issues, total issues, failures).
