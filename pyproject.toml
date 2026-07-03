@@ -1,0 +1,28 @@
+[build-system]
+requires = ["setuptools>=61.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "code-review-agent"
+version = "1.0.0"
+description = "LLM-powered CLI agent for reviewing source files and directories."
+readme = "README.md"
+requires-python = ">=3.9"
+license = { text = "MIT" }
+authors = [{ name = "rnd-cb" }]
+keywords = ["code-review", "security", "openai", "llm", "static-analysis", "cli"]
+dependencies = [
+    "openai>=1.30.0",
+    "python-dotenv>=1.0.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.0",
+]
+
+[project.scripts]
+code-review = "code_review_agent.cli:main"
+
+[tool.setuptools]
+packages = ["code_review_agent"]
