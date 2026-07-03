@@ -138,10 +138,26 @@ DEFAULT_CATEGORIES: List[ReviewCategory] = [
         key="readability",
         title="Readability",
         guidance=(
-            "Check: clear naming; helpful comments; presence and quality of "
-            "docstrings; reasonable function and class length; descriptive "
-            "variable names; and boolean names that read as predicates "
-            "(`is_`, `has_`, `should_`)."
+            "Check: clear naming; reasonable function and class length; "
+            "descriptive variable names; and boolean names that read as "
+            "predicates (`is_`, `has_`, `should_`)."
+        ),
+    ),
+    ReviewCategory(
+        key="documentation",
+        title="Documentation",
+        guidance=(
+            "Check that every module, class, method and function has a "
+            "docstring, and that public/exported APIs are documented. "
+            "Docstrings should follow PEP 257 (imperative one-line summary, "
+            "blank line before a longer body) and, where relevant, document "
+            "parameters, return values and raised exceptions (e.g. "
+            "Args/Returns/Raises or an equivalent style). Flag missing, empty, "
+            "placeholder ('TODO'), or stale docstrings that no longer match the "
+            "code. Also check that non-obvious or complex logic has explanatory "
+            "comments and that existing comments are accurate rather than "
+            "misleading or redundant. When suggesting a fix, provide the exact "
+            "docstring or comment text to add."
         ),
     ),
     ReviewCategory(

@@ -1,7 +1,7 @@
 # Code Review Agent
 
 A production-grade, LLM-powered **code review CLI** built on the OpenAI API.
-It reviews a **single file** or an **entire directory** across 13 review
+It reviews a **single file** or an **entire directory** across 14 review
 perspectives and reports concrete, structured findings as JSON.
 
 ## Review perspectives
@@ -19,7 +19,8 @@ perspectives and reports concrete, structured findings as JSON.
 | 9 | `resource_management` | Files/DB/connections/sockets closed, context managers, thread cleanup |
 | 11 | `security` | SQLi, command/path injection, unsafe pickle/yaml, hardcoded secrets, weak hashing, `random` vs `secrets`, JWT/authn/authz, CSRF/XSS/SSRF, redirects, `eval`/`exec`, `shell=True`, temp-file & permissions |
 | 16 | `code_quality` | Duplicate/dead code, long methods/classes, unused vars/methods, deep nesting, cyclomatic complexity, code smells |
-| 17 | `readability` | Naming, comments, docstrings, function/class length, boolean naming |
+| 17 | `readability` | Naming, function/class length, descriptive variable names, boolean naming |
+| 18 | `documentation` | Missing/empty/stale docstrings on modules/classes/methods/functions, PEP 257, Args/Returns/Raises, comments on complex logic |
 | 20 | `dependency` | Unused/undeclared packages, outdated packages, known CVEs, duplicates, version conflicts, requirements hygiene |
 
 The perspective list is data-driven (`DEFAULT_CATEGORIES` in `config.py`) — add
@@ -29,7 +30,7 @@ or remove one and the schema, prompt, engine and formatter follow automatically.
 
 - **File or directory** review — point it at one file or a whole tree.
 - **Language-aware** collection — filters directory scans by language extension.
-- **13 review perspectives** — the full taxonomy above, evaluated per file.
+- **14 review perspectives** — the full taxonomy above, evaluated per file.
 - **Dependency-aware** — resolves the definitions of the functions/methods a
   file calls (across the project) and feeds them to the reviewer, so wrong
   argument counts/types, misused return values and unsafe callees are caught.
@@ -132,7 +133,7 @@ file** it is the review object directly. Every flagged perspective carries an
 }
 ```
 
-The object has **one key per perspective** (all 13 from the table above). For a
+The object has **one key per perspective** (all 14 from the table above). For a
 **directory** the output is a list of `{ "file": ..., "review": {...} }` objects.
 
 **Status convention:** `status = 1` means an issue was found for that

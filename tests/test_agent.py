@@ -389,7 +389,7 @@ def test_all_requested_categories_present():
         "syntax", "error_handling", "exception_handling", "type_safety",
         "data_validation", "best_practices", "performance", "memory",
         "resource_management", "security", "code_quality", "readability",
-        "dependency",
+        "documentation", "dependency",
     }
     assert keys == expected
 
