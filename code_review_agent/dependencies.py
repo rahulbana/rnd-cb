@@ -255,6 +255,66 @@ def resolve_dependencies(
     return resolved
 
 
+# Dependency-manifest files worth showing the reviewer for package-level checks.
+_MANIFEST_NAMES: Set[str] = {
+    "requirements.txt",
+    "requirements-dev.txt",
+    "requirements.in",
+    "dev-requirements.txt",
+    "pyproject.toml",
+    "setup.cfg",
+    "setup.py",
+    "Pipfile",
+    "poetry.lock",
+    "constraints.txt",
+}
+
+
+def collect_manifests(
+    context_dir: Optional[str],
+    *,
+    max_chars: int = 4000,
+    max_depth: int = 2,
+) -> List[Tuple[str, str]]:
+    """Find dependency-manifest files near ``context_dir`` for package checks.
+
+    Only shallow directories are scanned (manifests live near the project root)
+    and the combined content is bounded by ``max_chars``.
+    """
+
+    if not context_dir:
+        return []
+    root = context_dir if os.path.isdir(context_dir) else os.path.dirname(context_dir)
+    if not root or not os.path.isdir(root):
+        return []
+
+    found: List[Tuple[str, str]] = []
+    budget = 0
+    root_depth = root.rstrip(os.sep).count(os.sep)
+    for dirpath, dirs, files in os.walk(root):
+        dirs[:] = [d for d in dirs if d not in DEFAULT_IGNORE_DIRS]
+        if dirpath.rstrip(os.sep).count(os.sep) - root_depth > max_depth:
+            dirs[:] = []
+            continue
+        for name in sorted(files):
+            if name not in _MANIFEST_NAMES and not name.startswith("requirements"):
+                continue
+            full = os.path.join(dirpath, name)
+            try:
+                with open(full, "r", encoding="utf-8") as handle:
+                    content = handle.read()
+            except (OSError, UnicodeDecodeError):
+                continue
+            remaining = max_chars - budget
+            if remaining <= 0:
+                return found
+            if len(content) > remaining:
+                content = content[:remaining] + "\n# ... (truncated)"
+            found.append((full, content))
+            budget += len(content)
+    return found
+
+
 def iter_source_files(
     root: str,
     language: str,

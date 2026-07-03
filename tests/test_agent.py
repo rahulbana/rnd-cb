@@ -361,6 +361,39 @@ def test_engine_resolves_dependencies_end_to_end(tmp_path):
     assert any(d.name == "charge" for d in deps)
 
 
+def test_collect_manifests(tmp_path):
+    from code_review_agent.dependencies import collect_manifests
+
+    (tmp_path / "requirements.txt").write_text("requests==2.0\nflask\n")
+    (tmp_path / "pyproject.toml").write_text("[project]\ndependencies=['boto3']\n")
+    manifests = collect_manifests(str(tmp_path))
+    names = {os.path.basename(p) for p, _ in manifests}
+    assert "requirements.txt" in names and "pyproject.toml" in names
+
+
+def test_manifest_block_in_prompt(tmp_path):
+    from code_review_agent.prompts import build_user_prompt
+
+    prompt = build_user_prompt(
+        file_path="x.py", language="python", code="import requests",
+        categories=DEFAULT_CATEGORIES,
+        manifests=[("requirements.txt", "requests==2.0\n")],
+    )
+    assert "PROJECT DEPENDENCIES" in prompt
+    assert "requests==2.0" in prompt
+
+
+def test_all_requested_categories_present():
+    keys = {c.key for c in DEFAULT_CATEGORIES}
+    expected = {
+        "syntax", "error_handling", "exception_handling", "type_safety",
+        "data_validation", "best_practices", "performance", "memory",
+        "resource_management", "security", "code_quality", "readability",
+        "dependency",
+    }
+    assert keys == expected
+
+
 def test_render_pretty_runs():
     review = FileReview(file="x.py", language="python", findings={
         "security": CategoryFinding(status=1, explanation="bad", suggestion="fix", severity="high")

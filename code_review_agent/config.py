@@ -17,76 +17,143 @@ from .models import ReviewCategory
 # data-driven so it is trivial to extend without touching the review engine.
 DEFAULT_CATEGORIES: List[ReviewCategory] = [
     ReviewCategory(
-        key="security",
-        title="Security",
+        key="syntax",
+        title="Syntax Review",
         guidance=(
-            "Look for injection flaws (SQL/command/LDAP), insecure "
-            "deserialization, hard-coded secrets or credentials, weak or "
-            "missing cryptography, path traversal, SSRF, unsafe use of eval/"
-            "exec, missing input validation, insecure defaults, and exposure "
-            "of sensitive data."
-        ),
-    ),
-    ReviewCategory(
-        key="data_type",
-        title="Data Types",
-        guidance=(
-            "Look for type mismatches, unsafe or implicit conversions, "
-            "null/None dereferences, integer overflow, precision loss, "
-            "mutable default arguments, incorrect use of collections, and "
-            "missing or wrong type annotations."
-        ),
-    ),
-    ReviewCategory(
-        key="harmful_code",
-        title="Harmful Code",
-        guidance=(
-            "Look for destructive or malicious behavior: data-wiping commands, "
-            "backdoors, unauthorized network exfiltration, fork bombs, "
-            "resource exhaustion, obfuscated payloads, or anything that could "
-            "damage the host or user data."
-        ),
-    ),
-    ReviewCategory(
-        key="performance",
-        title="Performance",
-        guidance=(
-            "Look for inefficient algorithms, needless allocations, N+1 "
-            "queries, blocking I/O on hot paths, unbounded memory growth, and "
-            "obvious complexity problems."
+            "Check for: syntax errors; invalid or inconsistent indentation; "
+            "missing imports (names used but never imported); circular "
+            "imports; unused imports; duplicate imports; invalid or misapplied "
+            "decorators."
         ),
     ),
     ReviewCategory(
         key="error_handling",
         title="Error Handling",
         guidance=(
-            "Look for swallowed exceptions, bare excepts, unhandled edge "
-            "cases, missing resource cleanup, and error paths that leak "
-            "sensitive information."
+            "Check for: missing try/except around fallible operations; try "
+            "blocks that are too large or wrap unrelated code; swallowed "
+            "exceptions (caught then ignored); bare `except:`; incorrect "
+            "exception hierarchy ordering; raising generic `Exception`; "
+            "missing `finally`; missing cleanup of resources on error paths; "
+            "incorrect re-raise (losing the original traceback, e.g. `raise e` "
+            "vs bare `raise`)."
         ),
     ),
     ReviewCategory(
-        key="dependency",
-        title="Dependency / API Usage",
+        key="exception_handling",
+        title="Exception Handling",
         guidance=(
-            "Using the DEPENDENCY DEFINITIONS block (definitions of the "
-            "functions/methods/classes this file calls), verify each call "
-            "against its definition: correct number and types of arguments, "
-            "correct handling of the return value, respect for the callee's "
-            "contract, preconditions and error/exception behaviour, and "
-            "whether relying on the callee introduces a security or "
-            "correctness problem. Flag calls that do not match the definition. "
-            "If a called symbol has no provided definition, do NOT speculate "
-            "about it."
+            "Check that exceptions are specific rather than broad; that custom "
+            "exception types are defined and used where appropriate; and that "
+            "exception chaining (`raise ... from ...`) is used to preserve "
+            "context."
+        ),
+    ),
+    ReviewCategory(
+        key="type_safety",
+        title="Type Safety",
+        guidance=(
+            "Check for missing type hints on functions, parameters, returns "
+            "and important variables. Using the DEPENDENCY DEFINITIONS block "
+            "when present, flag calls whose argument or return types are "
+            "inconsistent with the callee's signature."
+        ),
+    ),
+    ReviewCategory(
+        key="data_validation",
+        title="Data Validation",
+        guidance=(
+            "Check for: missing None checks; missing empty-string checks; "
+            "missing input validation on external/user data; missing schema "
+            "validation; where an Enum would be safer than magic strings; and "
+            "missing dataclass/`__post_init__` validation."
         ),
     ),
     ReviewCategory(
         key="best_practices",
-        title="Best Practices & Maintainability",
+        title="Python Best Practices",
         guidance=(
-            "Look for readability problems, dead code, duplication, poor "
-            "naming, missing documentation for complex logic, and violations "
-            "of well-established idioms for the language."
+            "Check adherence to: PEP 8 (style) and PEP 257 (docstrings); "
+            "naming conventions; avoiding magic numbers; using list "
+            "comprehensions, context managers, generators, `enumerate`, `zip`, "
+            "the walrus operator, `match`-`case`, and f-strings where they "
+            "make the code clearer and more idiomatic."
+        ),
+    ),
+    ReviewCategory(
+        key="performance",
+        title="Performance Review",
+        guidance=(
+            "Check for: nested loops with poor complexity; repeated DB calls "
+            "(N+1); repeated API calls; regex compiled inside loops instead of "
+            "once; large memory allocations; costly sorting; repeated object "
+            "creation; inefficient string concatenation in loops; repeated "
+            "JSON parsing; and repeatedly opening the same file."
+        ),
+    ),
+    ReviewCategory(
+        key="memory",
+        title="Memory Review",
+        guidance=(
+            "Check for: unnecessarily large lists (use generators); memory "
+            "leaks; cache misuse (unbounded caches); reference cycles; overuse "
+            "of global variables; huge dictionaries; and copying data instead "
+            "of using a view/slice/iterator."
+        ),
+    ),
+    ReviewCategory(
+        key="resource_management",
+        title="Resource Management",
+        guidance=(
+            "Check that files, database handles, network connections, sockets "
+            "and threads are always released: prefer context managers (`with`) "
+            "over manual close, ensure cleanup on every path, and verify "
+            "threads/pools are joined or shut down."
+        ),
+    ),
+    ReviewCategory(
+        key="security",
+        title="Security Review",
+        guidance=(
+            "Check for: SQL injection; command injection; path traversal; "
+            "unsafe `pickle`; unsafe `yaml.load`; hardcoded passwords or API "
+            "keys; weak hashing (MD5/SHA1 for secrets); `random` instead of "
+            "`secrets`; missing JWT validation; missing authentication or "
+            "authorization; CSRF; XSS; SSRF; open redirect; insecure "
+            "deserialization; unsafe `eval()`/`exec()`; `subprocess(..., "
+            "shell=True)`; insecure temp-file creation; and overly permissive "
+            "file permissions."
+        ),
+    ),
+    ReviewCategory(
+        key="code_quality",
+        title="Code Quality",
+        guidance=(
+            "Check for: duplicate code; overly long methods; overly long "
+            "classes; dead code; unused variables; unused methods; deep "
+            "nesting; high cyclomatic complexity; and general code smells."
+        ),
+    ),
+    ReviewCategory(
+        key="readability",
+        title="Readability",
+        guidance=(
+            "Check: clear naming; helpful comments; presence and quality of "
+            "docstrings; reasonable function and class length; descriptive "
+            "variable names; and boolean names that read as predicates "
+            "(`is_`, `has_`, `should_`)."
+        ),
+    ),
+    ReviewCategory(
+        key="dependency",
+        title="Dependency Review",
+        guidance=(
+            "Using the PROJECT DEPENDENCIES manifest block when present, check "
+            "for: packages imported but not declared, and packages declared "
+            "but unused; outdated packages; known CVEs / vulnerable versions "
+            "(based on your knowledge — say so if unsure); duplicate packages; "
+            "version conflicts; and requirements.txt hygiene (unpinned or "
+            "loosely pinned versions). Do not fabricate CVE identifiers."
         ),
     ),
 ]
@@ -110,6 +177,8 @@ class Settings:
     max_dependency_defs: int = 12  # cap resolved definitions per file
     max_dependency_chars: int = 6000  # cap total dependency-context size
     max_index_files: int = 400  # cap files scanned when building the symbol index
+    include_manifests: bool = True  # feed requirements/pyproject to the reviewer
+    max_manifest_chars: int = 4000  # cap dependency-manifest context size
     categories: Optional[List[ReviewCategory]] = None
 
     def resolved_categories(self) -> List[ReviewCategory]:
@@ -186,4 +255,6 @@ def load_settings(
         max_dependency_defs=_int("REVIEW_MAX_DEP_DEFS", 12),
         max_dependency_chars=_int("REVIEW_MAX_DEP_CHARS", 6000),
         max_index_files=_int("REVIEW_MAX_INDEX_FILES", 400),
+        include_manifests=_bool("REVIEW_INCLUDE_MANIFESTS", True),
+        max_manifest_chars=_int("REVIEW_MAX_MANIFEST_CHARS", 4000),
     )

@@ -140,6 +140,21 @@ def build_dependency_block(dependencies: Sequence[Definition]) -> str:
     return "\n".join(parts) + "\n\n"
 
 
+def build_manifest_block(manifests: Sequence[tuple]) -> str:
+    """Render dependency-manifest files (requirements/pyproject) as context."""
+
+    if not manifests:
+        return ""
+    parts = [
+        "PROJECT DEPENDENCIES (declared dependency manifests; use them for the "
+        "'dependency' perspective to compare declared vs imported packages, "
+        "pinning and known issues):\n"
+    ]
+    for path, content in manifests:
+        parts.append(f"# {path}\n{content}\n---")
+    return "\n".join(parts) + "\n\n"
+
+
 def build_user_prompt(
     *,
     file_path: str,
@@ -148,6 +163,7 @@ def build_user_prompt(
     categories: List[ReviewCategory],
     line_offset: int = 0,
     dependencies: Optional[Sequence[Definition]] = None,
+    manifests: Optional[Sequence[tuple]] = None,
 ) -> str:
     """Compose the user message that carries the code and the instructions.
 
@@ -205,6 +221,7 @@ def build_user_prompt(
         "- Return a JSON object with exactly one key per perspective. Example "
         f"of a single entry:\n{json.dumps(example, indent=2)}\n\n"
         + build_dependency_block(dependencies or [])
+        + build_manifest_block(manifests or [])
         + "CODE:\n"
         "```" + language + "\n"
         f"{numbered}\n"

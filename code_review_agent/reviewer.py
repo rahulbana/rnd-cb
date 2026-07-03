@@ -22,6 +22,7 @@ from .dependencies import (
     Definition,
     SymbolIndex,
     build_symbol_index,
+    collect_manifests,
     iter_source_files,
     resolve_dependencies,
 )
@@ -61,6 +62,7 @@ class ReviewEngine:
         )
         self._schema = build_response_schema(self.categories)
         self._index: SymbolIndex = {}
+        self._manifests: List[tuple] = []
 
     # -- public API ---------------------------------------------------------
     def review_files(
@@ -80,6 +82,10 @@ class ReviewEngine:
 
         if self.settings.resolve_dependencies:
             self._index = self._build_index(targets, context_dir)
+        if self.settings.include_manifests:
+            self._manifests = collect_manifests(
+                context_dir, max_chars=self.settings.max_manifest_chars
+            )
 
         report = ReviewReport(target=target_label, model=self.settings.model)
         results: Dict[str, FileReview] = {}
@@ -192,6 +198,7 @@ class ReviewEngine:
             categories=self.categories,
             line_offset=offset,
             dependencies=dependencies,
+            manifests=self._manifests,
         )
         messages = [
             {"role": "system", "content": SYSTEM_PROMPT},
