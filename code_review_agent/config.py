@@ -200,6 +200,7 @@ class Settings:
     max_index_files: int = 400  # cap files scanned when building the symbol index
     include_manifests: bool = True  # feed requirements/pyproject to the reviewer
     max_manifest_chars: int = 4000  # cap dependency-manifest context size
+    static_checks: bool = True  # deterministic AST backstops (syntax, docstrings)
     categories: Optional[List[ReviewCategory]] = None
 
     def resolved_categories(self) -> List[ReviewCategory]:
@@ -278,4 +279,5 @@ def load_settings(
         max_index_files=_int("REVIEW_MAX_INDEX_FILES", 400),
         include_manifests=_bool("REVIEW_INCLUDE_MANIFESTS", True),
         max_manifest_chars=_int("REVIEW_MAX_MANIFEST_CHARS", 4000),
+        static_checks=_bool("REVIEW_STATIC_CHECKS", True),
     )

@@ -75,6 +75,14 @@ def build_parser() -> argparse.ArgumentParser:
         ),
     )
     parser.add_argument(
+        "--no-static",
+        action="store_true",
+        help=(
+            "Disable deterministic AST backstops (guaranteed syntax and "
+            "missing-docstring checks for Python)."
+        ),
+    )
+    parser.add_argument(
         "--no-color",
         action="store_true",
         help="Disable ANSI colours in 'pretty' output.",
@@ -117,6 +125,8 @@ def main(argv: Optional[List[str]] = None) -> int:
 
     if args.no_deps:
         settings.resolve_dependencies = False
+    if args.no_static:
+        settings.static_checks = False
 
     # 2. Collect target files.
     try:

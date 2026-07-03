@@ -159,7 +159,7 @@ def test_review_file_clean():
     engine = ReviewEngine(_settings(), client=_FakeClient(_payload_all_categories(0)))
     from code_review_agent.collector import TargetFile
 
-    review = engine.review_file(TargetFile("x.py", "python", "x = 1"))
+    review = engine.review_file(TargetFile("x.py", "python", '"""Doc."""\nx = 1\n'))
     assert review.ok
     assert review.issue_count == 0
     assert set(review.findings) == {c.key for c in DEFAULT_CATEGORIES}
@@ -218,7 +218,7 @@ def test_review_handles_bad_json():
     engine = ReviewEngine(_settings(), client=_FakeClient("not json at all"))
     from code_review_agent.collector import TargetFile
 
-    review = engine.review_file(TargetFile("x.py", "python", "x = 1"))
+    review = engine.review_file(TargetFile("x.py", "python", '"""Doc."""\nx = 1\n'))
     assert review.error  # error captured, not raised
 
 
@@ -247,7 +247,7 @@ def test_falls_back_to_json_object_when_schema_unsupported():
         chat = _Chat()
 
     engine = ReviewEngine(_settings(), client=_Client())
-    review = engine.review_file(TargetFile("x.py", "python", "x = 1"))
+    review = engine.review_file(TargetFile("x.py", "python", '"""Doc."""\nx = 1\n'))
     assert review.ok  # succeeded via fallback, no error
     assert engine._use_json_object is True
     assert calls["n"] == 2  # one rejected json_schema call, one json_object call
@@ -258,7 +258,7 @@ def test_review_lenient_json_extraction():
     engine = ReviewEngine(_settings(), client=_FakeClient(wrapped))
     from code_review_agent.collector import TargetFile
 
-    review = engine.review_file(TargetFile("x.py", "python", "x = 1"))
+    review = engine.review_file(TargetFile("x.py", "python", '"""Doc."""\nx = 1\n'))
     assert review.ok
 
 
@@ -423,6 +423,87 @@ def test_all_requested_categories_present():
         "documentation", "dependency",
     }
     assert keys == expected
+
+
+# --------------------------------------------------------------------------
+# Deterministic static checks (AST backstop)
+# --------------------------------------------------------------------------
+def test_static_flags_missing_docstrings():
+    from code_review_agent.static_checks import run_static_checks
+
+    code = "def get_length(text):\n    return len(text)\n"
+    res = run_static_checks("f.py", "python", code)
+    explanations = [i.explanation for i in res["documentation"]]
+    assert any("Module is missing" in e for e in explanations)
+    assert any("`get_length` is missing" in e for e in explanations)
+    fn = [i for i in res["documentation"] if "get_length" in i.explanation][0]
+    assert '"""' in fn.suggested_code and "def get_length(text):" in fn.suggested_code
+
+
+def test_static_flags_class_and_method():
+    from code_review_agent.static_checks import run_static_checks
+
+    code = '"""Module."""\n\n\nclass Foo:\n    def m(self):\n        return 1\n'
+    names = [i.explanation for i in run_static_checks("f.py", "python", code)["documentation"]]
+    assert any("`Foo`" in e for e in names)
+    assert any("`m`" in e for e in names)
+    # module has a docstring here, so no module-level complaint
+    assert not any("Module is missing" in e for e in names)
+
+
+def test_static_flags_syntax_error():
+    from code_review_agent.static_checks import run_static_checks
+
+    res = run_static_checks("b.py", "python", "def broken(:\n    pass\n")
+    assert "syntax" in res
+    assert res["syntax"][0].line == 1
+
+
+def test_static_ignores_non_python():
+    from code_review_agent.static_checks import run_static_checks
+
+    assert run_static_checks("x.js", "javascript", "function f(){}") == {}
+
+
+def test_static_check_overrides_lenient_model():
+    from code_review_agent.collector import TargetFile
+
+    # Model returns everything clean; the AST backstop must still flag docs.
+    engine = ReviewEngine(_settings(), client=_FakeClient(_payload_all_categories(0)))
+    review = engine.review_file(TargetFile("f.py", "python", "def f(x):\n    return x\n"))
+    doc = review.findings["documentation"]
+    assert doc.status == 1
+    assert len(doc.issues) == 2  # module + function, both on line 1, not de-duped
+
+
+def test_static_dedupes_against_model_line():
+    from code_review_agent.collector import TargetFile
+
+    payload = json.dumps({
+        c.key: (
+            {"status": 1, "severity": "low", "explanation": "m", "suggestion": "s",
+             "issues": [{"line": 1, "end_line": 1, "severity": "low",
+                         "explanation": "fn lacks docstring", "current_code": "def f(x):",
+                         "suggested_code": "..."}]}
+            if c.key == "documentation"
+            else {"status": 0, "severity": "none", "explanation": "ok", "suggestion": "", "issues": []}
+        )
+        for c in DEFAULT_CATEGORIES
+    })
+    engine = ReviewEngine(_settings(), client=_FakeClient(payload))
+    review = engine.review_file(TargetFile("f.py", "python", "def f(x):\n    return x\n"))
+    # Model already reported line 1, so the static line-1 issues are suppressed.
+    assert all(i.line == 1 for i in review.findings["documentation"].issues)
+
+
+def test_static_checks_can_be_disabled():
+    from code_review_agent.collector import TargetFile
+
+    settings = _settings()
+    settings.static_checks = False
+    engine = ReviewEngine(settings, client=_FakeClient(_payload_all_categories(0)))
+    review = engine.review_file(TargetFile("f.py", "python", "def f(x):\n    return x\n"))
+    assert review.findings["documentation"].status == 0  # no backstop
 
 
 def test_render_pretty_runs():

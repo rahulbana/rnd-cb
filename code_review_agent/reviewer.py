@@ -41,6 +41,7 @@ from .prompts import (
     build_response_schema,
     build_user_prompt,
 )
+from .static_checks import run_static_checks
 
 logger = logging.getLogger("code_review_agent")
 
@@ -130,6 +131,8 @@ class ReviewEngine:
                 merged = _merge(merged, findings)
             if not merged:  # empty file edge-case
                 merged = {c.key: CategoryFinding(status=0) for c in self.categories}
+            if self.settings.static_checks:
+                self._apply_static_checks(target, merged)
             return FileReview(
                 file=target.path, language=target.language, findings=merged
             )
@@ -175,6 +178,52 @@ class ReviewEngine:
             max_defs=self.settings.max_dependency_defs,
             max_chars=self.settings.max_dependency_chars,
         )
+
+    def _apply_static_checks(
+        self, target: TargetFile, merged: Dict[str, CategoryFinding]
+    ) -> None:
+        """Merge guaranteed deterministic findings into the LLM results."""
+
+        try:
+            static = run_static_checks(
+                target.path, target.language, target.content
+            )
+        except Exception as exc:  # noqa: BLE001 - never let a backstop break review
+            logger.warning("Static checks failed for %s: %s", target.path, exc)
+            return
+
+        for key, issues in static.items():
+            finding = merged.get(key)
+            if finding is None:
+                finding = CategoryFinding(status=0)
+                merged[key] = finding
+            # De-dupe only against lines the model already reported (so the
+            # same finding is not listed twice). We must NOT dedupe deterministic
+            # issues against each other: distinct symbols can share a line
+            # (e.g. a module docstring and a function both anchored at line 1).
+            was_clean = finding.status != 1  # model reported nothing here
+            llm_lines = {i.line for i in finding.issues if i.line is not None}
+            added = False
+            for issue in issues:
+                if issue.line is not None and issue.line in llm_lines:
+                    continue
+                finding.issues.append(issue)
+                added = True
+            if not finding.issues:
+                continue
+            finding.status = 1
+            finding.severity = _worst_severity(finding.issues) or finding.severity
+            if added:
+                # Re-sort by line so deterministic and model issues interleave.
+                finding.issues.sort(key=lambda i: (i.line or 0))
+                # If the model had said this category was clean, its "ok"-style
+                # summary is now stale — replace it so the report is coherent.
+                if was_clean or not finding.explanation:
+                    finding.explanation = (
+                        "Issues detected by deterministic checks."
+                    )
+                if was_clean or not finding.suggestion:
+                    finding.suggestion = "Apply the fixes shown for each issue."
 
     def _split(self, code: str):
         """Yield ``(line_offset, chunk_text)`` pairs, splitting large files."""

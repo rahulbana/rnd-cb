@@ -34,6 +34,9 @@ or remove one and the schema, prompt, engine and formatter follow automatically.
 - **Dependency-aware** — resolves the definitions of the functions/methods a
   file calls (across the project) and feeds them to the reviewer, so wrong
   argument counts/types, misused return values and unsafe callees are caught.
+- **Deterministic backstops** — a non-LLM AST pass guarantees Python **syntax
+  errors** and **missing docstrings** (module/class/function/method) are always
+  reported, even if the model overlooks them.
 - **Actionable, exact fixes** — every finding is anchored to a line and ships
   the precise `current_code` → `suggested_code` change, not just prose.
 - **Structured, machine-readable output** — strict JSON schema, plus a
@@ -96,6 +99,7 @@ Positional arguments are **`path`** and **`language`**, exactly as requested.
 | `-c, --concurrency N` | Files reviewed in parallel. |
 | `--env-file PATH` | Explicit `.env` location. |
 | `--no-deps` | Disable resolving callee definitions (dependency context). |
+| `--no-static` | Disable deterministic AST backstops (syntax, missing docstrings). |
 | `--no-color` | Disable ANSI colours in `pretty` output. |
 | `--fail-on-issues` | Exit `1` if any issue is found (for CI). |
 | `-v, --verbose` | Verbose logging to stderr. |
@@ -181,6 +185,21 @@ declared vs imported packages and flag duplicates, unpinned versions, conflicts
 and known-vulnerable packages. Tune via `REVIEW_INCLUDE_MANIFESTS` and
 `REVIEW_MAX_MANIFEST_CHARS`.
 
+## Deterministic backstops
+
+LLM judgement is not always reliable for objective, rule-based issues — a model
+may decide a trivial function "doesn't need" a docstring. For Python, the agent
+therefore runs a deterministic `ast`-based pass and **merges its findings into
+the model's results** so certain issues are always reported:
+
+- `syntax` — a real `SyntaxError` (with line and message).
+- `documentation` — any module, class, function or method missing a docstring,
+  with the exact docstring insertion as the suggested fix.
+
+These findings are guaranteed regardless of the model, and de-duplicated
+against anything the model already reported on the same line. Disable with
+`--no-static` / `REVIEW_STATIC_CHECKS=false`.
+
 ## Extending the perspectives
 
 Add a `ReviewCategory` to `DEFAULT_CATEGORIES` in
@@ -204,6 +223,7 @@ code_review_agent/
 ├── config.py      # .env loading, Settings, review perspectives
 ├── collector.py   # file/directory discovery, language filtering
 ├── dependencies.py # symbol index + callee-definition resolution
+├── static_checks.py # deterministic AST backstops (syntax, docstrings)
 ├── prompts.py     # system prompt, JSON schema, user prompt builder
 ├── reviewer.py    # OpenAI calls: retries, concurrency, JSON parsing
 ├── formatter.py   # review / json / pretty renderers
