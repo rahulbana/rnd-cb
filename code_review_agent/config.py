@@ -147,17 +147,22 @@ DEFAULT_CATEGORIES: List[ReviewCategory] = [
         key="documentation",
         title="Documentation",
         guidance=(
-            "Check that every module, class, method and function has a "
-            "docstring, and that public/exported APIs are documented. "
-            "Docstrings should follow PEP 257 (imperative one-line summary, "
-            "blank line before a longer body) and, where relevant, document "
-            "parameters, return values and raised exceptions (e.g. "
-            "Args/Returns/Raises or an equivalent style). Flag missing, empty, "
-            "placeholder ('TODO'), or stale docstrings that no longer match the "
-            "code. Also check that non-obvious or complex logic has explanatory "
-            "comments and that existing comments are accurate rather than "
-            "misleading or redundant. When suggesting a fix, provide the exact "
-            "docstring or comment text to add."
+            "Every module, class, method and function MUST have a docstring. "
+            "Treat a missing docstring as a definite issue (status = 1) and "
+            "emit one issue per undocumented symbol. This is an objective, "
+            "non-negotiable check: report it even for short, trivial, "
+            "one-line, or self-explanatory functions, for private/helper "
+            "functions, and for the module-level docstring at the very top of "
+            "the file. Do NOT skip a missing docstring on the grounds that the "
+            "code is simple or obvious. Docstrings should follow PEP 257 "
+            "(imperative one-line summary, blank line before any longer body) "
+            "and, where the symbol takes parameters, returns a value, or raises "
+            "exceptions, document them (Args/Returns/Raises or an equivalent "
+            "style). Also flag empty, placeholder ('TODO'), or stale docstrings "
+            "that no longer match the code, non-obvious logic that lacks "
+            "explanatory comments, and comments that are misleading or "
+            "redundant. When suggesting a fix, provide the exact docstring or "
+            "comment text to add."
         ),
     ),
     ReviewCategory(
