@@ -20,7 +20,7 @@ celery_app = Celery(
     "deep_agent",
     broker=settings.celery_broker_url,
     backend=settings.celery_result_backend,
-    include=["deep_agent.tasks.scraping"],
+    include=["deep_agent.tasks.scraping", "deep_agent.tasks.search"],
 )
 
 celery_app.conf.update(

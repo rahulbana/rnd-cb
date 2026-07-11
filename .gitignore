@@ -211,3 +211,5 @@ logs/
 docs/*.md
 !docs/.gitkeep
 deep_agent.egg-info/
+*.sqlite
+*.sqlite-*

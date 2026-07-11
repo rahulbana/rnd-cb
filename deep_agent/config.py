@@ -27,6 +27,14 @@ class SearchProvider(str, Enum):
     SERPER = "serper"
 
 
+class CheckpointBackend(str, Enum):
+    """LangGraph checkpoint persistence backends."""
+
+    NONE = "none"        # no checkpointing
+    MEMORY = "memory"    # in-process, lost on exit
+    SQLITE = "sqlite"    # persisted to disk, resumable across runs
+
+
 class Settings(BaseSettings):
     """Application settings, sourced from env / ``.env``."""
 
@@ -59,6 +67,10 @@ class Settings(BaseSettings):
     celery_broker_url: str = Field(default="redis://localhost:6379/0")
     celery_result_backend: str = Field(default="redis://localhost:6379/1")
     celery_task_always_eager: bool = Field(default=True)
+
+    # --- Checkpointing --------------------------------------------------
+    checkpoint_backend: CheckpointBackend = Field(default=CheckpointBackend.MEMORY)
+    checkpoint_db: str = Field(default="deep_agent_checkpoints.sqlite")
 
     # --- Logging --------------------------------------------------------
     log_level: str = Field(default="INFO")

@@ -2,6 +2,7 @@
 
 Examples::
 
+    deep-agent doctor
     deep-agent research "Impact of GLP-1 drugs on healthcare costs"
     deep-agent research "Quantum error correction 2024" --iterations 2
     deep-agent config
@@ -16,6 +17,7 @@ from rich.table import Table
 from deep_agent.config import get_settings
 from deep_agent.graph import run_research, save_report
 from deep_agent.models.schemas import ReportStatus
+from deep_agent.preflight import preflight_ok, run_preflight
 from deep_agent.utils.logging import get_logger, setup_logging
 
 app = typer.Typer(
@@ -39,6 +41,15 @@ def research(
     output_dir: str = typer.Option(
         None, "--output", "-o", help="Directory to write the markdown report."
     ),
+    thread_id: str = typer.Option(
+        None,
+        "--thread-id",
+        "-t",
+        help="Checkpoint thread id (defaults to a slug of the topic).",
+    ),
+    skip_preflight: bool = typer.Option(
+        False, "--skip-preflight", help="Skip pre-run configuration checks."
+    ),
 ) -> None:
     """Run the full research pipeline and save a markdown report."""
 
@@ -46,8 +57,23 @@ def research(
     console.print(
         Panel.fit(f"[bold cyan]Deep research[/]: {topic}", border_style="cyan")
     )
+
+    if not skip_preflight:
+        results = run_preflight()
+        if not preflight_ok(results):
+            failed = [r for r in results if r.critical and not r.ok]
+            details = "\n".join(f"• {r.name}: {r.detail}" for r in failed)
+            console.print(
+                Panel.fit(
+                    f"[bold red]Preflight failed[/] — fix these first:\n{details}\n\n"
+                    "(Re-run with --skip-preflight to bypass.)",
+                    border_style="red",
+                )
+            )
+            raise typer.Exit(code=1)
+
     try:
-        report = run_research(topic, max_iterations=iterations)
+        report = run_research(topic, max_iterations=iterations, thread_id=thread_id)
     except Exception as exc:  # noqa: BLE001
         logger.exception("Research failed")
         console.print(f"[bold red]Error:[/] {exc}")
@@ -75,6 +101,31 @@ def research(
 
 
 @app.command()
+def doctor() -> None:
+    """Validate configuration (API keys, broker, checkpointer) before a run."""
+
+    setup_logging()
+    results = run_preflight()
+    table = Table(title="Deep Agent preflight", show_header=True)
+    table.add_column("Check", style="cyan")
+    table.add_column("Status")
+    table.add_column("Detail", style="white")
+    for r in results:
+        if r.ok:
+            status = "[green]OK[/]"
+        else:
+            status = "[red]FAIL[/]" if r.critical else "[yellow]WARN[/]"
+        table.add_row(r.name, status, r.detail)
+    console.print(table)
+
+    if preflight_ok(results):
+        console.print("[bold green]All critical checks passed.[/]")
+    else:
+        console.print("[bold red]Critical checks failed — fix before running.[/]")
+        raise typer.Exit(code=1)
+
+
+@app.command()
 def config() -> None:
     """Show the active (resolved) configuration."""
 
@@ -93,6 +144,8 @@ def config() -> None:
         "Scrape concurrency": str(s.scrape_max_concurrency),
         "Celery eager": str(s.celery_task_always_eager),
         "Celery broker": s.celery_broker_url,
+        "Checkpoint backend": s.checkpoint_backend.value,
+        "Checkpoint db": s.checkpoint_db,
         "Output dir": s.output_dir,
         "Log level": s.log_level,
     }

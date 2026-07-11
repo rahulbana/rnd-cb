@@ -27,6 +27,7 @@ from deep_agent.agents import (
     SearchAgent,
     WriterAgent,
 )
+from deep_agent.checkpoint import get_checkpointer
 from deep_agent.config import get_settings
 from deep_agent.models.schemas import ReportStatus, ResearchReport
 from deep_agent.state import ResearchState
@@ -136,8 +137,9 @@ def build_graph():
     graph.add_edge("writer", END)
     graph.add_edge("no_results", END)
 
-    logger.info("Research graph compiled.")
-    return graph.compile()
+    checkpointer = get_checkpointer()
+    logger.info("Research graph compiled (checkpointer=%s).", type(checkpointer).__name__ if checkpointer else "none")
+    return graph.compile(checkpointer=checkpointer)
 
 
 def _slugify(text: str) -> str:
@@ -157,17 +159,36 @@ def save_report(report: ResearchReport, output_dir: str | None = None) -> Path:
     return path
 
 
-def run_research(topic: str, max_iterations: int | None = None) -> ResearchReport:
-    """Run the full research pipeline for ``topic`` and return the report."""
+def run_research(
+    topic: str,
+    max_iterations: int | None = None,
+    thread_id: str | None = None,
+) -> ResearchReport:
+    """Run the full research pipeline for ``topic`` and return the report.
+
+    Args:
+        topic: The research topic.
+        max_iterations: Overrides the configured research-loop ceiling.
+        thread_id: Checkpoint thread id. Defaults to a slug of the topic so
+            re-running the same topic resumes/reuses the saved state when a
+            persistent checkpoint backend is configured.
+    """
 
     settings = get_settings()
     max_iter = max_iterations or settings.max_research_iterations
-    logger.info("Starting research: topic=%r max_iterations=%d", topic, max_iter)
+    thread = thread_id or _slugify(topic)
+    logger.info(
+        "Starting research: topic=%r max_iterations=%d thread=%s",
+        topic,
+        max_iter,
+        thread,
+    )
 
     app = build_graph()
     initial: ResearchState = {"topic": topic, "max_iterations": max_iter}
-    # Allow enough supersteps for several research loops.
-    final_state = app.invoke(initial, config={"recursion_limit": 50})
+    # thread_id groups checkpointed state; recursion_limit allows several loops.
+    config = {"recursion_limit": 50, "configurable": {"thread_id": thread}}
+    final_state = app.invoke(initial, config=config)
 
     report = final_state.get("report")
     if report is None:  # pragma: no cover - defensive
