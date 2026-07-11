@@ -164,6 +164,11 @@ def config() -> None:
     rows = {
         "LLM provider": s.llm_provider.value,
         "LLM model": s.llm_model,
+        "LLM fast model": s.llm_fast_model or "(same as model)",
+        "LLM agent overrides": str(s.llm_agent_models or "(none)"),
+        "LLM max tokens": str(s.llm_max_tokens or "(unset)"),
+        "LLM cache": f"{s.llm_cache_backend.value}",
+        "Context budget (chars)": str(s.max_context_chars),
         "Search provider": s.search_provider.value,
         "Search max results": str(s.search_max_results),
         "Max iterations": str(s.max_research_iterations),

@@ -35,6 +35,21 @@ class CheckpointBackend(str, Enum):
     SQLITE = "sqlite"    # persisted to disk, resumable across runs
 
 
+class CacheBackend(str, Enum):
+    """LLM response cache backends."""
+
+    NONE = "none"        # no caching
+    MEMORY = "memory"    # in-process, dedupes within a run
+    SQLITE = "sqlite"    # persisted to disk, dedupes across runs
+
+
+class LLMTier(str, Enum):
+    """Model tier an agent requests from the factory."""
+
+    FAST = "fast"        # lightweight / cheaper model
+    SMART = "smart"      # highest-quality model
+
+
 class Settings(BaseSettings):
     """Application settings, sourced from env / ``.env``."""
 
@@ -51,6 +66,25 @@ class Settings(BaseSettings):
     llm_temperature: float = Field(default=0.2, ge=0.0, le=2.0)
     openai_api_key: str | None = None
     anthropic_api_key: str | None = None
+
+    # --- LLM fine-grained control ---------------------------------------
+    # Optional cheaper model for FAST-tier agents (falls back to llm_model).
+    llm_fast_model: str | None = None
+    # Per-agent model overrides, e.g. LLM_AGENT_MODELS='{"writer":"gpt-4o"}'.
+    llm_agent_models: dict[str, str] = Field(default_factory=dict)
+    llm_max_tokens: int | None = None
+    llm_timeout: int = Field(default=60, ge=1)
+    llm_max_retries: int = Field(default=2, ge=0)
+    llm_seed: int | None = None
+
+    # --- LLM response cache ---------------------------------------------
+    # backend: none | memory | sqlite  (sqlite dedupes across runs)
+    llm_cache_backend: CacheBackend = Field(default=CacheBackend.SQLITE)
+    llm_cache_path: str = Field(default="deep_agent_llm_cache.sqlite")
+
+    # --- Context budgeting (input-token control) ------------------------
+    max_context_chars: int = Field(default=24_000, ge=1_000)
+    per_source_chars: int = Field(default=1_500, ge=200)
 
     # --- Search ---------------------------------------------------------
     search_provider: SearchProvider = Field(default=SearchProvider.TAVILY)

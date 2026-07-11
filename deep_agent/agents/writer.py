@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 from deep_agent.agents.base import BaseAgent
+from deep_agent.config import get_settings
 from deep_agent.models.schemas import (
     Citation,
     FactCheckResult,
@@ -10,8 +11,7 @@ from deep_agent.models.schemas import (
 )
 from deep_agent.state import ResearchState
 from deep_agent.utils.citations import validate_citations
-
-_SNIPPET_CHARS = 1200
+from deep_agent.utils.context import build_sources_block
 
 _SYSTEM = (
     "You are an expert research writer. Using ONLY the provided sources, "
@@ -45,14 +45,22 @@ class WriterAgent(BaseAgent):
         scraped = state.get("scraped", [])
         fact_checks: list[FactCheckResult] = state.get("fact_checks", [])
 
+        # Budget the context; cite only the sources the model actually saw so
+        # the references stay aligned with the evidence in the prompt.
+        settings = get_settings()
+        sources_block, included = build_sources_block(
+            scraped,
+            total_chars=settings.max_context_chars,
+            per_source_chars=settings.per_source_chars,
+        )
+        if len(included) < len(scraped):
+            self.logger.info(
+                "Context budget: using %d of %d sources", len(included), len(scraped)
+            )
         citations = [
             Citation(index=i + 1, title=doc.title or doc.url, url=doc.url)
-            for i, doc in enumerate(scraped)
+            for i, doc in enumerate(included)
         ]
-        sources_block = "\n\n".join(
-            f"[{c.index}] {c.title} ({c.url})\n{doc.content[:_SNIPPET_CHARS]}"
-            for c, doc in zip(citations, scraped)
-        ) or "(no sources available)"
 
         fc_block = "\n".join(
             f"- ({fc.verdict.value}, conf={fc.confidence:.2f}) {fc.claim}"

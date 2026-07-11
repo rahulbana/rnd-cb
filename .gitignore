@@ -213,3 +213,4 @@ docs/*.md
 deep_agent.egg-info/
 *.sqlite
 *.sqlite-*
+deep_agent_llm_cache.sqlite

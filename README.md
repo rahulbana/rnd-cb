@@ -72,7 +72,12 @@ Key settings (see `.env.example` for the full list):
 | Variable | Purpose | Default |
 | --- | --- | --- |
 | `LLM_PROVIDER` | `openai` or `anthropic` | `openai` |
-| `LLM_MODEL` | Model name | `gpt-4o` |
+| `LLM_MODEL` | Default model name | `gpt-4o` |
+| `LLM_FAST_MODEL` | Cheaper model for FAST-tier agents | (= `LLM_MODEL`) |
+| `LLM_AGENT_MODELS` | Per-agent model overrides (JSON) | `{}` |
+| `LLM_MAX_TOKENS` | Cap output tokens per call | unset |
+| `LLM_CACHE_BACKEND` | `none` / `memory` / `sqlite` | `sqlite` |
+| `MAX_CONTEXT_CHARS` | Total input-context budget per prompt | `24000` |
 | `SEARCH_PROVIDER` | `tavily` or `serper` | `tavily` |
 | `MAX_RESEARCH_ITERATIONS` | Reflection loop ceiling | `3` |
 | `CELERY_TASK_ALWAYS_EAGER` | Run scraping/search inline (no broker) | `true` |
@@ -143,6 +148,28 @@ inspection. The default `memory` backend keeps this in-process only.
 
 > Note: checkpointing resumes *interrupted* runs — it does not auto-cache a
 > fully-completed run, so re-invoking a finished thread re-executes the graph.
+
+### LLM control & optimization
+
+The factory gives fine-grained, per-agent control over models while keeping
+calls cheap:
+
+- **Per-agent models** — override any agent's model via `LLM_AGENT_MODELS`,
+  e.g. `{"writer":"gpt-4o","reflection":"gpt-4o-mini"}`. Agents also declare a
+  tier (`SMART`/`FAST`); FAST agents (e.g. Reflection) use `LLM_FAST_MODEL`
+  when set, so lightweight steps run on a cheaper model.
+- **Fine-grained params** — `LLM_MAX_TOKENS`, `LLM_TIMEOUT`, `LLM_MAX_RETRIES`
+  and `LLM_SEED` (deterministic runs) are applied uniformly.
+- **Response caching** — identical LLM calls are served from a cache
+  (`LLM_CACHE_BACKEND=sqlite` dedupes across runs; great for reruns and the
+  repeated reflection/fact-check prompts within a run).
+- **Context budgeting** — prompts to Reflection/Fact-Checker/Writer are capped
+  by `MAX_CONTEXT_CHARS` / `PER_SOURCE_CHARS`, cutting input tokens and
+  preventing overflow. The Writer cites only the sources that fit the budget.
+- **Token logging** — every LLM call logs input/output/total tokens per agent.
+- **Lazy models** — LLM-free agents (search/collector/scraper) never build a
+  model or require an API key; LLM agents build on first use and are cached
+  per `(provider, model)`.
 
 ### Tracing & observability (Langfuse)
 

@@ -4,10 +4,10 @@ from __future__ import annotations
 from pydantic import BaseModel, Field
 
 from deep_agent.agents.base import BaseAgent
+from deep_agent.config import get_settings
 from deep_agent.models.schemas import FactCheckResult
 from deep_agent.state import ResearchState
-
-_SNIPPET_CHARS = 800
+from deep_agent.utils.context import build_sources_block
 
 
 class _FactCheckBatch(BaseModel):
@@ -46,9 +46,11 @@ class FactCheckerAgent(BaseAgent):
             self.logger.warning("No sources available for fact checking.")
             return {"fact_checks": []}
 
-        sources_block = "\n\n".join(
-            f"[{doc.url}] {doc.title}\n{doc.content[:_SNIPPET_CHARS]}"
-            for doc in scraped
+        settings = get_settings()
+        sources_block, _ = build_sources_block(
+            scraped,
+            total_chars=settings.max_context_chars,
+            per_source_chars=settings.per_source_chars,
         )
 
         batch = self._structured(

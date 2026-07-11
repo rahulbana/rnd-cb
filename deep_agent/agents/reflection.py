@@ -2,8 +2,10 @@
 from __future__ import annotations
 
 from deep_agent.agents.base import BaseAgent
+from deep_agent.config import LLMTier, get_settings
 from deep_agent.models.schemas import ReflectionResult
 from deep_agent.state import ResearchState
+from deep_agent.utils.context import build_sources_block
 
 _SYSTEM = (
     "You are a rigorous research editor. Assess whether the gathered "
@@ -20,14 +22,12 @@ _USER = (
     "Assess sufficiency and, if needed, propose up to 4 follow-up queries."
 )
 
-# Cap per-source context so prompts stay within token budgets.
-_SNIPPET_CHARS = 600
-
-
 class ReflectionAgent(BaseAgent):
     """Self-critique that drives the adaptive research loop."""
 
     name = "reflection"
+    # Routing/critique is lightweight — use the cheaper FAST tier when set.
+    llm_tier = LLMTier.FAST
 
     def run(self, state: ResearchState) -> dict:
         plan = state["plan"]
@@ -52,11 +52,13 @@ class ReflectionAgent(BaseAgent):
                 "pending_queries": [],
             }
 
-        sources_block = "\n\n".join(
-            f"[{i + 1}] {doc.title or doc.url} ({doc.url})\n"
-            f"{doc.content[:_SNIPPET_CHARS]}"
-            for i, doc in enumerate(scraped)
-        ) or "(no sources gathered yet)"
+        settings = get_settings()
+        # Reflection needs breadth over depth — use a tighter per-source cap.
+        sources_block, _ = build_sources_block(
+            scraped,
+            total_chars=settings.max_context_chars,
+            per_source_chars=min(settings.per_source_chars, 600),
+        )
 
         reflection = self._structured(
             ReflectionResult,

@@ -2,6 +2,7 @@
 langgraph>=0.2.0
 langchain-core>=0.3.0
 langchain>=0.3.0                     # required by the Langfuse langchain integration
+langchain-community>=0.3.0           # SQLite LLM response cache
 langgraph-checkpoint-sqlite>=2.0.0   # optional SQLite checkpointer backend
 
 # --- LLM providers (switchable) ---
