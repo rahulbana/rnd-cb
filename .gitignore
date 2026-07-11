@@ -205,3 +205,9 @@ cython_debug/
 marimo/_static/
 marimo/_lsp/
 __marimo__/
+
+# Memory chatbot runtime artifacts
+chat_memory.db
+*.db
+*.db-wal
+*.db-shm
