@@ -152,6 +152,33 @@ def doctor() -> None:
 
 
 @app.command()
+def providers() -> None:
+    """List the registered LLM providers and whether each is ready to use."""
+
+    setup_logging()
+    from deep_agent.llm.registry import _REGISTRY, available_providers
+
+    s = get_settings()
+    table = Table(title="LLM providers", show_header=True)
+    table.add_column("Provider", style="cyan")
+    table.add_column("Default model", style="white")
+    table.add_column("Env key")
+    table.add_column("Package")
+    table.add_column("Key set")
+    for name in available_providers():
+        spec = _REGISTRY[name]
+        active = " [bold](active)[/]" if name == s.llm_provider else ""
+        key_set = "[green]yes[/]" if spec.get_api_key(s) else "[dim]no[/]"
+        table.add_row(
+            f"{name}{active}", spec.default_model, spec.env_key, spec.package, key_set
+        )
+    console.print(table)
+    console.print(
+        "[dim]Add a custom provider with deep_agent.llm.register_provider().[/]"
+    )
+
+
+@app.command()
 def config() -> None:
     """Show the active (resolved) configuration."""
 
@@ -162,7 +189,7 @@ def config() -> None:
     table.add_column("Value", style="white")
 
     rows = {
-        "LLM provider": s.llm_provider.value,
+        "LLM provider": s.llm_provider,
         "LLM model": s.llm_model,
         "LLM fast model": s.llm_fast_model or "(same as model)",
         "LLM agent overrides": str(s.llm_agent_models or "(none)"),

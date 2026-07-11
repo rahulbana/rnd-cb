@@ -10,7 +10,6 @@ from dataclasses import dataclass
 
 from deep_agent.config import (
     CheckpointBackend,
-    LLMProvider,
     SearchProvider,
     Settings,
     get_settings,
@@ -38,19 +37,20 @@ def _key_present(value: str | None) -> bool:
 
 
 def _check_llm(settings: Settings) -> CheckResult:
-    provider = settings.llm_provider
-    key = (
-        settings.openai_api_key
-        if provider is LLMProvider.OPENAI
-        else settings.anthropic_api_key
-    )
-    env_name = "OPENAI_API_KEY" if provider is LLMProvider.OPENAI else "ANTHROPIC_API_KEY"
-    if _key_present(key):
-        return CheckResult(f"LLM ({provider.value})", True, f"{env_name} is set")
+    from deep_agent.llm.registry import get_provider
+
+    try:
+        spec = get_provider(settings.llm_provider)
+    except ValueError as exc:
+        return CheckResult(f"LLM ({settings.llm_provider})", False, str(exc))
+
+    label = f"LLM ({spec.name})"
+    if _key_present(spec.get_api_key(settings)):
+        return CheckResult(label, True, f"{spec.env_key} is set")
     return CheckResult(
-        f"LLM ({provider.value})",
+        label,
         False,
-        f"{env_name} is missing — set it in your environment or .env",
+        f"{spec.env_key} is missing — set it in your environment or .env",
     )
 
 

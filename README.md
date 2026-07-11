@@ -71,8 +71,8 @@ Key settings (see `.env.example` for the full list):
 
 | Variable | Purpose | Default |
 | --- | --- | --- |
-| `LLM_PROVIDER` | `openai` or `anthropic` | `openai` |
-| `LLM_MODEL` | Default model name | `gpt-4o` |
+| `LLM_PROVIDER` | `openai` / `anthropic` / `google` (or custom) | `openai` |
+| `LLM_MODEL` | Default model name (match the provider) | `gpt-4o` |
 | `LLM_FAST_MODEL` | Cheaper model for FAST-tier agents | (= `LLM_MODEL`) |
 | `LLM_AGENT_MODELS` | Per-agent model overrides (JSON) | `{}` |
 | `LLM_MAX_TOKENS` | Cap output tokens per call | unset |
@@ -148,6 +148,42 @@ inspection. The default `memory` backend keeps this in-process only.
 
 > Note: checkpointing resumes *interrupted* runs — it does not auto-cache a
 > fully-completed run, so re-invoking a finished thread re-executes the graph.
+
+### Switchable LLM providers (registry)
+
+The LLM layer is a **provider registry**. Built-ins ship for **OpenAI**,
+**Anthropic**, and **Google Gemini**; switch with a single env var:
+
+```bash
+LLM_PROVIDER=google
+LLM_MODEL=gemini-1.5-pro
+GOOGLE_API_KEY=...
+```
+
+Run `deep-agent providers` to see every registered provider, its default
+model, required env key, package, and whether the key is set.
+
+**Adding a new provider** takes one self-contained class — no changes to the
+factory, config enum, or preflight:
+
+```python
+from deep_agent.llm import register_provider
+from deep_agent.llm.base import LLMProviderSpec, LLMParams
+
+@register_provider
+class OllamaProvider(LLMProviderSpec):
+    name = "ollama"
+    env_key = "OLLAMA_HOST"
+    package = "langchain-ollama"
+    default_model = "llama3.1"
+
+    def build(self, settings, params: LLMParams):
+        from langchain_ollama import ChatOllama
+        return ChatOllama(model=params.model, temperature=params.temperature)
+```
+
+Then `LLM_PROVIDER=ollama` just works — `providers`, `doctor`, per-agent
+overrides, caching and tracing all pick it up automatically.
 
 ### LLM control & optimization
 

@@ -9,15 +9,8 @@ from __future__ import annotations
 from enum import Enum
 from functools import lru_cache
 
-from pydantic import Field
+from pydantic import Field, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
-
-
-class LLMProvider(str, Enum):
-    """Supported (switchable) LLM back-ends."""
-
-    OPENAI = "openai"
-    ANTHROPIC = "anthropic"
 
 
 class SearchProvider(str, Enum):
@@ -61,11 +54,20 @@ class Settings(BaseSettings):
     )
 
     # --- LLM ------------------------------------------------------------
-    llm_provider: LLMProvider = Field(default=LLMProvider.OPENAI)
+    # Free-form provider name resolved against the LLM provider registry
+    # (built-ins: openai, anthropic, google). Custom providers can be added
+    # via deep_agent.llm.register_provider without touching this file.
+    llm_provider: str = Field(default="openai")
     llm_model: str = Field(default="gpt-4o")
     llm_temperature: float = Field(default=0.2, ge=0.0, le=2.0)
     openai_api_key: str | None = None
     anthropic_api_key: str | None = None
+    google_api_key: str | None = None
+
+    @field_validator("llm_provider", mode="before")
+    @classmethod
+    def _normalise_provider(cls, value: object) -> object:
+        return value.strip().lower() if isinstance(value, str) else value
 
     # --- LLM fine-grained control ---------------------------------------
     # Optional cheaper model for FAST-tier agents (falls back to llm_model).

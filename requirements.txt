@@ -5,9 +5,10 @@ langchain>=0.3.0                     # required by the Langfuse langchain integr
 langchain-community>=0.3.0           # SQLite LLM response cache
 langgraph-checkpoint-sqlite>=2.0.0   # optional SQLite checkpointer backend
 
-# --- LLM providers (switchable) ---
+# --- LLM providers (switchable, registry-driven) ---
 langchain-openai>=0.2.0
-langchain-anthropic>=0.2.0        # optional secondary provider
+langchain-anthropic>=0.2.0            # optional secondary provider
+langchain-google-genai>=2.0.0        # optional: Gemini provider
 
 # --- Search providers (switchable) ---
 tavily-python>=0.5.0

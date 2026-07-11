@@ -1,15 +1,9 @@
-"""LLM factory — provider-agnostic, per-agent-configurable chat models.
+"""LLM factory — registry-driven, per-agent-configurable chat models.
 
-A single ``get_chat_model`` builds (and caches) a LangChain chat model for
-the configured provider, resolving the model name from:
-
-1. an explicit per-agent override (``LLM_AGENT_MODELS``),
-2. the FAST-tier model (``LLM_FAST_MODEL``) when the caller asks for it,
-3. the default ``LLM_MODEL``.
-
-Fine-grained params (``max_tokens``, ``timeout``, ``max_retries``, ``seed``)
-are applied uniformly, and an optional response cache dedupes identical
-calls (across runs with the SQLite backend).
+``get_chat_model`` resolves the model name for an agent role/tier, looks up
+the configured provider in the registry, validates its credential, applies
+fine-grained params and returns a cached chat model.  Adding a provider
+never touches this file — only ``providers.py`` / ``register_provider``.
 """
 from __future__ import annotations
 
@@ -17,13 +11,12 @@ from functools import lru_cache
 
 from langchain_core.language_models.chat_models import BaseChatModel
 
-from deep_agent.config import (
-    CacheBackend,
-    LLMProvider,
-    LLMTier,
-    Settings,
-    get_settings,
-)
+from deep_agent.config import CacheBackend, LLMTier, Settings, get_settings
+from deep_agent.llm.base import LLMParams
+
+# Importing providers registers the built-ins (openai/anthropic/google).
+from deep_agent.llm import providers as _providers  # noqa: F401
+from deep_agent.llm.registry import get_provider
 from deep_agent.utils.logging import get_logger
 
 logger = get_logger("llm.factory")
@@ -75,61 +68,36 @@ def _resolve_model(settings: Settings, role: str | None, tier: LLMTier) -> str:
     return settings.llm_model
 
 
-def _build_openai(settings: Settings, model: str) -> BaseChatModel:
-    from langchain_openai import ChatOpenAI
-
-    if not settings.openai_api_key:
-        raise ValueError("OPENAI_API_KEY is required for the 'openai' provider.")
-    kwargs: dict = dict(
-        model=model,
-        temperature=settings.llm_temperature,
-        api_key=settings.openai_api_key,
-        timeout=settings.llm_timeout,
-        max_retries=settings.llm_max_retries,
-    )
-    if settings.llm_max_tokens is not None:
-        kwargs["max_tokens"] = settings.llm_max_tokens
-    if settings.llm_seed is not None:
-        kwargs["seed"] = settings.llm_seed
-    return ChatOpenAI(**kwargs)
-
-
-def _build_anthropic(settings: Settings, model: str) -> BaseChatModel:
-    from langchain_anthropic import ChatAnthropic
-
-    if not settings.anthropic_api_key:
-        raise ValueError(
-            "ANTHROPIC_API_KEY is required for the 'anthropic' provider."
-        )
-    kwargs: dict = dict(
-        model=model,
-        temperature=settings.llm_temperature,
-        api_key=settings.anthropic_api_key,
-        timeout=settings.llm_timeout,
-        max_retries=settings.llm_max_retries,
-        # Anthropic requires an explicit max_tokens; default when unset.
-        max_tokens=settings.llm_max_tokens or 4096,
-    )
-    return ChatAnthropic(**kwargs)
-
-
-_BUILDERS = {
-    LLMProvider.OPENAI: _build_openai,
-    LLMProvider.ANTHROPIC: _build_anthropic,
-}
-
-
-@lru_cache(maxsize=16)
-def _cached_model(provider: LLMProvider, model: str) -> BaseChatModel:
+@lru_cache(maxsize=32)
+def _cached_model(provider_name: str, model: str) -> BaseChatModel:
     """Build (once) and cache a model per (provider, model) pair."""
 
     settings = get_settings()
+    spec = get_provider(provider_name)
+
+    if not spec.get_api_key(settings):
+        raise ValueError(
+            f"{spec.env_key} is required for the '{spec.name}' LLM provider. "
+            "Set it in your environment or .env."
+        )
+
     _init_llm_cache(settings)
-    builder = _BUILDERS.get(provider)
-    if builder is None:  # pragma: no cover - guarded by enum
-        raise ValueError(f"Unsupported LLM provider: {provider}")
-    logger.info("Initialising LLM provider=%s model=%s", provider.value, model)
-    return builder(settings, model)
+    params = LLMParams(
+        model=model,
+        temperature=settings.llm_temperature,
+        max_tokens=settings.llm_max_tokens,
+        timeout=settings.llm_timeout,
+        max_retries=settings.llm_max_retries,
+        seed=settings.llm_seed,
+    )
+    logger.info("Initialising LLM provider=%s model=%s", spec.name, model)
+    try:
+        return spec.build(settings, params)
+    except ImportError as exc:  # pragma: no cover - depends on env
+        raise ImportError(
+            f"The '{spec.name}' provider requires '{spec.package}'. "
+            f"Install it with: pip install {spec.package}  ({exc})"
+        ) from exc
 
 
 def get_chat_model(
