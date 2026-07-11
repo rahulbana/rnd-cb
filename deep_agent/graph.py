@@ -13,6 +13,7 @@ loop driven by the Reflection agent:
 from __future__ import annotations
 
 import re
+from collections.abc import Callable
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -163,6 +164,8 @@ def run_research(
     topic: str,
     max_iterations: int | None = None,
     thread_id: str | None = None,
+    stream: bool | None = None,
+    on_node: Callable[[str], None] | None = None,
 ) -> ResearchReport:
     """Run the full research pipeline for ``topic`` and return the report.
 
@@ -172,25 +175,45 @@ def run_research(
         thread_id: Checkpoint thread id. Defaults to a slug of the topic so
             re-running the same topic resumes/reuses the saved state when a
             persistent checkpoint backend is configured.
+        stream: If True, drive the graph with ``stream`` and invoke ``on_node``
+            as each node completes; if False, use a single silent ``invoke``.
+            Defaults to the ``STREAM_PROGRESS`` setting.
+        on_node: Callback receiving the name of each node as it completes
+            (only used when ``stream`` is True).
     """
 
     settings = get_settings()
     max_iter = max_iterations or settings.max_research_iterations
     thread = thread_id or _slugify(topic)
+    use_stream = settings.stream_progress if stream is None else stream
     logger.info(
-        "Starting research: topic=%r max_iterations=%d thread=%s",
+        "Starting research: topic=%r max_iterations=%d thread=%s stream=%s",
         topic,
         max_iter,
         thread,
+        use_stream,
     )
 
     app = build_graph()
     initial: ResearchState = {"topic": topic, "max_iterations": max_iter}
     # thread_id groups checkpointed state; recursion_limit allows several loops.
     config = {"recursion_limit": 50, "configurable": {"thread_id": thread}}
-    final_state = app.invoke(initial, config=config)
 
-    report = final_state.get("report")
+    if use_stream:
+        report: ResearchReport | None = None
+        for chunk in app.stream(initial, config=config, stream_mode="updates"):
+            for node, update in chunk.items():
+                if on_node is not None:
+                    on_node(node)
+                if isinstance(update, dict) and update.get("report") is not None:
+                    report = update["report"]
+        if report is None:
+            # Fall back to the persisted final state if we missed the update.
+            report = app.get_state(config).values.get("report")
+    else:
+        final_state = app.invoke(initial, config=config)
+        report = final_state.get("report")
+
     if report is None:  # pragma: no cover - defensive
         raise RuntimeError("Pipeline finished without producing a report.")
     return report

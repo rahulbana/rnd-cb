@@ -47,6 +47,11 @@ def research(
         "-t",
         help="Checkpoint thread id (defaults to a slug of the topic).",
     ),
+    stream: bool = typer.Option(
+        True,
+        "--stream/--no-stream",
+        help="Show live per-node progress (stream) or run silently (invoke).",
+    ),
     skip_preflight: bool = typer.Option(
         False, "--skip-preflight", help="Skip pre-run configuration checks."
     ),
@@ -72,8 +77,29 @@ def research(
             )
             raise typer.Exit(code=1)
 
+    # Human-friendly labels for the live progress line.
+    node_labels = {
+        "planner": "Planning research",
+        "search": "Searching the web",
+        "collector": "Collecting sources",
+        "scraper": "Scraping pages",
+        "reflection": "Reflecting on coverage",
+        "fact_checker": "Fact-checking claims",
+        "writer": "Writing report",
+        "no_results": "No results",
+    }
+
+    def _on_node(node: str) -> None:
+        console.print(f"  [green]✓[/] {node_labels.get(node, node)}")
+
     try:
-        report = run_research(topic, max_iterations=iterations, thread_id=thread_id)
+        report = run_research(
+            topic,
+            max_iterations=iterations,
+            thread_id=thread_id,
+            stream=stream,
+            on_node=_on_node if stream else None,
+        )
     except Exception as exc:  # noqa: BLE001
         logger.exception("Research failed")
         console.print(f"[bold red]Error:[/] {exc}")
@@ -142,6 +168,9 @@ def config() -> None:
         "Search max results": str(s.search_max_results),
         "Max iterations": str(s.max_research_iterations),
         "Scrape concurrency": str(s.scrape_max_concurrency),
+        "Respect robots.txt": str(s.respect_robots),
+        "Scrape delay (s)": str(s.scrape_delay_seconds),
+        "Stream progress": str(s.stream_progress),
         "Celery eager": str(s.celery_task_always_eager),
         "Celery broker": s.celery_broker_url,
         "Checkpoint backend": s.checkpoint_backend.value,

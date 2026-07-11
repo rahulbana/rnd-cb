@@ -78,6 +78,9 @@ Key settings (see `.env.example` for the full list):
 | `CELERY_TASK_ALWAYS_EAGER` | Run scraping/search inline (no broker) | `true` |
 | `CHECKPOINT_BACKEND` | `none` / `memory` / `sqlite` | `memory` |
 | `CHECKPOINT_DB` | SQLite checkpoint file (when `sqlite`) | `deep_agent_checkpoints.sqlite` |
+| `RESPECT_ROBOTS` | Honour robots.txt when scraping | `true` |
+| `SCRAPE_DELAY_SECONDS` | Min delay between requests to the same domain | `1.0` |
+| `STREAM_PROGRESS` | Show live per-node progress in the CLI | `true` |
 
 ## Usage
 
@@ -93,11 +96,18 @@ deep-agent research "Impact of GLP-1 drugs on healthcare costs"
 
 # Limit the research loop, set a checkpoint thread, choose an output dir
 deep-agent research "Quantum error correction progress in 2024" -n 2 -t qec-2024 -o docs
+
+# Run silently (single invoke) instead of streaming per-node progress
+deep-agent research "..." --no-stream
 ```
 
 `research` runs a **preflight** check first and fails fast with an
 actionable message if a required key or the broker is missing (bypass with
 `--skip-preflight`).
+
+By default the CLI **streams** live per-node progress (`✓ Planning research`,
+`✓ Searching the web`, …); pass `--no-stream` to run with a single silent
+`invoke` instead.
 
 ### Distributed scraping with Celery (optional)
 
@@ -113,6 +123,13 @@ celery -A deep_agent.tasks.celery_app:celery_app worker --loglevel=info
 
 Search queries are fanned out as a Celery `group` (mirroring the scraper),
 so with real workers they run in parallel; under eager mode they run inline.
+
+### Scraper politeness
+
+The scraper honours each site's `robots.txt` (`RESPECT_ROBOTS`) and rate-limits
+requests per domain (`SCRAPE_DELAY_SECONDS`) using the configured
+`SCRAPE_USER_AGENT`. Disallowed URLs are skipped with a clear reason rather
+than fetched. Robots caches and throttle timers are per worker process.
 
 ### Checkpointing
 

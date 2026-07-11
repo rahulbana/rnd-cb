@@ -13,24 +13,23 @@ from deep_agent.config import get_settings
 from deep_agent.models.schemas import ScrapedDocument
 from deep_agent.tasks.celery_app import celery_app
 from deep_agent.utils.logging import get_logger
+from deep_agent.utils.politeness import robots_allowed, throttle
 from deep_agent.utils.retry import http_retry
 
 logger = get_logger("tasks.scraping")
 
-_HEADERS = {
-    "User-Agent": (
-        "Mozilla/5.0 (compatible; DeepAgent/0.1; +https://example.com/bot)"
-    )
-}
 # Tags that never carry meaningful article content.
 _STRIP_TAGS = ("script", "style", "nav", "header", "footer", "aside", "noscript")
 _MAX_CONTENT_CHARS = 20_000
 
 
 @http_retry(max_attempts=3)
-def _fetch(url: str, timeout: int) -> httpx.Response:
+def _fetch(url: str, timeout: int, user_agent: str) -> httpx.Response:
     response = httpx.get(
-        url, headers=_HEADERS, timeout=timeout, follow_redirects=True
+        url,
+        headers={"User-Agent": user_agent},
+        timeout=timeout,
+        follow_redirects=True,
     )
     response.raise_for_status()
     return response
@@ -58,10 +57,22 @@ def scrape_url(self, url: str, timeout: int | None = None) -> dict:
     JSON-safe for the Celery result backend.
     """
 
-    timeout = timeout or get_settings().scrape_timeout_seconds
+    settings = get_settings()
+    timeout = timeout or settings.scrape_timeout_seconds
+    user_agent = settings.scrape_user_agent
+
+    # Politeness: honour robots.txt, then rate-limit per domain.
+    if settings.respect_robots and not robots_allowed(url, user_agent, timeout):
+        logger.warning("Skipping %s — disallowed by robots.txt", url)
+        return ScrapedDocument(
+            url=url, success=False, error="disallowed by robots.txt"
+        ).model_dump(mode="json")
+
+    throttle(url, settings.scrape_delay_seconds)
+
     logger.info("Scraping %s", url)
     try:
-        response = _fetch(url, timeout)
+        response = _fetch(url, timeout, user_agent)
         title, content = _extract_text(response.text)
         doc = ScrapedDocument(
             url=url,

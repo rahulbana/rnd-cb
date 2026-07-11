@@ -63,6 +63,16 @@ class Settings(BaseSettings):
     scrape_timeout_seconds: int = Field(default=20, ge=1)
     scrape_max_concurrency: int = Field(default=5, ge=1, le=50)
 
+    # --- Scraper politeness ---------------------------------------------
+    scrape_user_agent: str = Field(
+        default="DeepAgent/0.1 (+https://example.com/bot)"
+    )
+    respect_robots: bool = Field(default=True)
+    scrape_delay_seconds: float = Field(default=1.0, ge=0.0)
+
+    # --- CLI ------------------------------------------------------------
+    stream_progress: bool = Field(default=True)
+
     # --- Celery ---------------------------------------------------------
     celery_broker_url: str = Field(default="redis://localhost:6379/0")
     celery_result_backend: str = Field(default="redis://localhost:6379/1")
