@@ -70,7 +70,11 @@ def _render_memories(memories: list[str]) -> str:
 
 
 def build_agent(db: Database, settings: Settings, checkpointer):
-    """Compile and return the LangGraph app plus the long-term memory store."""
+    """Compile the LangGraph app.
+
+    Returns ``(app, memory, tools)`` — the compiled graph, the long-term memory
+    store, and the list of tools bound to the agent.
+    """
 
     llm = ChatOpenAI(
         model=settings.chat_model,
@@ -152,4 +156,4 @@ def build_agent(db: Database, settings: Settings, checkpointer):
     graph.add_edge("tools", "agent")
 
     app = graph.compile(checkpointer=checkpointer)
-    return app, memory
+    return app, memory, tools

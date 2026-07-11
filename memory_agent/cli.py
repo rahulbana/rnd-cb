@@ -22,6 +22,7 @@ from .db import Database
 HELP = """\
 Commands:
   /help          show this help
+  /tools         list the tools I can use (search, converters, etc.)
   /memories      list everything I remember long-term about you
   /history       show recent messages from your chat archive
   /new           start a fresh conversation (clears short-term context)
@@ -68,6 +69,14 @@ def _print_memories(memory, user_id: str) -> None:
         print(f"  {i}. {m}")
 
 
+def _print_tools(tools) -> None:
+    print("Tools available to the assistant:")
+    for t in tools:
+        # first line of the docstring/description keeps the list tidy
+        summary = (t.description or "").strip().splitlines()[0]
+        print(f"  - {t.name}: {summary}")
+
+
 def _print_history(db: Database, user_id: str) -> None:
     rows = db.recent_messages(user_id, limit=20)
     if not rows:
@@ -96,7 +105,7 @@ def run() -> None:
     # The checkpointer stores short-term conversation state per thread in the
     # same SQLite file, surviving restarts.
     with SqliteSaver.from_conn_string(settings.db_path) as checkpointer:
-        app, memory = build_agent(db, settings, checkpointer)
+        app, memory, tools = build_agent(db, settings, checkpointer)
 
         print("=" * 60)
         print("  Memory Chatbot  —  short-term + long-term memory")
@@ -121,6 +130,9 @@ def run() -> None:
                 break
             if cmd == "/help":
                 print(HELP)
+                continue
+            if cmd == "/tools":
+                _print_tools(tools)
                 continue
             if cmd == "/memories":
                 _print_memories(memory, session.user_id)
