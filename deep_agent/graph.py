@@ -28,20 +28,69 @@ from deep_agent.agents import (
     WriterAgent,
 )
 from deep_agent.config import get_settings
-from deep_agent.models.schemas import ResearchReport
+from deep_agent.models.schemas import ReportStatus, ResearchReport
 from deep_agent.state import ResearchState
 from deep_agent.utils.logging import get_logger
 
 logger = get_logger("graph")
 
 
+def _has_queries(state: ResearchState) -> bool:
+    plan = state.get("plan")
+    return bool(plan and plan.all_queries())
+
+
+def _route_after_planner(state: ResearchState) -> str:
+    """Abort early when the planner produced nothing searchable."""
+
+    if not _has_queries(state):
+        return "no_results"
+    return "search"
+
+
 def _route_after_reflection(state: ResearchState) -> str:
-    """Loop back to search when more research is needed, else finish."""
+    """Loop for more research, abort if empty-handed, else write the report."""
 
     reflection = state.get("reflection")
     if reflection is not None and not reflection.is_sufficient:
         return "search"
+    # Evidence is deemed sufficient (or the loop hit its ceiling). If nothing
+    # was scraped, short-circuit instead of writing an empty report.
+    if not state.get("scraped"):
+        return "no_results"
     return "fact_checker"
+
+
+def _no_results_node(state: ResearchState) -> dict:
+    """Terminal node that emits a clear 'no report' message.
+
+    Reached when the planner yields no queries or no source content could be
+    retrieved, so the pipeline stops instead of producing an empty report.
+    """
+
+    topic = state.get("topic", "Unknown topic")
+    if not _has_queries(state):
+        reason = "the planner did not produce any searchable queries"
+        hint = "Try rephrasing the topic to be more concrete and specific."
+    else:
+        reason = "no source content could be retrieved from web search/scraping"
+        hint = (
+            "Check your search provider API key and network access, or broaden "
+            "the topic so it surfaces more sources."
+        )
+
+    logger.warning("No report generated: %s", reason)
+    markdown = (
+        f"# {topic}\n\n"
+        "> **No report generated.**\n\n"
+        f"Research stopped because {reason}.\n\n"
+        f"_{hint}_\n"
+    )
+    return {
+        "report": ResearchReport(
+            topic=topic, markdown=markdown, status=ReportStatus.NO_RESULTS
+        )
+    }
 
 
 def build_graph():
@@ -63,19 +112,29 @@ def build_graph():
     graph.add_node("reflection", reflection.run)
     graph.add_node("fact_checker", fact_checker.run)
     graph.add_node("writer", writer.run)
+    graph.add_node("no_results", _no_results_node)
 
     graph.add_edge(START, "planner")
-    graph.add_edge("planner", "search")
+    graph.add_conditional_edges(
+        "planner",
+        _route_after_planner,
+        {"search": "search", "no_results": "no_results"},
+    )
     graph.add_edge("search", "collector")
     graph.add_edge("collector", "scraper")
     graph.add_edge("scraper", "reflection")
     graph.add_conditional_edges(
         "reflection",
         _route_after_reflection,
-        {"search": "search", "fact_checker": "fact_checker"},
+        {
+            "search": "search",
+            "fact_checker": "fact_checker",
+            "no_results": "no_results",
+        },
     )
     graph.add_edge("fact_checker", "writer")
     graph.add_edge("writer", END)
+    graph.add_edge("no_results", END)
 
     logger.info("Research graph compiled.")
     return graph.compile()

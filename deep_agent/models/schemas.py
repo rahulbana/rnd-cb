@@ -120,11 +120,19 @@ class Citation(BaseModel):
     url: str
 
 
+class ReportStatus(str, Enum):
+    """Terminal status of a research run."""
+
+    OK = "ok"
+    NO_RESULTS = "no_results"
+
+
 class ResearchReport(BaseModel):
     """The final markdown research report and its metadata."""
 
     topic: str
     markdown: str
+    status: ReportStatus = ReportStatus.OK
     citations: list[Citation] = Field(default_factory=list)
     generated_at: datetime = Field(
         default_factory=lambda: datetime.now(timezone.utc)

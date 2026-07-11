@@ -2,8 +2,14 @@
 from __future__ import annotations
 
 from deep_agent.agents.base import BaseAgent
-from deep_agent.models.schemas import Citation, FactCheckResult, ResearchReport
+from deep_agent.models.schemas import (
+    Citation,
+    FactCheckResult,
+    ReportStatus,
+    ResearchReport,
+)
 from deep_agent.state import ResearchState
+from deep_agent.utils.citations import validate_citations
 
 _SNIPPET_CHARS = 1200
 
@@ -69,9 +75,25 @@ class WriterAgent(BaseAgent):
             ),
         )
 
-        markdown = self._assemble(plan.topic, body, citations, fact_checks)
+        # Post-pass: drop hallucinated citations, renumber the survivors and
+        # rewrite the inline markers so the references section is trustworthy.
+        validated = validate_citations(body, citations)
+        self.logger.info(
+            "Citations validated: %d cited, %d hallucinated dropped, "
+            "%d provided sources unused",
+            validated.referenced,
+            validated.dangling_removed,
+            validated.unused_dropped,
+        )
+
+        markdown = self._assemble(
+            plan.topic, validated.body, validated.citations, fact_checks
+        )
         report = ResearchReport(
-            topic=plan.topic, markdown=markdown, citations=citations
+            topic=plan.topic,
+            markdown=markdown,
+            status=ReportStatus.OK,
+            citations=validated.citations,
         )
         self.logger.info("Report composed (%d chars)", len(markdown))
         return {"report": report}
@@ -86,7 +108,10 @@ class WriterAgent(BaseAgent):
         """Append a references section and fact-check appendix to the body."""
 
         parts = [f"# {topic}\n", body.strip(), "\n## References\n"]
-        parts.extend(f"{c.index}. [{c.title}]({c.url})" for c in citations)
+        if citations:
+            parts.extend(f"{c.index}. [{c.title}]({c.url})" for c in citations)
+        else:
+            parts.append("_No sources were cited in this report._")
 
         if fact_checks:
             parts.append("\n## Fact-Check Summary\n")

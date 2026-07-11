@@ -15,6 +15,7 @@ from rich.table import Table
 
 from deep_agent.config import get_settings
 from deep_agent.graph import run_research, save_report
+from deep_agent.models.schemas import ReportStatus
 from deep_agent.utils.logging import get_logger, setup_logging
 
 app = typer.Typer(
@@ -53,6 +54,17 @@ def research(
         raise typer.Exit(code=1)
 
     path = save_report(report, output_dir=output_dir)
+
+    if report.status is ReportStatus.NO_RESULTS:
+        console.print(
+            Panel.fit(
+                f"[bold yellow]No report generated[/] — see {path}\n"
+                "The pipeline could not gather enough evidence for this topic.",
+                border_style="yellow",
+            )
+        )
+        raise typer.Exit(code=2)
+
     console.print(
         Panel.fit(
             f"[bold green]Report written[/] → {path}\n"

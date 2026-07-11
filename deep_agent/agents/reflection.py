@@ -35,6 +35,23 @@ class ReflectionAgent(BaseAgent):
         iteration = state.get("iteration", 0) + 1
         max_iterations = state.get("max_iterations", 3)
 
+        # Guard: with no gathered sources there is nothing to reflect on and
+        # re-running the same queries won't help. Skip the LLM call and stop
+        # the loop so the graph can route to the no-results terminal.
+        if not scraped:
+            self.logger.warning(
+                "No sources gathered after iteration %d; ending research loop.",
+                iteration,
+            )
+            return {
+                "reflection": ReflectionResult(
+                    is_sufficient=True,
+                    reasoning="No source content could be retrieved.",
+                ),
+                "iteration": iteration,
+                "pending_queries": [],
+            }
+
         sources_block = "\n\n".join(
             f"[{i + 1}] {doc.title or doc.url} ({doc.url})\n"
             f"{doc.content[:_SNIPPET_CHARS]}"
