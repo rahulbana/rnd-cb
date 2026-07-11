@@ -82,6 +82,12 @@ class Settings(BaseSettings):
     checkpoint_backend: CheckpointBackend = Field(default=CheckpointBackend.MEMORY)
     checkpoint_db: str = Field(default="deep_agent_checkpoints.sqlite")
 
+    # --- Observability (Langfuse) ---------------------------------------
+    langfuse_enabled: bool = Field(default=False)
+    langfuse_public_key: str | None = None
+    langfuse_secret_key: str | None = None
+    langfuse_host: str = Field(default="https://cloud.langfuse.com")
+
     # --- Logging --------------------------------------------------------
     log_level: str = Field(default="INFO")
     log_dir: str = Field(default="logs")

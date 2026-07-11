@@ -122,6 +122,31 @@ def _check_checkpoint(settings: Settings) -> CheckResult:
         )
 
 
+def _check_langfuse(settings: Settings) -> CheckResult:
+    if not settings.langfuse_enabled:
+        return CheckResult("Langfuse tracing", True, "disabled", critical=False)
+    if not (settings.langfuse_public_key and settings.langfuse_secret_key):
+        return CheckResult(
+            "Langfuse tracing",
+            False,
+            "enabled but LANGFUSE_PUBLIC_KEY/SECRET_KEY missing",
+            critical=False,
+        )
+    try:
+        import langfuse  # noqa: F401
+
+        return CheckResult(
+            "Langfuse tracing", True, f"enabled → {settings.langfuse_host}", critical=False
+        )
+    except Exception as exc:  # noqa: BLE001
+        return CheckResult(
+            "Langfuse tracing",
+            False,
+            f"enabled but package unavailable: {exc}",
+            critical=False,
+        )
+
+
 def run_preflight(settings: Settings | None = None) -> list[CheckResult]:
     """Run all preflight checks and return their results."""
 
@@ -131,6 +156,7 @@ def run_preflight(settings: Settings | None = None) -> list[CheckResult]:
         _check_search(settings),
         _check_broker(settings),
         _check_checkpoint(settings),
+        _check_langfuse(settings),
     ]
     for check in checks:
         level = logger.info if check.ok else logger.error

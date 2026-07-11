@@ -81,6 +81,9 @@ Key settings (see `.env.example` for the full list):
 | `RESPECT_ROBOTS` | Honour robots.txt when scraping | `true` |
 | `SCRAPE_DELAY_SECONDS` | Min delay between requests to the same domain | `1.0` |
 | `STREAM_PROGRESS` | Show live per-node progress in the CLI | `true` |
+| `LANGFUSE_ENABLED` | Trace runs to Langfuse | `false` |
+| `LANGFUSE_PUBLIC_KEY` / `LANGFUSE_SECRET_KEY` | Langfuse credentials | — |
+| `LANGFUSE_HOST` | Langfuse endpoint | `https://cloud.langfuse.com` |
 
 ## Usage
 
@@ -140,6 +143,16 @@ inspection. The default `memory` backend keeps this in-process only.
 
 > Note: checkpointing resumes *interrupted* runs — it does not auto-cache a
 > fully-completed run, so re-invoking a finished thread re-executes the graph.
+
+### Tracing & observability (Langfuse)
+
+Set `LANGFUSE_ENABLED=true` with your `LANGFUSE_PUBLIC_KEY` /
+`LANGFUSE_SECRET_KEY` (and `LANGFUSE_HOST`) to trace every run to
+[Langfuse](https://langfuse.com). A LangChain callback handler is attached
+to the graph run, so each node and every LLM call is captured as a span;
+runs are grouped by `thread_id` as the Langfuse **session** and tagged
+`deep-agent`. Traces are flushed automatically before the CLI exits. When
+disabled (the default) there is zero overhead. Verify with `deep-agent doctor`.
 
 ## Logging
 

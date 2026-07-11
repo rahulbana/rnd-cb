@@ -31,6 +31,7 @@ from deep_agent.agents import (
 from deep_agent.checkpoint import get_checkpointer
 from deep_agent.config import get_settings
 from deep_agent.models.schemas import ReportStatus, ResearchReport
+from deep_agent.observability import flush_langfuse, get_langfuse_handler
 from deep_agent.state import ResearchState
 from deep_agent.utils.logging import get_logger
 
@@ -197,22 +198,39 @@ def run_research(
     app = build_graph()
     initial: ResearchState = {"topic": topic, "max_iterations": max_iter}
     # thread_id groups checkpointed state; recursion_limit allows several loops.
-    config = {"recursion_limit": 50, "configurable": {"thread_id": thread}}
+    config: dict = {"recursion_limit": 50, "configurable": {"thread_id": thread}}
 
-    if use_stream:
-        report: ResearchReport | None = None
-        for chunk in app.stream(initial, config=config, stream_mode="updates"):
-            for node, update in chunk.items():
-                if on_node is not None:
-                    on_node(node)
-                if isinstance(update, dict) and update.get("report") is not None:
-                    report = update["report"]
-        if report is None:
-            # Fall back to the persisted final state if we missed the update.
-            report = app.get_state(config).values.get("report")
-    else:
-        final_state = app.invoke(initial, config=config)
-        report = final_state.get("report")
+    # Attach Langfuse tracing when enabled; LangChain propagates the callback
+    # to the LLM calls inside each agent automatically.
+    handler = get_langfuse_handler()
+    if handler is not None:
+        config["callbacks"] = [handler]
+        config["run_name"] = f"deep-research: {topic}"
+        config["metadata"] = {
+            "langfuse_session_id": thread,
+            "langfuse_tags": ["deep-agent"],
+            "topic": topic,
+            "max_iterations": max_iter,
+        }
+
+    try:
+        if use_stream:
+            report: ResearchReport | None = None
+            for chunk in app.stream(initial, config=config, stream_mode="updates"):
+                for node, update in chunk.items():
+                    if on_node is not None:
+                        on_node(node)
+                    if isinstance(update, dict) and update.get("report") is not None:
+                        report = update["report"]
+            if report is None:
+                # Fall back to the persisted final state if we missed the update.
+                report = app.get_state(config).values.get("report")
+        else:
+            final_state = app.invoke(initial, config=config)
+            report = final_state.get("report")
+    finally:
+        # Ensure buffered traces are sent before the CLI process exits.
+        flush_langfuse()
 
     if report is None:  # pragma: no cover - defensive
         raise RuntimeError("Pipeline finished without producing a report.")

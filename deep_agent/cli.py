@@ -175,6 +175,8 @@ def config() -> None:
         "Celery broker": s.celery_broker_url,
         "Checkpoint backend": s.checkpoint_backend.value,
         "Checkpoint db": s.checkpoint_db,
+        "Langfuse tracing": str(s.langfuse_enabled),
+        "Langfuse host": s.langfuse_host,
         "Output dir": s.output_dir,
         "Log level": s.log_level,
     }
