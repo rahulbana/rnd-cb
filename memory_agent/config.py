@@ -29,6 +29,10 @@ class Settings:
     embedding_model: str = os.getenv("EMBEDDING_MODEL", "text-embedding-3-small")
     temperature: float = float(os.getenv("CHAT_TEMPERATURE", "0.3"))
 
+    # --- Tools ---
+    # Optional. Web search is disabled with a friendly message if unset.
+    tavily_api_key: str = os.getenv("TAVILY_API_KEY", "")
+
     # --- Storage ---
     # Single SQLite file holds the chat log, long-term memories, and the
     # LangGraph short-term checkpoints.

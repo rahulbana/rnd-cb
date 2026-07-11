@@ -30,6 +30,7 @@ from langgraph.prebuilt import ToolNode, tools_condition
 from .config import Settings
 from .db import Database
 from .memory import LongTermMemory
+from .tools import build_extra_tools
 
 
 class AgentState(TypedDict):
@@ -51,6 +52,11 @@ so it makes sense on its own later (e.g. "User prefers concise answers").
 Do NOT save trivia, one-off requests, or anything the user asks you to forget.
 
 Use `search_long_term_memory` if you need to recall something not already shown.
+
+You also have utility tools: `web_search` (current info), `convert_currency`,
+`convert_units`, `current_time` (by timezone/city/country), `ip_lookup` (domain
+or URL), `draft_email`, `summarize_text`, and `translate_text`. Call a tool when
+it clearly helps; don't guess at facts a tool can look up.
 
 Relevant long-term memories about this user:
 {memories}
@@ -104,6 +110,8 @@ def build_agent(db: Database, settings: Settings, checkpointer):
         return "\n".join(f"- {h}" for h in hits)
 
     tools = [save_memory, search_long_term_memory]
+    # Utility tools reuse the base (tool-free) LLM for their internal sub-tasks.
+    tools += build_extra_tools(settings, llm)
     llm_with_tools = llm.bind_tools(tools)
 
     def recall(state: AgentState, config: RunnableConfig) -> dict:

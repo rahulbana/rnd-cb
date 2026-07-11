@@ -4,3 +4,7 @@ langchain-openai>=0.2.0
 langchain-core>=0.3.0
 numpy>=1.26
 python-dotenv>=1.0
+requests>=2.31
+pint>=0.23
+pytz>=2024.1
+tavily-python>=0.5.0

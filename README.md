@@ -29,6 +29,27 @@ On each turn the agent:
 START ─▶ recall ─▶ agent ─▶ (tools ─▶ agent)* ─▶ END
 ```
 
+## Tools
+
+The agent can call these when they help (memory tools plus utilities):
+
+| Tool | What it does | Needs |
+|------|--------------|-------|
+| `save_memory` / `search_long_term_memory` | Store & recall durable user facts | — |
+| `web_search` | Live web search via **Tavily** | `TAVILY_API_KEY` |
+| `convert_currency` | Live FX conversion (ISO codes) | network (open.er-api.com) |
+| `convert_units` | Length/mass/temp/volume/… via **pint** | — |
+| `current_time` | Time by IANA zone, city, or country | — |
+| `ip_lookup` | Resolve a domain/URL to IP(s) + geolocation | network |
+| `draft_email` | Draft an email from key points | — |
+| `summarize_text` | Summarize a block of text | — |
+| `translate_text` | Translate text to a target language | — |
+
+`draft_email`, `summarize_text`, and `translate_text` run a focused, tool-free
+sub-call to the same model, keeping the main conversation context clean. Every
+tool degrades gracefully — a missing key or network hiccup returns a readable
+message instead of crashing the chat.
+
 ## Setup
 
 ```bash
