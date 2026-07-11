@@ -4,15 +4,16 @@ Facts are stored as short natural-language statements ("User is a vegetarian",
 "User's dog is named Rex"). Each is embedded with an OpenAI embedding model so
 we can recall the most relevant ones for a given query via cosine similarity.
 
-This is deliberately simple (an in-process cosine scan) which is plenty fast for
-a personal CLI assistant. Swap in a vector DB here if you ever need scale.
+Recall is a single vectorised matrix operation over the user's stored vectors —
+fast for the thousands-of-facts scale a personal assistant reaches. Swap in a
+vector DB here if you ever need more.
 """
 
 from __future__ import annotations
 
 import numpy as np
 
-from .db import Database
+from .database import Database
 
 
 def _to_blob(vec: list[float]) -> bytes:
@@ -38,8 +39,7 @@ class LongTermMemory:
         if not content:
             return
         try:
-            vec = self.embeddings.embed_query(content)
-            blob = _to_blob(vec)
+            blob = _to_blob(self.embeddings.embed_query(content))
         except Exception:
             # If embedding fails (e.g. offline) we still keep the fact; it just
             # won't participate in semantic search until re-embedded.
@@ -50,6 +50,7 @@ class LongTermMemory:
         """Return the most relevant stored facts for ``query``."""
         rows = self.db.all_memories(user_id)
         if not rows:
+            # Fast path: no embedding call for users with nothing stored.
             return []
 
         embedded = [r for r in rows if r["embedding"] is not None]
@@ -62,16 +63,15 @@ class LongTermMemory:
         except Exception:
             return [r["content"] for r in embedded[-self.top_k :]]
 
+        # Stack vectors into one matrix and score them all at once.
+        matrix = np.vstack([_from_blob(r["embedding"]) for r in embedded])
+        norms = np.linalg.norm(matrix, axis=1)
+        norms[norms == 0] = 1.0
         q_norm = np.linalg.norm(q) or 1.0
-        scored: list[tuple[float, str]] = []
-        for r in embedded:
-            v = _from_blob(r["embedding"])
-            denom = (np.linalg.norm(v) or 1.0) * q_norm
-            score = float(np.dot(v, q) / denom)
-            scored.append((score, r["content"]))
+        scores = (matrix @ q) / (norms * q_norm)
 
-        scored.sort(key=lambda x: x[0], reverse=True)
-        return [c for s, c in scored[: self.top_k] if s >= self.min_score]
+        order = np.argsort(scores)[::-1][: self.top_k]
+        return [embedded[i]["content"] for i in order if scores[i] >= self.min_score]
 
     def list_all(self, user_id: str) -> list[str]:
         return [r["content"] for r in self.db.all_memories(user_id)]

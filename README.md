@@ -102,9 +102,29 @@ tuning (`SHORT_TERM_WINDOW`, `MEMORY_TOP_K`, `MEMORY_MIN_SCORE`).
 
 ```
 memory_agent/
-  config.py   settings from env / .env
-  db.py       SQLite: chat archive + long-term memory rows
-  memory.py   long-term memory: embed, store, semantic recall
-  agent.py    LangGraph graph, LLM, and memory tools
-  cli.py      interactive chat loop
+  config.py              settings from env / .env
+  models.py              OpenAI chat + embedding model factories
+  storage/
+    database.py          SQLite: chat archive + long-term memory rows
+    long_term_memory.py  embed, store, vectorised semantic recall
+  tools/
+    base.py              shared helpers (HTTP, LLM sub-task, host parsing)
+    memory.py            save_memory / search_long_term_memory
+    web.py               web_search (Tavily)
+    converters.py        convert_currency / convert_units
+    datetime_tools.py    current_time
+    network.py           ip_lookup
+    text.py              draft_email / summarize_text / translate_text
+    __init__.py          build_tools() — tool registry
+  agent/
+    state.py             graph state schema
+    prompts.py           system prompt
+    graph.py             build_agent() — nodes + wiring
+  cli/
+    session.py           per-user session state
+    commands.py          slash-command helpers
+    app.py               interactive chat loop
 ```
+
+Adding a capability is a self-contained change: write a `make_*_tools` factory
+in a `tools/` module and register it in `tools/__init__.py`.
