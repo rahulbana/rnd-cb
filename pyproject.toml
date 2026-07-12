@@ -1,0 +1,5 @@
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+# Make the package importable without installing it.
+pythonpath = ["."]
+addopts = "-q"
