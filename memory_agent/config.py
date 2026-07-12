@@ -38,6 +38,13 @@ class Settings:
     # LangGraph short-term checkpoints.
     db_path: str = os.getenv("MEMORY_DB_PATH", "chat_memory.db")
 
+    # --- Observability (Langfuse) ---
+    # Optional. Tracing is enabled only when both keys are present; otherwise
+    # the app runs exactly as before with no callbacks attached.
+    langfuse_public_key: str = os.getenv("LANGFUSE_PUBLIC_KEY", "")
+    langfuse_secret_key: str = os.getenv("LANGFUSE_SECRET_KEY", "")
+    langfuse_host: str = os.getenv("LANGFUSE_HOST", "https://cloud.langfuse.com")
+
     # --- Memory tuning ---
     # How many recent messages of the running conversation are fed to the LLM
     # (the "short-term memory" window). Older turns stay in the checkpoint but
@@ -47,6 +54,10 @@ class Settings:
     memory_top_k: int = int(os.getenv("MEMORY_TOP_K", "5"))
     # Minimum cosine similarity for a long-term memory to count as relevant.
     memory_min_score: float = float(os.getenv("MEMORY_MIN_SCORE", "0.25"))
+
+    @property
+    def langfuse_enabled(self) -> bool:
+        return bool(self.langfuse_public_key and self.langfuse_secret_key)
 
     def require_api_key(self) -> None:
         if not self.openai_api_key:

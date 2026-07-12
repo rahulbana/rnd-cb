@@ -92,6 +92,18 @@ alice> Suggest a snack for me.
 bot> Since you're allergic to peanuts, how about ... (recalled from long-term memory)
 ```
 
+## Observability (Langfuse)
+
+Optional. Set `LANGFUSE_PUBLIC_KEY` and `LANGFUSE_SECRET_KEY` (and
+`LANGFUSE_HOST` for self-hosted) to trace every run to
+[Langfuse](https://langfuse.com) — LLM calls, tool calls, latencies, and
+token/cost — grouped by **user** (`user_id`) and **session** (the conversation
+thread). It attaches as a LangChain callback, so no code paths change.
+
+With no keys set, tracing is silently disabled and the app runs unchanged; a
+misconfigured tracer never breaks the chat. When enabled, the startup banner
+shows `observability: Langfuse tracing enabled`.
+
 ## Testing
 
 ```bash
@@ -116,6 +128,7 @@ tuning (`SHORT_TERM_WINDOW`, `MEMORY_TOP_K`, `MEMORY_MIN_SCORE`).
 memory_agent/
   config.py              settings from env / .env
   models.py              OpenAI chat + embedding model factories
+  observability.py       optional Langfuse tracing (callback + trace metadata)
   storage/
     database.py          SQLite: chat archive + long-term memory rows
     long_term_memory.py  embed, store, vectorised semantic recall

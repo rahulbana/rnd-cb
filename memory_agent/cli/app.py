@@ -11,14 +11,19 @@ from langgraph.checkpoint.sqlite import SqliteSaver
 
 from ..agent import build_agent
 from ..config import settings
+from ..observability import build_langfuse_handler, flush, instrument
 from ..storage import Database
 from . import commands
 from .session import Session
 
 
-def _respond(app, db: Database, session: Session, text: str) -> None:
+def _respond(app, db: Database, session: Session, text: str, handler=None) -> None:
     db.log_message(session.user_id, session.thread_id, "user", text)
-    result = app.invoke({"messages": [HumanMessage(text)]}, config=session.config)
+    config = instrument(
+        session.config, handler,
+        user_id=session.user_id, session_id=session.thread_id,
+    )
+    result = app.invoke({"messages": [HumanMessage(text)]}, config=config)
     reply = result["messages"][-1].content
     db.log_message(session.user_id, session.thread_id, "assistant", reply)
     print(f"\nbot> {reply}\n")
@@ -32,10 +37,13 @@ def run() -> None:
     # same SQLite file, surviving restarts.
     with SqliteSaver.from_conn_string(settings.db_path) as checkpointer:
         app, memory, tools = build_agent(db, settings, checkpointer)
+        langfuse = build_langfuse_handler(settings)
 
         print("=" * 60)
         print("  Memory Chatbot  —  short-term + long-term memory")
         print("  model:", settings.chat_model)
+        if langfuse is not None:
+            print("  observability: Langfuse tracing enabled")
         print("=" * 60)
         session = Session(commands.prompt_user_id(db))
         print(f"\nHi {session.user_id}! Type /help for commands.\n")
@@ -79,8 +87,10 @@ def run() -> None:
                 continue
 
             try:
-                _respond(app, db, session, text)
+                _respond(app, db, session, text, handler=langfuse)
             except Exception as exc:  # keep the loop alive on transient errors
                 print(f"\n[error] {exc}\n")
+
+        flush()  # send any buffered Langfuse events before exit
 
     db.close()
