@@ -92,6 +92,18 @@ alice> Suggest a snack for me.
 bot> Since you're allergic to peanuts, how about ... (recalled from long-term memory)
 ```
 
+## Testing
+
+```bash
+pip install -r requirements-dev.txt
+pytest
+```
+
+The suite (`tests/`) is fully offline — the OpenAI chat and embedding models are
+replaced with deterministic fakes and HTTP-backed tools are monkeypatched, so no
+API key or network is needed. It covers storage + semantic recall, every tool,
+the graph (tool routing, short-term persistence, memory recall), and the CLI.
+
 ## Configuration
 
 All settings are environment variables (see `.env.example`): model names,
