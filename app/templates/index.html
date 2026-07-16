@@ -1,0 +1,100 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Chunking Strategy Explorer</title>
+  <link rel="stylesheet" href="/static/styles.css" />
+</head>
+<body>
+  <header class="masthead">
+    <div class="wrap">
+      <h1>🧩 Chunking Strategy Explorer</h1>
+      <p class="tagline">
+        Upload a document, pick a chunking strategy, and see exactly how it
+        splits your text — and what that costs you.
+      </p>
+    </div>
+  </header>
+
+  <main class="wrap">
+    <section class="panel controls">
+      <form id="chunk-form">
+        <div class="field">
+          <label for="file">1. Choose a file</label>
+          <input type="file" id="file" name="file"
+                 accept=".txt,.md,.markdown,.text,.csv,.json,.log,text/*" />
+          <p class="hint">Plain text works best (.txt, .md, …). Max 2 MB. Or paste text below.</p>
+        </div>
+
+        <details class="paste">
+          <summary>…or paste text instead</summary>
+          <textarea id="text" name="text" rows="6"
+                    placeholder="Paste raw text here"></textarea>
+        </details>
+
+        <div class="field">
+          <label for="strategy">2. Chunking strategy</label>
+          <select id="strategy" name="strategy"></select>
+          <p id="strategy-desc" class="strategy-desc"></p>
+        </div>
+
+        <div class="field">
+          <label>3. Parameters</label>
+          <div id="params" class="params-grid"></div>
+        </div>
+
+        <button type="submit" id="submit-btn" class="primary">
+          Chunk it →
+        </button>
+        <p id="error" class="error" hidden></p>
+      </form>
+    </section>
+
+    <section id="results" hidden>
+      <div class="results-head">
+        <h2>Results</h2>
+        <span id="result-meta" class="result-meta"></span>
+      </div>
+
+      <div id="stat-cards" class="stat-cards"></div>
+
+      <div class="panel">
+        <h3>Chunk-size distribution</h3>
+        <p class="hint">How uniform are the chunks? Tall single bars mean consistent sizing; a wide spread means variable chunks.</p>
+        <div id="histogram" class="histogram"></div>
+        <div id="histogram-axis" class="hist-axis"></div>
+      </div>
+
+      <div class="panel">
+        <div class="chunks-head">
+          <h3>Chunks (<span id="chunk-count">0</span>)</h3>
+          <label class="toggle">
+            <input type="checkbox" id="show-overlap" checked />
+            Highlight overlap with previous chunk
+          </label>
+        </div>
+        <div id="chunks" class="chunks"></div>
+      </div>
+    </section>
+
+    <section id="empty-state" class="panel empty">
+      <p>👈 Configure a strategy and hit <strong>Chunk it</strong> to see the breakdown.</p>
+    </section>
+  </main>
+
+  <footer class="wrap foot">
+    <p>
+      FastAPI · Strategies: fixed-size, recursive, sentence, paragraph, token,
+      and semantic (OpenAI). {% if not openai_enabled %}
+      <span class="warn">Semantic chunking is disabled — set <code>OPENAI_API_KEY</code> to enable it.</span>
+      {% endif %}
+    </p>
+  </footer>
+
+  <script>
+    window.STRATEGIES = {{ strategies | tojson }};
+  </script>
+  <script src="/static/app.js"></script>
+</body>
+</html>

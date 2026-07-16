@@ -1,0 +1,21 @@
+Retrieval-Augmented Generation and the Chunking Problem
+
+Retrieval-augmented generation (RAG) grounds a language model's answers in your own documents. Before the model ever sees a question, those documents are split into smaller pieces, embedded into vectors, and stored in a database. When a question arrives, the most similar pieces are retrieved and handed to the model as context. The quality of that final answer is bounded by the quality of the pieces you retrieved, and the quality of the pieces is decided long before retrieval, at chunking time.
+
+Why chunk size matters
+
+A chunk that is too large dilutes its own embedding. When a single vector has to represent three unrelated topics, it ends up close to everything and specific to nothing, so retrieval becomes fuzzy. A chunk that is too small has the opposite problem: it may match a query on a keyword while lacking the surrounding sentences needed to actually answer it. The right size is a balance, and it depends on your documents and your questions.
+
+The role of overlap
+
+Overlap repeats a slice of the previous chunk at the start of the next one. This matters because an important sentence can straddle a boundary. Without overlap, the first half of an idea lands in chunk five and the second half in chunk six, and neither chunk is retrievable on its own. Overlap costs storage and embedding money, because you are paying to embed the same text more than once, so it is a trade-off rather than a free win.
+
+Structure-aware splitting
+
+Fixed-size character splitting is fast and simple, but it is blind to structure. It will cheerfully cut through the middle of a word or a sentence, producing chunks that begin and end mid-thought. Recursive splitting fixes most of this by preferring natural boundaries: it tries to break on paragraphs first, then lines, then sentences, then words, and only falls back to raw characters when nothing else fits. Sentence and paragraph strategies go further and refuse to break those units at all.
+
+Semantic chunking
+
+The most sophisticated approach ignores length entirely and splits on meaning. Each sentence is embedded, and a new chunk begins wherever the similarity between neighbouring sentences drops sharply, marking a shift in topic. This produces chunks that are each about one thing. It costs an embedding call per sentence, but for heterogeneous documents the coherence is often worth it.
+
+There is no single best strategy. The point of experimenting is to see, for your own documents, how each choice changes the number of chunks, their uniformity, the redundancy overlap adds, and how often a boundary falls in an awkward place.
