@@ -1,9 +1,14 @@
 # 📝 Markdown Editor
 
-A **full-featured, browser-based Markdown editor** with a Python backend. It
-renders Markdown to HTML server-side with `python-markdown` + Pygments, and
-serves a fast, dependency-free single-page UI with a live split preview,
-document workspace, toolbar, keyboard shortcuts, find & replace, and export.
+A **full-featured Markdown editor** with a Python backend that runs both as a
+**native desktop app** and as a **web app**. It renders Markdown to HTML in
+Python with `python-markdown` + Pygments, and serves a fast, dependency-free
+single-page UI with a live split preview, document workspace, toolbar,
+keyboard shortcuts, find & replace, and export.
+
+The desktop build wraps the same UI in a native OS window (via
+[`pywebview`](https://pywebview.flowrl.com/)) and adds native **Open / Save /
+Save As** dialogs and an application menu — see [Desktop app](#desktop-app).
 
 ![Split view with live preview, line numbers, syntax highlighting, and an outline sidebar.](docs/screenshot-dark.png)
 
@@ -58,7 +63,37 @@ pip install -r requirements.txt
 pip install -e .
 ```
 
-## Run
+## Desktop app
+
+Run the editor as a native window (no browser, no visible localhost URL):
+
+```bash
+pip install -e ".[desktop]"        # installs pywebview
+python -m markdown_editor --desktop # or: markdown-editor-desktop
+```
+
+In desktop mode you get:
+
+- a **native window** with a **File / Edit / View / Help** menu bar
+- native **Open**, **Save**, and **Save As** dialogs that read and write real
+  files **anywhere on disk** (not just the managed workspace)
+- native **Export to HTML / Markdown** save dialogs
+- the same live preview, toolbar, themes, find & replace, and shortcuts as the
+  web app
+
+The window remembers the last file you had open and reopens it on launch.
+
+### Platform backend
+
+`pywebview` renders through your OS's native webview, which must be available:
+
+| OS | Backend | Notes |
+| --- | --- | --- |
+| Windows | EdgeChromium (WebView2) | Preinstalled on Windows 10/11 |
+| macOS | WKWebView | Built in |
+| Linux | GTK + WebKit2GTK, or Qt WebEngine | e.g. `sudo apt install python3-gi gir1.2-webkit2-4.1` (GTK) or `pip install pyqt5 pyqtwebengine` (Qt) |
+
+## Run (web app)
 
 ```bash
 python -m markdown_editor          # or: python run.py
@@ -76,6 +111,7 @@ python -m markdown_editor --help
   --workspace DIR     where documents are stored
                       (default: $MDEDITOR_WORKSPACE or ~/markdown-editor-docs)
   --no-browser        do not open a browser on start
+  --desktop           launch as a native desktop window (needs pywebview)
   --debug             run Flask in debug mode
 ```
 
@@ -89,15 +125,18 @@ markdown_editor/
 ├── app.py            Flask application factory + JSON API
 ├── renderer.py       Markdown → HTML (preview & standalone export)
 ├── storage.py        Path-safe .md document workspace (CRUD)
-├── __main__.py       CLI runner (python -m markdown_editor)
+├── desktop.py        Native desktop shell (pywebview) + JS↔Python bridge
+├── __main__.py       CLI runner (web + --desktop)
 ├── templates/        index.html (single-page UI)
 └── static/           style.css (themes + Pygments), app.js (controller)
-tests/                pytest suite (renderer, storage, HTTP API)
+tests/                pytest suite (renderer, storage, HTTP API, desktop bridge)
 ```
 
 The frontend is intentionally build-step-free vanilla JavaScript. All Markdown
 rendering happens in Python, so the preview and the exported HTML are always
-identical.
+identical. The **same UI and backend serve both the web and desktop builds** —
+`desktop.py` wraps them in a native window and the frontend detects the
+`window.pywebview` bridge to switch Open/Save over to native file dialogs.
 
 ### HTTP API
 

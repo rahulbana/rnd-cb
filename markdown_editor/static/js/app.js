@@ -69,7 +69,8 @@
 
   // ---------------------------------------------------------------- state
   const state = {
-    currentName: null, // null => unsaved scratch doc (not yet in the workspace)
+    currentName: null, // workspace doc name (web mode / server-stored docs)
+    filePath: null, // absolute path on disk (desktop mode, native files)
     suggestedName: "Untitled", // default name offered when saving a scratch doc
     dirty: false,
     lastSavedContent: "",
@@ -77,6 +78,11 @@
     theme: localStorage.getItem("md.theme") || "light",
     autosave: true,
   };
+
+  // Desktop bridge (window.pywebview.api) — populated once the native shell is
+  // ready. `null` means we're running as a plain web page in a browser.
+  let desktop = null;
+  const isDesktop = () => desktop !== null;
 
   // -------------------------------------------------------------- elements
   const editor = $("#editor");
@@ -179,6 +185,7 @@
   // =====================================================================
   function setCurrent(name, content) {
     state.currentName = name;
+    state.filePath = null;
     state.suggestedName = name || "Untitled";
     editor.value = content;
     state.lastSavedContent = content;
@@ -215,9 +222,42 @@
   }
 
   function triggerOpenFile() {
+    if (isDesktop()) return desktopOpen();
     const input = $("#file-input");
     input.value = ""; // allow re-opening the same file
     input.click();
+  }
+
+  // Desktop: open via a native file dialog and track the real path on disk.
+  async function desktopOpen() {
+    if (!(await confirmDiscardIfDirty())) return;
+    try {
+      const res = await desktop.open_dialog();
+      if (!res) return; // user cancelled
+      loadFromDisk(res);
+      flash(`Opened “${res.name}”`);
+    } catch (err) {
+      flash(`Could not open file: ${err.message || err}`, true);
+    }
+  }
+
+  // Adopt an on-disk file (from a dialog or drag-drop) as the current document.
+  function loadFromDisk(res) {
+    state.currentName = null;
+    state.filePath = res.path;
+    state.suggestedName = res.name || "Untitled";
+    editor.value = res.content;
+    state.lastSavedContent = res.content;
+    state.dirty = false;
+    dirtyDot.hidden = true;
+    docTitle.textContent = res.name || "Untitled";
+    docTitle.title = res.path || "Click to rename";
+    document.title = `${res.name || "Untitled"} — Markdown Editor`;
+    localStorage.setItem("md.lastPath", res.path || "");
+    updateGutter();
+    updateCursor();
+    renderNow();
+    editor.focus();
   }
 
   async function refreshFileList() {
@@ -292,21 +332,44 @@
   async function saveDocument(silent) {
     const content = editor.value;
     try {
+      // Desktop file backed by a real path -> write straight to it.
+      if (isDesktop() && state.filePath) {
+        const res = await desktop.write_path(state.filePath, content);
+        onSavedToDisk(res, silent);
+        return true;
+      }
+      // Workspace document (server-stored) -> overwrite in place. Works in
+      // both web and desktop mode (the Flask backend runs in both).
       if (state.currentName) {
         const { document: doc } = await api.save(state.currentName, content);
         onSaved(doc, silent);
         return true;
       }
+      // Nothing to overwrite yet -> Save As.
       return await saveAs(state.suggestedName, silent);
     } catch (err) {
-      flash(err.message, true);
+      flash(err.message || String(err), true);
       return false;
     }
   }
 
-  // "Save As": always ask for a (new) name and create a fresh document.
+  // "Save As": always ask for a (new) name/location and create a fresh file.
   async function saveAs(defaultName, silent) {
     let suggestion = defaultName || state.suggestedName || "Untitled";
+
+    // Desktop: a native Save dialog picks the path anywhere on disk.
+    if (isDesktop()) {
+      try {
+        const res = await desktop.save_dialog(editor.value, suggestion);
+        if (!res) return false; // cancelled
+        onSavedToDisk(res, silent);
+        return true;
+      } catch (err) {
+        flash(err.message || String(err), true);
+        return false;
+      }
+    }
+
     // Loop so an invalid/duplicate name re-prompts instead of failing silently.
     for (;;) {
       const name = await promptName("Save document as:", suggestion);
@@ -345,9 +408,25 @@
     if (!silent) flash(`Saved “${doc.name}”`);
   }
 
+  // Post-save bookkeeping for desktop files written to a real path on disk.
+  function onSavedToDisk(res, silent) {
+    state.filePath = res.path;
+    state.currentName = null;
+    state.suggestedName = res.name || state.suggestedName;
+    state.lastSavedContent = editor.value;
+    state.dirty = false;
+    dirtyDot.hidden = true;
+    docTitle.textContent = res.name || state.suggestedName;
+    docTitle.title = res.path || "";
+    document.title = `${res.name || "Untitled"} — Markdown Editor`;
+    localStorage.setItem("md.lastPath", res.path || "");
+    if (!silent) flash(`Saved “${res.path}”`);
+  }
+
   // Download the current buffer straight to the user's computer as a .md file
   // (no workspace involved) — handy for exporting without naming a doc.
   function downloadCurrent() {
+    if (isDesktop()) return saveAs(state.suggestedName, false);
     const name = state.currentName || state.suggestedName || "document";
     const blob = new Blob([editor.value], { type: "text/markdown" });
     const a = document.createElement("a");
@@ -702,9 +781,24 @@
   // =====================================================================
   async function exportAs(kind) {
     $("#export-menu").hidden = true;
-    const title = state.currentName || "document";
+    const title = state.currentName || state.suggestedName || "document";
     if (kind === "print") {
       window.print();
+      return;
+    }
+    // Desktop: write through native Save dialogs to a real path on disk.
+    if (isDesktop()) {
+      try {
+        if (kind === "html") {
+          const res = await desktop.export_html(editor.value, title);
+          if (res) flash(`Exported to “${res.path}”`);
+        } else {
+          const res = await desktop.save_dialog(editor.value, title);
+          if (res) flash(`Exported to “${res.path}”`);
+        }
+      } catch (err) {
+        flash(err.message || String(err), true);
+      }
       return;
     }
     const url = kind === "html" ? "/api/export/html" : "/api/export/markdown";
@@ -956,30 +1050,114 @@ print(greet("world"))
 Made with ☕ and Python. Press **Ctrl+B** to embolden, **Ctrl+S** to save.
 `;
 
+  // =====================================================================
+  //  Native desktop integration
+  // =====================================================================
+  // Public surface the native menu (desktop.py) calls through evaluate_js.
+  window.MDEditor = {
+    newDoc: () => newDocument(),
+    openFile: () => triggerOpenFile(),
+    save: () => saveDocument(false),
+    saveAs: () => saveAs(state.suggestedName, false),
+    exportHtml: () => exportAs("html"),
+    exportMarkdown: () => exportAs("markdown"),
+    printDoc: () => window.print(),
+    cmd: (name) => commands[name] && commands[name](),
+    find: () => toggleFindBar(true),
+    setView: (v) => setView(v),
+    toggleTheme: () => setTheme(state.theme === "dark" ? "light" : "dark"),
+    toggleSidebar: () => toggleSidebar(),
+    about: (version) =>
+      alert(
+        `Markdown Editor ${version || ""}\n\n` +
+          "A full-featured Markdown editor with a Python backend.\n" +
+          "Running as a native desktop app (pywebview)."
+      ),
+  };
+
+  function enterDesktopMode(bridge) {
+    if (isDesktop()) return;
+    desktop = bridge;
+    document.body.classList.add("desktop");
+    // Native dialogs replace the browser file-input on desktop.
+    const input = document.getElementById("file-input");
+    if (input) input.remove();
+  }
+
+  // Resolve the desktop bridge without slowing the plain-browser path.
+  async function detectDesktop() {
+    if (window.pywebview && window.pywebview.api) {
+      enterDesktopMode(window.pywebview.api);
+      return;
+    }
+    if (window.pywebview) {
+      // Native shell present but the API bridge isn't ready yet.
+      await new Promise((resolve) => {
+        window.addEventListener(
+          "pywebviewready",
+          () => {
+            if (window.pywebview.api) enterDesktopMode(window.pywebview.api);
+            resolve();
+          },
+          { once: true }
+        );
+        setTimeout(resolve, 1500);
+      });
+    } else {
+      // Almost certainly a browser; still upgrade opportunistically if the
+      // native shell finishes initialising a moment later.
+      window.addEventListener(
+        "pywebviewready",
+        () => {
+          if (window.pywebview && window.pywebview.api && !isDesktop()) {
+            enterDesktopMode(window.pywebview.api);
+          }
+        },
+        { once: true }
+      );
+    }
+  }
+
   async function boot() {
     setTheme(state.theme);
     setView(state.view);
     bind();
     initSplitter();
+    await detectDesktop();
     await refreshFileList();
 
-    // Restore last-opened doc, else show a sample scratch document.
-    const last = localStorage.getItem("md.lastDoc");
+    // Restore last-opened document (a disk file on desktop, a workspace doc on
+    // web), else show a sample scratch document.
     let opened = false;
-    if (last) {
-      try {
-        const { document: doc } = await api.read(last);
-        setCurrent(doc.name, doc.content);
-        opened = true;
-      } catch {
-        /* doc was deleted externally */
+    if (isDesktop()) {
+      const path = localStorage.getItem("md.lastPath");
+      if (path) {
+        try {
+          loadFromDisk(await desktop.read_path(path));
+          opened = true;
+        } catch {
+          /* file was moved or deleted */
+        }
+      }
+    } else {
+      const last = localStorage.getItem("md.lastDoc");
+      if (last) {
+        try {
+          const { document: doc } = await api.read(last);
+          setCurrent(doc.name, doc.content);
+          opened = true;
+        } catch {
+          /* doc was deleted externally */
+        }
       }
     }
     if (!opened) setCurrent(null, SAMPLE);
 
-    // Persist last-open on change.
+    // Persist last-open (web workspace docs) on a light interval.
     setInterval(() => {
-      if (state.currentName) localStorage.setItem("md.lastDoc", state.currentName);
+      if (!isDesktop() && state.currentName) {
+        localStorage.setItem("md.lastDoc", state.currentName);
+      }
     }, 2000);
   }
 

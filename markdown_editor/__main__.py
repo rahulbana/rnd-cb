@@ -31,6 +31,11 @@ def build_arg_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument("--no-browser", action="store_true", help="Do not open a browser window on start")
     parser.add_argument("--debug", action="store_true", help="Run Flask in debug mode")
+    parser.add_argument(
+        "--desktop",
+        action="store_true",
+        help="Launch as a native desktop window instead of a web server (requires the 'desktop' extra: pip install pywebview)",
+    )
     parser.add_argument("--version", action="version", version=f"%(prog)s {__version__}")
     return parser
 
@@ -39,6 +44,10 @@ def main(argv: list[str] | None = None) -> int:
     args = build_arg_parser().parse_args(argv)
 
     workspace_dir = args.workspace or default_workspace_dir()
+
+    if args.desktop:
+        return _run_desktop(workspace_dir, args.debug)
+
     workspace = Workspace(workspace_dir)
     app = create_app(workspace)
 
@@ -56,6 +65,25 @@ def main(argv: list[str] | None = None) -> int:
         app.run(host=args.host, port=args.port, debug=args.debug)
     except KeyboardInterrupt:  # pragma: no cover - interactive
         print("\nStopped.")
+    return 0
+
+
+def _run_desktop(workspace_dir: Path, debug: bool) -> int:
+    """Launch the native desktop window, with a friendly hint if deps are missing."""
+    try:
+        from .desktop import run as run_desktop
+    except ImportError:
+        print(
+            "Desktop mode needs pywebview. Install it with:\n"
+            "    pip install pywebview\n"
+            "or install this package with the desktop extra:\n"
+            "    pip install 'markdown-editor[desktop]'",
+            file=sys.stderr,
+        )
+        return 1
+    print(f"Markdown Editor {__version__} (desktop)")
+    print(f"  workspace : {workspace_dir}")
+    run_desktop(workspace=workspace_dir, debug=debug)
     return 0
 
 
