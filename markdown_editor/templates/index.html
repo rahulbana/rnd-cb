@@ -19,7 +19,17 @@
       </div>
       <div class="topbar-right">
         <button class="text-btn" id="btn-new" title="New (Ctrl+Alt+N)">New</button>
-        <button class="text-btn" id="btn-save" title="Save (Ctrl+S)">Save</button>
+        <button class="text-btn" id="btn-open" title="Open a file from your computer (Ctrl+O)">Open</button>
+        <input type="file" id="file-input" accept=".md,.markdown,.mdown,.mkd,.txt,text/markdown,text/plain" hidden>
+        <div class="menu split-btn">
+          <button class="text-btn" id="btn-save" title="Save (Ctrl+S)">Save</button>
+          <button class="text-btn caret" id="btn-save-more" title="More save options" aria-label="More save options">▾</button>
+          <div class="menu-list" id="save-menu" hidden>
+            <button data-save="save">Save<span class="menu-hint">Ctrl+S</span></button>
+            <button data-save="saveas">Save As…<span class="menu-hint">Ctrl+Shift+S</span></button>
+            <button data-save="download">Download .md<span class="menu-hint"></span></button>
+          </div>
+        </div>
         <div class="menu">
           <button class="text-btn" id="btn-export" title="Export">Export ▾</button>
           <div class="menu-list" id="export-menu" hidden>

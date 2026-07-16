@@ -69,7 +69,8 @@
 
   // ---------------------------------------------------------------- state
   const state = {
-    currentName: null, // null => unsaved scratch doc
+    currentName: null, // null => unsaved scratch doc (not yet in the workspace)
+    suggestedName: "Untitled", // default name offered when saving a scratch doc
     dirty: false,
     lastSavedContent: "",
     view: localStorage.getItem("md.view") || "split",
@@ -178,6 +179,7 @@
   // =====================================================================
   function setCurrent(name, content) {
     state.currentName = name;
+    state.suggestedName = name || "Untitled";
     editor.value = content;
     state.lastSavedContent = content;
     state.dirty = false;
@@ -187,6 +189,35 @@
     updateGutter();
     updateCursor();
     renderNow();
+  }
+
+  // Load a file the user picked from their computer into the editor as a new,
+  // unsaved scratch document.  The filename (minus extension) becomes the
+  // suggested name for the first save.
+  async function openLocalFile(file) {
+    if (!file) return;
+    if (!(await confirmDiscardIfDirty())) return;
+    try {
+      const content = await file.text();
+      const stem = file.name.replace(/\.[^.]+$/, "").trim() || "Untitled";
+      setCurrent(null, content); // null => not yet in the workspace
+      state.suggestedName = stem;
+      docTitle.textContent = stem;
+      document.title = `${stem} — Markdown Editor`;
+      // Imported content isn't saved yet, so flag it as unsaved.
+      state.lastSavedContent = null;
+      markDirty();
+      editor.focus();
+      flash(`Opened “${file.name}” — press Ctrl+S to save it to the workspace`);
+    } catch (err) {
+      flash(`Could not read file: ${err.message}`, true);
+    }
+  }
+
+  function triggerOpenFile() {
+    const input = $("#file-input");
+    input.value = ""; // allow re-opening the same file
+    input.click();
   }
 
   async function refreshFileList() {
@@ -254,28 +285,79 @@
     flash("New document");
   }
 
+  // Persist the current document to the workspace.
+  //   - a named document is overwritten in place (PUT)
+  //   - a scratch document prompts for a name, then is created (POST),
+  //     retrying on name clashes/invalid names so the user isn't stuck
   async function saveDocument(silent) {
+    const content = editor.value;
     try {
-      if (!state.currentName) {
-        const name = await promptName("Save document as:", "Untitled");
-        if (!name) return false;
-        const { document: doc } = await api.create(name, editor.value);
-        state.currentName = doc.name;
-        docTitle.textContent = doc.name;
-        document.title = `${doc.name} — Markdown Editor`;
-      } else {
-        await api.save(state.currentName, editor.value);
+      if (state.currentName) {
+        const { document: doc } = await api.save(state.currentName, content);
+        onSaved(doc, silent);
+        return true;
       }
-      state.lastSavedContent = editor.value;
-      state.dirty = false;
-      dirtyDot.hidden = true;
-      refreshFileList();
-      if (!silent) flash(`Saved “${state.currentName}”`);
-      return true;
+      return await saveAs(state.suggestedName, silent);
     } catch (err) {
       flash(err.message, true);
       return false;
     }
+  }
+
+  // "Save As": always ask for a (new) name and create a fresh document.
+  async function saveAs(defaultName, silent) {
+    let suggestion = defaultName || state.suggestedName || "Untitled";
+    // Loop so an invalid/duplicate name re-prompts instead of failing silently.
+    for (;;) {
+      const name = await promptName("Save document as:", suggestion);
+      if (!name) return false; // user cancelled
+      try {
+        const { document: doc } = await api.create(name, editor.value);
+        onSaved(doc, silent);
+        return true;
+      } catch (err) {
+        // Offer to overwrite when the name already exists.
+        if (/already exists/i.test(err.message)) {
+          if (confirm(`“${name}” already exists. Overwrite it?`)) {
+            const { document: doc } = await api.save(name, editor.value);
+            onSaved(doc, silent);
+            return true;
+          }
+        } else {
+          flash(err.message, true);
+        }
+        suggestion = name; // let the user fix the name and try again
+      }
+    }
+  }
+
+  // Shared post-save bookkeeping.
+  function onSaved(doc, silent) {
+    state.currentName = doc.name;
+    state.suggestedName = doc.name;
+    state.lastSavedContent = doc.content;
+    state.dirty = false;
+    dirtyDot.hidden = true;
+    docTitle.textContent = doc.name;
+    document.title = `${doc.name} — Markdown Editor`;
+    localStorage.setItem("md.lastDoc", doc.name);
+    refreshFileList();
+    if (!silent) flash(`Saved “${doc.name}”`);
+  }
+
+  // Download the current buffer straight to the user's computer as a .md file
+  // (no workspace involved) — handy for exporting without naming a doc.
+  function downloadCurrent() {
+    const name = state.currentName || state.suggestedName || "document";
+    const blob = new Blob([editor.value], { type: "text/markdown" });
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(blob);
+    a.download = `${name}.md`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(a.href);
+    flash(`Downloaded “${name}.md”`);
   }
 
   async function deleteDocument(name) {
@@ -577,7 +659,11 @@
       commands[map[key]]();
     } else if (key === "s") {
       e.preventDefault();
-      saveDocument(false);
+      if (e.shiftKey) saveAs(state.suggestedName, false);
+      else saveDocument(false);
+    } else if (key === "o") {
+      e.preventDefault();
+      triggerOpenFile();
     } else if (key === "f") {
       e.preventDefault();
       toggleFindBar(true);
@@ -719,7 +805,26 @@
 
     // Top bar
     $("#btn-new").addEventListener("click", newDocument);
+    $("#btn-open").addEventListener("click", triggerOpenFile);
+    $("#file-input").addEventListener("change", (e) => {
+      const file = e.target.files && e.target.files[0];
+      if (file) openLocalFile(file);
+    });
     $("#btn-save").addEventListener("click", () => saveDocument(false));
+    $("#btn-save-more").addEventListener("click", (e) => {
+      e.stopPropagation();
+      const m = $("#save-menu");
+      m.hidden = !m.hidden;
+    });
+    document.querySelectorAll("#save-menu button").forEach((b) => {
+      b.addEventListener("click", () => {
+        $("#save-menu").hidden = true;
+        const action = b.dataset.save;
+        if (action === "save") saveDocument(false);
+        else if (action === "saveas") saveAs(state.suggestedName, false);
+        else if (action === "download") downloadCurrent();
+      });
+    });
     $("#btn-sidebar").addEventListener("click", toggleSidebar);
     $("#btn-theme").addEventListener("click", () =>
       setTheme(state.theme === "dark" ? "light" : "dark")
@@ -742,7 +847,10 @@
     document.querySelectorAll("#export-menu button").forEach((b) => {
       b.addEventListener("click", () => exportAs(b.dataset.export));
     });
-    document.addEventListener("click", () => ($("#export-menu").hidden = true));
+    document.addEventListener("click", () => {
+      $("#export-menu").hidden = true;
+      $("#save-menu").hidden = true;
+    });
 
     // Find bar
     $("#find-input").addEventListener("input", runFind);
@@ -762,21 +870,43 @@
       }
     });
 
-    // Global shortcuts
+    // Global shortcuts (work even when the editor isn't focused)
     document.addEventListener("keydown", (e) => {
       const mod = e.ctrlKey || e.metaKey;
-      if (mod && e.altKey && e.key.toLowerCase() === "n") {
+      const key = e.key.toLowerCase();
+      if (mod && e.altKey && key === "n") {
         e.preventDefault();
         newDocument();
-      } else if (mod && e.altKey && e.key.toLowerCase() === "t") {
+      } else if (mod && e.altKey && key === "t") {
         e.preventDefault();
         setTheme(state.theme === "dark" ? "light" : "dark");
-      } else if (mod && e.key === "\\") {
+      } else if (mod && key === "\\") {
         e.preventDefault();
         toggleSidebar();
+      } else if (mod && key === "o" && e.target !== editor) {
+        e.preventDefault();
+        triggerOpenFile();
+      } else if (mod && key === "s" && e.target !== editor) {
+        e.preventDefault();
+        if (e.shiftKey) saveAs(state.suggestedName, false);
+        else saveDocument(false);
       } else if (e.key === "Escape" && !$("#findbar").hidden) {
         toggleFindBar(false);
       }
+    });
+
+    // Drag-and-drop a Markdown/text file anywhere onto the app to open it.
+    const dropTarget = $("#app");
+    ["dragover", "drop"].forEach((type) =>
+      dropTarget.addEventListener(type, (e) => {
+        if (e.dataTransfer && Array.from(e.dataTransfer.types).includes("Files")) {
+          e.preventDefault();
+        }
+      })
+    );
+    dropTarget.addEventListener("drop", (e) => {
+      const file = e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files[0];
+      if (file) openLocalFile(file);
     });
 
     // Warn before leaving with unsaved changes.

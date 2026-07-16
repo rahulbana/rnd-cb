@@ -160,6 +160,19 @@ button { font-family: inherit; cursor: pointer; }
   border-radius: var(--radius-sm);
 }
 .menu-list button:hover { background: var(--bg-inset); }
+.menu-list button { display: flex; align-items: center; justify-content: space-between; gap: 24px; }
+.menu-hint { color: var(--text-muted); font-size: 11px; }
+
+/* Split button: primary action + caret that opens a menu */
+.split-btn { display: inline-flex; }
+.split-btn #btn-save { border-top-right-radius: 0; border-bottom-right-radius: 0; }
+.split-btn .caret {
+  border-left: none;
+  border-top-left-radius: 0;
+  border-bottom-left-radius: 0;
+  padding: 6px 7px;
+  font-size: 11px;
+}
 
 /* ------------------------------ Body ------------------------------ */
 .body { display: flex; flex: 1 1 auto; min-height: 0; }

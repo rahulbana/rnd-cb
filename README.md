@@ -13,11 +13,21 @@ document workspace, toolbar, keyboard shortcuts, find & replace, and export.
 - Live, debounced preview rendered by Python (GitHub-flavoured Markdown)
 - Formatting toolbar (bold, italic, strikethrough, code, headings, lists,
   task lists, quotes, links, images, tables, code blocks, horizontal rules)
-- Keyboard shortcuts: `Ctrl+B`/`I`/`K`/`` ` ``, `Ctrl+S`, `Ctrl+F`, `Ctrl+G`,
+- Keyboard shortcuts: `Ctrl+B`/`I`/`K`/`` ` ``, `Ctrl+O` (open),
+  `Ctrl+S` (save), `Ctrl+Shift+S` (save as), `Ctrl+F`, `Ctrl+G`,
   `Ctrl+Alt+N` (new), `Ctrl+Alt+T` (theme), `Ctrl+\` (sidebar)
 - Smart editor: line numbers, auto-continued lists/quotes, Tab/Shift-Tab
   indentation, live cursor position & selection length
 - Find & replace with case-sensitivity, regex, and match navigation
+
+**Open & Save**
+- **Open** a `.md`/`.markdown`/`.txt` file from your computer (button,
+  `Ctrl+O`, or drag-and-drop onto the window)
+- **Save** writes the current document to the workspace; a new document
+  prompts for a name (re-prompting on invalid names, offering overwrite on
+  clashes) and then overwrites in place on subsequent saves
+- **Save As…** stores a copy under a new name; **Download .md** saves the
+  buffer straight to your computer
 
 **Markdown support**
 - Tables, footnotes, definition lists, abbreviations, attribute lists
