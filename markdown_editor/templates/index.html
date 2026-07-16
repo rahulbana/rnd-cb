@@ -1,0 +1,130 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="light">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Markdown Editor</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>📝</text></svg>">
+</head>
+<body>
+  <div id="app">
+    <!-- ============================ Header ============================ -->
+    <header class="topbar">
+      <div class="topbar-left">
+        <button class="icon-btn" id="btn-sidebar" title="Toggle files (Ctrl+\)" aria-label="Toggle sidebar">☰</button>
+        <span class="brand">📝 Markdown&nbsp;Editor</span>
+        <span class="doc-title" id="doc-title" title="Click to rename">Untitled</span>
+        <span class="dirty-dot" id="dirty-dot" title="Unsaved changes" hidden>●</span>
+      </div>
+      <div class="topbar-right">
+        <button class="text-btn" id="btn-new" title="New (Ctrl+Alt+N)">New</button>
+        <button class="text-btn" id="btn-save" title="Save (Ctrl+S)">Save</button>
+        <div class="menu">
+          <button class="text-btn" id="btn-export" title="Export">Export ▾</button>
+          <div class="menu-list" id="export-menu" hidden>
+            <button data-export="html">Standalone HTML</button>
+            <button data-export="markdown">Markdown (.md)</button>
+            <button data-export="print">Print / PDF</button>
+          </div>
+        </div>
+        <div class="view-toggle" role="group" aria-label="View mode">
+          <button data-view="edit" title="Editor only">Edit</button>
+          <button data-view="split" class="active" title="Split view">Split</button>
+          <button data-view="preview" title="Preview only">Preview</button>
+        </div>
+        <button class="icon-btn" id="btn-theme" title="Toggle theme (Ctrl+Alt+T)" aria-label="Toggle theme">🌙</button>
+      </div>
+    </header>
+
+    <div class="body">
+      <!-- =========================== Sidebar =========================== -->
+      <aside class="sidebar" id="sidebar">
+        <div class="sidebar-head">
+          <span>Documents</span>
+          <button class="icon-btn small" id="btn-refresh" title="Refresh list" aria-label="Refresh">⟳</button>
+        </div>
+        <div class="sidebar-search">
+          <input type="search" id="file-filter" placeholder="Filter files…" autocomplete="off">
+        </div>
+        <ul class="file-list" id="file-list"></ul>
+        <div class="sidebar-outline">
+          <div class="sidebar-head"><span>Outline</span></div>
+          <ul class="outline-list" id="outline-list"></ul>
+        </div>
+      </aside>
+
+      <!-- ============================ Main ============================ -->
+      <main class="main" id="main">
+        <!-- Toolbar -->
+        <div class="toolbar" id="toolbar">
+          <button class="tb" data-cmd="bold" title="Bold (Ctrl+B)"><b>B</b></button>
+          <button class="tb" data-cmd="italic" title="Italic (Ctrl+I)"><i>I</i></button>
+          <button class="tb" data-cmd="strike" title="Strikethrough"><s>S</s></button>
+          <button class="tb" data-cmd="code" title="Inline code (Ctrl+`)">&lt;/&gt;</button>
+          <span class="tb-sep"></span>
+          <button class="tb" data-cmd="h1" title="Heading 1">H1</button>
+          <button class="tb" data-cmd="h2" title="Heading 2">H2</button>
+          <button class="tb" data-cmd="h3" title="Heading 3">H3</button>
+          <span class="tb-sep"></span>
+          <button class="tb" data-cmd="ul" title="Bullet list">• List</button>
+          <button class="tb" data-cmd="ol" title="Numbered list">1. List</button>
+          <button class="tb" data-cmd="task" title="Task list">☑ Task</button>
+          <button class="tb" data-cmd="quote" title="Blockquote">❝ Quote</button>
+          <span class="tb-sep"></span>
+          <button class="tb" data-cmd="link" title="Link (Ctrl+K)">🔗 Link</button>
+          <button class="tb" data-cmd="image" title="Image">🖼 Image</button>
+          <button class="tb" data-cmd="table" title="Table">▦ Table</button>
+          <button class="tb" data-cmd="codeblock" title="Code block">▤ Code</button>
+          <button class="tb" data-cmd="hr" title="Horizontal rule">— HR</button>
+          <span class="tb-spacer"></span>
+          <button class="tb" data-cmd="find" title="Find & Replace (Ctrl+F)">🔍</button>
+        </div>
+
+        <!-- Find & Replace bar -->
+        <div class="findbar" id="findbar" hidden>
+          <input type="text" id="find-input" placeholder="Find" autocomplete="off">
+          <input type="text" id="replace-input" placeholder="Replace" autocomplete="off">
+          <label class="find-opt"><input type="checkbox" id="find-case"> Aa</label>
+          <label class="find-opt"><input type="checkbox" id="find-regex"> .*</label>
+          <span class="find-count" id="find-count">0/0</span>
+          <button id="find-prev" title="Previous">↑</button>
+          <button id="find-next" title="Next">↓</button>
+          <button id="replace-one">Replace</button>
+          <button id="replace-all">All</button>
+          <button id="find-close" title="Close">✕</button>
+        </div>
+
+        <div class="panes" id="panes">
+          <section class="pane editor-pane" id="editor-pane">
+            <div class="gutter" id="gutter" aria-hidden="true"></div>
+            <textarea id="editor" spellcheck="true" autocomplete="off"
+                      autocapitalize="off" autocorrect="off"
+                      placeholder="# Start writing Markdown…"></textarea>
+          </section>
+          <div class="splitter" id="splitter" title="Drag to resize"></div>
+          <section class="pane preview-pane" id="preview-pane">
+            <article class="markdown-body" id="preview"></article>
+          </section>
+        </div>
+      </main>
+    </div>
+
+    <!-- =========================== Status bar =========================== -->
+    <footer class="statusbar">
+      <span id="status-message" class="status-message"></span>
+      <span class="status-spacer"></span>
+      <span id="stat-line">Ln 1, Col 1</span>
+      <span id="stat-sel"></span>
+      <span id="stat-words">0 words</span>
+      <span id="stat-chars">0 chars</span>
+      <span id="stat-read">0 min read</span>
+    </footer>
+  </div>
+
+  <!-- Pygments styles injected here so code highlighting matches the theme -->
+  <style id="pygments-light"></style>
+
+  <script src="{{ url_for('static', filename='js/app.js') }}"></script>
+</body>
+</html>

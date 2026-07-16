@@ -1,0 +1,4 @@
+Flask>=3.0
+Markdown>=3.5
+Pygments>=2.17
+pymdown-extensions>=10.0
