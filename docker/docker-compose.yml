@@ -1,0 +1,12 @@
+services:
+  dataset-agent:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+    ports:
+      - "8000:8000"
+    environment:
+      PLANNER_BACKEND: heuristic
+    volumes:
+      - ../datasets:/app/datasets
+      - ../reports:/app/reports

@@ -1,0 +1,20 @@
+# Default configuration for the ML Dataset Generator Agent.
+# Values here mirror app/config.py and can be overridden by environment variables.
+
+planner:
+  # "heuristic" (offline, no API key) or "llm".
+  backend: heuristic
+  llm_provider: anthropic
+  llm_model: claude-sonnet-5
+
+generation:
+  # Safety cap on requested rows so a runaway prompt cannot exhaust memory.
+  max_rows: 2000000
+  default_rows: 1000
+  default_seed: 42
+
+output:
+  datasets_dir: datasets
+  reports_dir: reports
+  default_formats:
+    - csv
