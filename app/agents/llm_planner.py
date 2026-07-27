@@ -5,8 +5,10 @@ user's prompt into a :class:`DatasetSpec` JSON payload, validates it with
 Pydantic, and falls back to the heuristic planner on any error. It is only
 loaded when ``PLANNER_BACKEND=llm``.
 
-The prompt asks for a strict JSON object matching the ``DatasetSpec`` schema, so
-the same downstream pipeline consumes the result unchanged.
+The default provider is OpenAI (``LLM_PROVIDER=openai``, key from
+``OPENAI_API_KEY``); ``anthropic`` and ``litellm`` are also supported. The prompt
+asks for a strict JSON object matching the ``DatasetSpec`` schema, so the same
+downstream pipeline consumes the result unchanged regardless of provider.
 """
 
 from __future__ import annotations
@@ -70,24 +72,15 @@ class LLMPlanner(Agent):
         return text[start : end + 1]
 
     def _call_llm(self, prompt: str) -> str:
-        """Call the configured provider. Uses the Anthropic SDK if present."""
+        """Call the configured provider (``LLM_PROVIDER``)."""
 
         provider = settings.llm_provider
+        if provider == "openai":
+            return self._call_openai(prompt)
         if provider == "anthropic":
-            import anthropic  # type: ignore
+            return self._call_anthropic(prompt)
 
-            client = anthropic.Anthropic(api_key=os.environ["ANTHROPIC_API_KEY"])
-            msg = client.messages.create(
-                model=settings.llm_model,
-                max_tokens=2048,
-                system=SYSTEM_PROMPT,
-                messages=[{"role": "user", "content": prompt}],
-            )
-            return "".join(
-                block.text for block in msg.content if block.type == "text"
-            )
-
-        # Generic OpenAI-compatible fallback via litellm if installed.
+        # Generic multi-provider fallback via litellm if installed.
         import litellm  # type: ignore
 
         resp = litellm.completion(
@@ -98,3 +91,39 @@ class LLMPlanner(Agent):
             ],
         )
         return resp["choices"][0]["message"]["content"]
+
+    def _call_openai(self, prompt: str) -> str:
+        """Call OpenAI Chat Completions with JSON-object response format.
+
+        Reads the API key from ``OPENAI_API_KEY`` and honours ``OPENAI_BASE_URL``
+        for Azure/OpenAI-compatible gateways when set.
+        """
+
+        from openai import OpenAI  # type: ignore
+
+        client = OpenAI(
+            api_key=os.environ["OPENAI_API_KEY"],
+            base_url=os.getenv("OPENAI_BASE_URL") or None,
+        )
+        resp = client.chat.completions.create(
+            model=settings.llm_model,
+            messages=[
+                {"role": "system", "content": SYSTEM_PROMPT},
+                {"role": "user", "content": prompt},
+            ],
+            response_format={"type": "json_object"},
+            temperature=0.2,
+        )
+        return resp.choices[0].message.content or ""
+
+    def _call_anthropic(self, prompt: str) -> str:
+        import anthropic  # type: ignore
+
+        client = anthropic.Anthropic(api_key=os.environ["ANTHROPIC_API_KEY"])
+        msg = client.messages.create(
+            model=settings.llm_model,
+            max_tokens=2048,
+            system=SYSTEM_PROMPT,
+            messages=[{"role": "user", "content": prompt}],
+        )
+        return "".join(block.text for block in msg.content if block.type == "text")

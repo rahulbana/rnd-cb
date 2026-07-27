@@ -32,7 +32,7 @@ single pipeline.
 ```bash
 pip install -r requirements.txt      # core (offline) stack
 # optional extras:
-pip install -e ".[llm]"              # LLM-backed planner (anthropic / litellm)
+pip install -e ".[llm]"              # LLM-backed planner (openai / anthropic / litellm)
 pip install -e ".[synthetic]"        # SDV / imbalanced-learn
 ```
 
@@ -91,6 +91,25 @@ curl -s localhost:8000/generate \
   -H 'content-type: application/json' \
   -d '{"prompt":"loan default dataset with 8% default","rows":20000,"formats":["csv"]}'
 ```
+
+## Using an LLM planner (OpenAI)
+
+The default planner is offline. To have an LLM infer the spec instead, install
+the extra and set the environment:
+
+```bash
+pip install -e ".[llm]"
+export PLANNER_BACKEND=llm
+export LLM_PROVIDER=openai            # default
+export OPENAI_API_KEY=sk-...
+export LLM_MODEL=gpt-4o-mini          # or gpt-4o, etc.
+# export OPENAI_BASE_URL=...          # optional, for Azure/OpenAI-compatible gateways
+```
+
+The LLM is asked for a strict JSON `DatasetSpec` (OpenAI JSON mode), validated
+with Pydantic. On any error it falls back to the heuristic planner, so the
+pipeline never hard-fails. `anthropic` and `litellm` providers are also
+supported via `LLM_PROVIDER`.
 
 ## What a run produces
 

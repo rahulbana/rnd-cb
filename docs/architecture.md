@@ -91,7 +91,9 @@ the reference wiring, not a constraint.
   feature counts, and data-quality signals. No network, no key.
 - **`llm`** (`app/agents/llm_planner.py`): asks an LLM to emit the spec as JSON,
   validates it with Pydantic, and falls back to the heuristic planner on any
-  error. Uses the Anthropic SDK or litellm if installed.
+  error. Default provider is **OpenAI** (`LLM_PROVIDER=openai`, key from
+  `OPENAI_API_KEY`, JSON-mode response); `anthropic` and `litellm` are also
+  supported.
 
 Both satisfy the same `plan(prompt) -> DatasetSpec` interface, so nothing
 downstream knows which produced the spec.

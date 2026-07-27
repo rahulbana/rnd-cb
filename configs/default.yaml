@@ -4,8 +4,10 @@
 planner:
   # "heuristic" (offline, no API key) or "llm".
   backend: heuristic
-  llm_provider: anthropic
-  llm_model: claude-sonnet-5
+  # LLM provider: openai (default), anthropic, or litellm.
+  # Set OPENAI_API_KEY (and optionally OPENAI_BASE_URL) when using openai.
+  llm_provider: openai
+  llm_model: gpt-4o-mini
 
 generation:
   # Safety cap on requested rows so a runaway prompt cannot exhaust memory.

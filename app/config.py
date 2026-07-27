@@ -21,8 +21,10 @@ class Settings:
 
     # Planner backend: "heuristic" (offline, default) or "llm".
     planner_backend: str = os.getenv("PLANNER_BACKEND", "heuristic")
-    llm_provider: str = os.getenv("LLM_PROVIDER", "anthropic")
-    llm_model: str = os.getenv("LLM_MODEL", "claude-sonnet-5")
+    # LLM provider for the optional planner: "openai" (default), "anthropic",
+    # or "litellm" (multi-provider). Configure the matching API key env var.
+    llm_provider: str = os.getenv("LLM_PROVIDER", "openai")
+    llm_model: str = os.getenv("LLM_MODEL", "gpt-4o-mini")
 
     # Safety cap so an accidental "1 billion rows" prompt cannot OOM the host.
     max_rows: int = int(os.getenv("MAX_ROWS", "2000000"))
