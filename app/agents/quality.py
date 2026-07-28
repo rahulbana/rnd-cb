@@ -80,9 +80,17 @@ class QualityAgent(Agent):
             values = df[col].astype(float)
             std = values.std() or 1.0
             direction = rng.choice([-1, 1], size=k)
-            df.loc[df.index[idx], col] = values.iloc[idx].to_numpy() + direction * rng.uniform(
-                6, 12, k
-            ) * std
+            values.iloc[idx] = (
+                values.iloc[idx].to_numpy()
+                + direction * rng.uniform(6, 12, k) * std
+            )
+            # Rebuild the whole column (rather than an in-place typed setitem,
+            # which raises on int columns under pandas 3) and preserve integer
+            # dtype by rounding.
+            if pd.api.types.is_integer_dtype(df[col].dtype):
+                df[col] = np.round(values).astype("int64")
+            else:
+                df[col] = values
 
     def _inject_missing(
         self, df: pd.DataFrame, cols: list[str], rate: float, rng: np.random.Generator
@@ -91,7 +99,10 @@ class QualityAgent(Agent):
         for col in cols:
             mask = rng.random(n) < rate
             if mask.any():
-                df.loc[mask, col] = np.nan
+                # Series.mask upcasts the column as needed to hold NaN (e.g.
+                # bool -> object, int -> float). A direct df.loc[...] = np.nan
+                # raises on bool/int columns under pandas 3's strict dtype rules.
+                df[col] = df[col].mask(mask)
 
     def _inject_duplicates(
         self, df: pd.DataFrame, rate: float, rng: np.random.Generator

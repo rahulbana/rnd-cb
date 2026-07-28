@@ -103,6 +103,39 @@ def test_quality_injects_missing_and_duplicates():
     assert not df["label"].isna().any()
 
 
+def test_quality_injection_on_boolean_and_integer_columns():
+    """Regression: pandas 3 rejects NaN/float set into bool/int columns.
+
+    Quality injection must upcast instead of raising.
+    """
+
+    spec = DatasetSpec(
+        name="mixed",
+        task_type=TaskType.BINARY_CLASSIFICATION,
+        n_rows=1500,
+        features=[
+            FeatureSpec(name="count", dtype=DType.INTEGER,
+                        distribution=Distribution.POISSON, params={"lam": 4}),
+            FeatureSpec(name="flag_a", dtype=DType.BOOLEAN),
+            FeatureSpec(name="flag_b", dtype=DType.BOOLEAN),
+            FeatureSpec(name="amount", dtype=DType.FLOAT),
+        ],
+        target=TargetSpec(name="label", positive_rate=0.2),
+        quality=QualitySpec(missing_rate=0.08, outlier_rate=0.03, noise=0.0),
+    )
+    spec = SchemaAgent().run(spec)
+    rng = make_rng(spec.random_seed)
+    df = FeatureAgent().run(spec, rng)
+    df = TargetAgent().run(df, spec, rng)
+    # Must not raise on bool/int columns.
+    df = QualityAgent().run(df, spec, rng)
+    # Missing values landed in both a boolean and an integer column.
+    assert df["flag_a"].isna().any()
+    assert df["count"].isna().any()
+    # Target stays intact.
+    assert not df["label"].isna().any()
+
+
 def test_multiclass_target():
     spec = DatasetSpec(
         name="mc",
