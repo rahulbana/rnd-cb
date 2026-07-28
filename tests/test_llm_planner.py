@@ -66,3 +66,37 @@ def test_llm_failure_falls_back_to_heuristic(monkeypatch):
     assert spec.task_type == TaskType.BINARY_CLASSIFICATION
     assert spec.n_rows == 5000
     assert abs(spec.target.positive_rate - 0.10) < 1e-9
+
+
+def test_off_vocabulary_values_are_normalised(monkeypatch):
+    """LLMs emit near-miss enum values; the planner coerces instead of failing."""
+
+    payload = {
+        "name": "churn", "task_type": "binary_classification", "n_rows": 2000,
+        "features": [
+            {"name": "tenure", "dtype": "int", "distribution": "gaussian",
+             "params": {"mean": 12, "std": 6}},
+            {"name": "charges", "dtype": "numeric", "distribution": "log-normal"},
+            {"name": "has_phone", "dtype": "float", "distribution": "bernoulli",
+             "params": {"p": 0.5}},
+            {"name": "plan", "dtype": "string", "distribution": "categorical",
+             "categories": ["a", "b", "c"]},
+            {"name": "weird", "dtype": "float", "distribution": "made_up",
+             "params": {"x": "not-a-number"}},
+        ],
+        "target": {"name": "churned", "positive_rate": 0.12, "n_classes": 2},
+    }
+    planner = LLMPlanner()
+    monkeypatch.setattr(planner, "_call_llm", lambda prompt: json.dumps(payload))
+
+    spec = planner.plan("telecom churn dataset with 2000 rows and 12% churn")
+    by_name = {f.name: f for f in spec.features}
+    assert by_name["tenure"].dtype.value == "integer"
+    assert by_name["tenure"].distribution.value == "normal"
+    assert by_name["charges"].distribution.value == "lognormal"
+    # "bernoulli" describes a two-valued column -> modelled as boolean.
+    assert by_name["has_phone"].dtype.value == "boolean"
+    assert by_name["plan"].dtype.value == "category"
+    # Unknown distribution defaults to normal; non-numeric param is dropped.
+    assert by_name["weird"].distribution.value == "normal"
+    assert "x" not in by_name["weird"].params
