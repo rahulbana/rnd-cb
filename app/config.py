@@ -1,8 +1,10 @@
 """Runtime configuration.
 
 Values are read from environment variables so the same code runs in local dev,
-CI, and a container without edits. Nothing here requires an LLM API key: the
-default planner is fully offline.
+CI, and a container without edits. A local ``.env`` file (git-ignored) is loaded
+automatically at import time — copy ``.env.example`` to ``.env`` to configure the
+LLM planner. Nothing here requires an LLM API key: the default planner is fully
+offline.
 """
 
 from __future__ import annotations
@@ -12,6 +14,16 @@ from dataclasses import dataclass
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
+
+# Load variables from a local .env file if present. Real environment variables
+# always take precedence (override=False), so container/CI config is not
+# clobbered by a stray .env.
+try:
+    from dotenv import load_dotenv
+
+    load_dotenv(ROOT / ".env", override=False)
+except Exception:  # pragma: no cover - dotenv is optional at runtime
+    pass
 
 
 @dataclass

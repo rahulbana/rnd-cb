@@ -94,17 +94,23 @@ curl -s localhost:8000/generate \
 
 ## Using an LLM planner (OpenAI)
 
-The default planner is offline. To have an LLM infer the spec instead, install
-the extra and set the environment:
+The default planner is offline. To have an LLM infer the spec instead, configure
+a `.env` file (loaded automatically; `.env` is git-ignored so your key stays
+local):
 
 ```bash
-pip install -e ".[llm]"
-export PLANNER_BACKEND=llm
-export LLM_PROVIDER=openai            # default
-export OPENAI_API_KEY=sk-...
-export LLM_MODEL=gpt-4o-mini          # or gpt-4o, etc.
-# export OPENAI_BASE_URL=...          # optional, for Azure/OpenAI-compatible gateways
+cp .env.example .env
+# then edit .env:
+#   PLANNER_BACKEND=llm
+#   LLM_PROVIDER=openai
+#   LLM_MODEL=gpt-4o-mini
+#   OPENAI_API_KEY=sk-...
+#   OPENAI_BASE_URL=...        # optional, for Azure/OpenAI-compatible gateways
 ```
+
+Equivalent shell environment variables also work and take precedence over
+`.env`. `openai` is already in `requirements.txt`; real environment variables
+override `.env` values so container/CI config is never clobbered.
 
 The LLM is asked for a strict JSON `DatasetSpec` (OpenAI JSON mode), validated
 with Pydantic. On any error it falls back to the heuristic planner, so the
