@@ -1,0 +1,142 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Deep Research Agent</title>
+  <style>
+    :root { --bg:#0b0f17; --panel:#141a24; --line:#243044; --text:#e6edf5; --muted:#8aa0b8; --accent:#4f9cf9; --ok:#37d67a; --warn:#f5a524; --err:#f04438; }
+    * { box-sizing: border-box; }
+    body { margin:0; font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; background:var(--bg); color:var(--text); }
+    header { padding:20px 24px; border-bottom:1px solid var(--line); }
+    header h1 { margin:0; font-size:18px; }
+    header p { margin:4px 0 0; color:var(--muted); font-size:13px; }
+    main { max-width:900px; margin:0 auto; padding:24px; }
+    .card { background:var(--panel); border:1px solid var(--line); border-radius:12px; padding:18px; margin-bottom:18px; }
+    label { display:block; font-size:12px; color:var(--muted); margin:10px 0 4px; text-transform:uppercase; letter-spacing:.04em; }
+    input, select, textarea { width:100%; padding:10px 12px; background:#0e1420; border:1px solid var(--line); border-radius:8px; color:var(--text); font-size:14px; }
+    .row { display:flex; gap:12px; } .row > div { flex:1; }
+    button { margin-top:14px; padding:10px 18px; background:var(--accent); border:none; border-radius:8px; color:#fff; font-weight:600; cursor:pointer; font-size:14px; }
+    button.secondary { background:#26324a; }
+    button:disabled { opacity:.5; cursor:not-allowed; }
+    .stat { display:flex; gap:18px; flex-wrap:wrap; margin-top:6px; }
+    .stat span { font-size:13px; color:var(--muted); }
+    .stat b { color:var(--text); }
+    #feed { max-height:340px; overflow:auto; font-size:13px; }
+    .ev { padding:8px 10px; border-left:3px solid var(--line); margin-bottom:6px; background:#0e1420; border-radius:0 6px 6px 0; }
+    .ev .phase { display:inline-block; min-width:82px; font-weight:600; color:var(--accent); text-transform:uppercase; font-size:11px; }
+    .ev.plan .phase{color:#a78bfa} .ev.search .phase{color:#4f9cf9} .ev.read .phase{color:#37d67a}
+    .ev.reflect .phase{color:#f5a524} .ev.synthesize .phase{color:#f472b6} .ev.eval .phase{color:#22d3ee}
+    .ev.error{border-left-color:var(--err)} .ev.error .phase{color:var(--err)}
+    #report { white-space:pre-wrap; line-height:1.55; font-size:14px; }
+    .pill { display:inline-block; padding:2px 8px; border-radius:999px; font-size:11px; background:#26324a; color:var(--text); }
+    .muted { color:var(--muted); }
+    a { color:var(--accent); }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>Deep Research Agent</h1>
+    <p>Plan → search → read → reflect → synthesize, with live progress streaming.</p>
+  </header>
+  <main>
+    <div class="card">
+      <label for="topic">Research topic</label>
+      <input id="topic" placeholder="e.g. Anthropic's position in the enterprise LLM market" />
+      <div class="row">
+        <div>
+          <label for="audience">Audience</label>
+          <input id="audience" value="a consulting firm's client" />
+        </div>
+        <div>
+          <label for="depth">Depth</label>
+          <select id="depth">
+            <option value="quick">Quick</option>
+            <option value="standard" selected>Standard</option>
+            <option value="deep">Deep</option>
+          </select>
+        </div>
+      </div>
+      <label for="focus">Focus areas (comma-separated, optional)</label>
+      <input id="focus" placeholder="competitive moat, unit economics, regulatory risk" />
+      <button id="go">Start research</button>
+    </div>
+
+    <div class="card" id="progress" style="display:none">
+      <div class="stat">
+        <span>Status <b id="status">—</b></span>
+        <span>Iteration <b id="iter">0</b></span>
+        <span>Sources <b id="sources">0</b></span>
+        <span>Spent <b id="spent">$0.00</b></span>
+        <span id="factWrap" style="display:none">Factuality <b id="fact">—</b></span>
+      </div>
+      <div id="feed" style="margin-top:12px"></div>
+      <button class="secondary" id="cancel">Cancel</button>
+    </div>
+
+    <div class="card" id="reportCard" style="display:none">
+      <div style="display:flex; justify-content:space-between; align-items:center">
+        <h3 style="margin:0">Report</h3>
+        <div>
+          <a id="dlPdf" href="#">PDF</a> · <a id="dlDocx" href="#">Word</a> · <a id="dlMd" href="#">Markdown</a>
+        </div>
+      </div>
+      <div id="report" style="margin-top:12px"></div>
+    </div>
+  </main>
+
+  <script>
+    const $ = (id) => document.getElementById(id);
+    let jobId = null, es = null;
+
+    function addEvent(ev) {
+      const div = document.createElement('div');
+      div.className = 'ev ' + (ev.phase || '');
+      div.innerHTML = `<span class="phase">${ev.phase}</span> ${ev.message}`;
+      const feed = $('feed'); feed.appendChild(div); feed.scrollTop = feed.scrollHeight;
+      $('status').textContent = ev.status || 'running';
+      if (ev.iteration) $('iter').textContent = ev.iteration;
+      if (ev.sources_found) $('sources').textContent = ev.sources_found;
+      if (typeof ev.usd_spent === 'number') $('spent').textContent = '$' + ev.usd_spent.toFixed(2);
+      if (ev.data && ev.data.factuality) {
+        $('factWrap').style.display = ''; $('fact').textContent = Math.round(ev.data.factuality.score*100) + '%';
+      }
+    }
+
+    async function loadReport() {
+      const r = await fetch(`/research/${jobId}`); const j = await r.json();
+      if (!j.report) return;
+      $('reportCard').style.display = '';
+      $('dlPdf').href = `/research/${jobId}/export?format=pdf`;
+      $('dlDocx').href = `/research/${jobId}/export?format=docx`;
+      $('dlMd').href = `/research/${jobId}/report.md`;
+      const rep = j.report;
+      let html = `<h2>${rep.title}</h2><p class="muted">${rep.topic} · confidence ${Math.round(rep.confidence*100)}%</p>`;
+      html += `<h3>Executive Summary</h3><p>${rep.executive_summary}</p>`;
+      if (rep.key_findings?.length) html += `<h3>Key Findings</h3><ul>${rep.key_findings.map(k=>`<li>${k}</li>`).join('')}</ul>`;
+      for (const s of rep.sections) html += `<h3>${s.heading}</h3><p>${s.body}</p>`;
+      if (rep.citations?.length) html += `<h3>References</h3><ol>${rep.citations.map(c=>`<li><a href="${c.url}" target="_blank">${c.title}</a></li>`).join('')}</ol>`;
+      $('report').innerHTML = html;
+    }
+
+    $('go').onclick = async () => {
+      const body = {
+        topic: $('topic').value.trim(),
+        audience: $('audience').value.trim(),
+        depth: $('depth').value,
+        focus_areas: $('focus').value.split(',').map(s=>s.trim()).filter(Boolean),
+      };
+      if (!body.topic) { alert('Enter a topic'); return; }
+      $('go').disabled = true; $('feed').innerHTML=''; $('progress').style.display=''; $('reportCard').style.display='none';
+      const r = await fetch('/research', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(body) });
+      const j = await r.json(); jobId = j.job_id;
+      es = new EventSource(`/research/${jobId}/stream`);
+      ['plan','search','read','reflect','synthesize','eval','done','error','cancel'].forEach(p =>
+        es.addEventListener(p, e => addEvent(JSON.parse(e.data))));
+      es.addEventListener('end', async () => { es.close(); $('go').disabled=false; await loadReport(); });
+    };
+
+    $('cancel').onclick = async () => { if (jobId) await fetch(`/research/${jobId}/cancel`, {method:'POST'}); };
+  </script>
+</body>
+</html>
