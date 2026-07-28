@@ -16,9 +16,15 @@ def test_end_to_end_classification(tmp_path):
     # A learnable dataset should score above a trivial baseline.
     assert result.evaluation.ml_readiness_score > 30
     assert "roc_auc" in result.evaluation.metrics
-    # Files were written.
-    assert (tmp_path / f"{result.spec.name}.csv").exists()
-    assert (tmp_path / f"{result.spec.name}.json").exists()
+    # Files were written into a per-dataset subdirectory.
+    from pathlib import Path
+
+    assert result.output_dir == str(tmp_path / result.spec.name)
+    assert (tmp_path / result.spec.name / f"{result.spec.name}.csv").exists()
+    assert (tmp_path / result.spec.name / f"{result.spec.name}.json").exists()
+    # Nothing is written loosely into the parent directory.
+    assert not any(p.is_file() for p in tmp_path.iterdir())
+    assert Path(result.exports["csv"]).parent == tmp_path / result.spec.name
 
 
 def test_end_to_end_regression(tmp_path):
@@ -44,7 +50,9 @@ def test_service_full_run(tmp_path):
     # Data dictionary covers every column.
     assert len(result.data_dictionary) == result.data.shape[1]
     # SQL DDL is a CREATE TABLE statement.
-    ddl = (tmp_path / f"{result.spec.name}.sql").read_text()
+    from pathlib import Path
+
+    ddl = Path(result.exports["sql"]).read_text()
     assert ddl.startswith("CREATE TABLE")
 
 
@@ -59,7 +67,7 @@ def test_eda_notebook_is_written(tmp_path):
     # A notebook is produced instead of a static eda.json.
     assert "eda_notebook" in result.exports
     assert "eda" not in result.exports
-    nb_path = tmp_path / f"{result.spec.name}_eda.ipynb"
+    nb_path = tmp_path / result.spec.name / f"{result.spec.name}_eda.ipynb"
     assert nb_path.exists()
 
     nb = json.loads(nb_path.read_text())

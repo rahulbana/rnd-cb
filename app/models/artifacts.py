@@ -40,6 +40,7 @@ class GenerationResult:
     validation: ValidationReport | None = None
     evaluation: EvaluationReport | None = None
     exports: dict[str, str] = field(default_factory=dict)
+    output_dir: str | None = None
 
     def summary(self) -> dict[str, Any]:
         return {
@@ -47,6 +48,7 @@ class GenerationResult:
             "task_type": self.spec.task_type.value,
             "rows": len(self.data),
             "columns": list(self.data.columns),
+            "output_dir": self.output_dir,
             "validation_passed": self.validation.passed if self.validation else None,
             "ml_readiness_score": (
                 self.evaluation.ml_readiness_score if self.evaluation else None

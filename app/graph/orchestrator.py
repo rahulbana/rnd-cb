@@ -91,7 +91,12 @@ class DatasetPipeline:
             self.documentation.run(result)
 
         if options.export_formats:
-            out_dir = options.out_dir or settings.datasets_dir
+            # Each run gets its own subdirectory so a dataset's files (data,
+            # notebook, card, schema, dictionary) stay grouped together instead
+            # of accumulating loosely in the shared datasets/ directory.
+            base_dir = Path(options.out_dir or settings.datasets_dir)
+            out_dir = base_dir / spec.name
+            result.output_dir = str(out_dir)
             result.exports = self.exporter.run(
                 df, spec, out_dir, list(options.export_formats)
             )

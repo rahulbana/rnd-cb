@@ -161,6 +161,21 @@ supported via `LLM_PROVIDER`.
 
 ## What a run produces
 
+Each run writes into its own subdirectory, `datasets/<dataset_name>/`, so a
+dataset's files stay grouped together (the path is also returned as
+`output_dir` in the run summary):
+
+```
+datasets/
+└── fraud_dataset/
+    ├── fraud_dataset.csv
+    ├── fraud_dataset.parquet
+    ├── fraud_dataset_eda.ipynb
+    ├── fraud_dataset_CARD.md
+    ├── fraud_dataset_data_dictionary.json
+    └── fraud_dataset_schema.json
+```
+
 For a prompt, the pipeline emits:
 
 - the **dataset** in every requested format,
