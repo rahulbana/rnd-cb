@@ -93,8 +93,30 @@ python -m app.cli generate \
   "Create a fraud detection dataset with 50000 records and 2% fraud rate." \
   --format csv --format parquet --out-dir datasets
 
+# Watch each pipeline step as it runs:
+python -m app.cli generate "telecom churn dataset with 12% churn" --verbose
+
 # List built-in domain scenarios:
 python -m app.cli scenarios
+```
+
+With `--verbose` (`-v`) the pipeline narrates every stage:
+
+```
+=== Generating 'fraud_dataset' (binary_classification, 50000 rows, seed=42) ===
+▶ Step 1 — Schema: finalise columns, keys, and types
+[schema] schema finalised with 37 columns
+▶ Step 2 — Features: draw each column from its distribution
+[feature] generated 50000 rows x 37 base columns
+▶ Step 3 — Correlations: impose feature dependencies
+▶ Step 4 — Target: synthesise the label from the features
+▶ Step 5 — Quality: inject missing/duplicates/outliers/noise
+▶ Step 6 — Validation: structural & statistical checks
+▶ Step 7 — EDA: compute summaries, correlations, target distribution
+▶ Step 8 — Evaluation: train baseline model, score ML-readiness
+▶ Step 9 — Documentation: build the data dictionary
+▶ Step 10 — Export: write csv, parquet + reports
+✓ Done — 50000 rows written to datasets/fraud_dataset
 ```
 
 ### Python

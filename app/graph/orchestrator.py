@@ -36,6 +36,10 @@ from app.models.artifacts import GenerationResult
 from app.models.spec import DatasetSpec
 from app.utils.rng import make_rng
 
+import logging
+
+logger = logging.getLogger("dataset_agent")
+
 
 @dataclass
 class PipelineOptions:
@@ -73,24 +77,46 @@ class DatasetPipeline:
         options = options or PipelineOptions()
         rng = make_rng(spec.random_seed)
 
+        step = 0
+
+        def stage(label: str) -> None:
+            nonlocal step
+            step += 1
+            logger.info("▶ Step %d — %s", step, label)
+
+        logger.info(
+            "=== Generating '%s' (%s, %d rows, seed=%d) ===",
+            spec.name, spec.task_type.value, spec.n_rows, spec.random_seed,
+        )
+
+        stage("Schema: finalise columns, keys, and types")
         spec = self.schema.run(spec)
+        stage("Features: draw each column from its distribution")
         df = self.feature.run(spec, rng)
+        stage("Correlations: impose feature dependencies")
         df = self.correlation.run(df, spec, rng)
+        stage("Target: synthesise the label from the features")
         df = self.target.run(df, spec, rng)
+        stage("Quality: inject missing/duplicates/outliers/noise")
         df = self.quality.run(df, spec, rng)
 
         result = GenerationResult(spec=spec, data=df)
 
         if options.validate:
+            stage("Validation: structural & statistical checks")
             result.validation = self.validation.run(df, spec)
         if options.run_eda:
+            stage("EDA: compute summaries, correlations, target distribution")
             result.eda = self.eda.run(df, spec)
         if options.evaluate:
+            stage("Evaluation: train baseline model, score ML-readiness")
             result.evaluation = self.evaluation.run(df, spec)
         if options.document:
+            stage("Documentation: build the data dictionary")
             self.documentation.run(result)
 
         if options.export_formats:
+            stage(f"Export: write {', '.join(options.export_formats)} + reports")
             # Each run gets its own subdirectory so a dataset's files (data,
             # notebook, card, schema, dictionary) stay grouped together instead
             # of accumulating loosely in the shared datasets/ directory.
@@ -102,6 +128,7 @@ class DatasetPipeline:
             )
             if options.write_reports:
                 self._write_reports(result, out_dir)
+            logger.info("✓ Done — %d rows written to %s", len(df), out_dir)
 
         return result
 

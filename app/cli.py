@@ -16,14 +16,21 @@ import typer
 
 from app.config import settings
 from app.services.generator import DatasetService
+from app.utils.logging import configure_logging
 
 app = typer.Typer(add_completion=False, help="ML Dataset Generator Agent")
 
 
 @app.command()
-def plan(prompt: str) -> None:
+def plan(
+    prompt: str,
+    verbose: bool = typer.Option(
+        False, "--verbose", "-v", help="Show each planning step."
+    ),
+) -> None:
     """Show the dataset plan inferred from PROMPT without generating data."""
 
+    configure_logging(verbose)
     spec = DatasetService().plan(prompt)
     typer.echo(json.dumps(spec.model_dump(mode="json"), indent=2))
 
@@ -40,9 +47,13 @@ def generate(
     fast: bool = typer.Option(
         False, help="Skip validation/EDA/evaluation for a quick generate-only run."
     ),
+    verbose: bool = typer.Option(
+        False, "--verbose", "-v", help="Show each pipeline step as it runs."
+    ),
 ) -> None:
     """Generate a full dataset from PROMPT."""
 
+    configure_logging(verbose)
     settings.ensure_dirs()
     service = DatasetService()
     result = service.generate_from_prompt(
