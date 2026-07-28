@@ -29,14 +29,56 @@ single pipeline.
 
 ## Install
 
+Requires **Python 3.10+**.
+
+### 1. Create and activate a virtual environment
+
 ```bash
-pip install -r requirements.txt      # core (offline) stack
-# optional extras:
-pip install -e ".[llm]"              # LLM-backed planner (openai / anthropic / litellm)
-pip install -e ".[synthetic]"        # SDV / imbalanced-learn
+# From the project root:
+python3 -m venv .venv
+
+# Activate it:
+source .venv/bin/activate          # macOS / Linux
+# .venv\Scripts\activate           # Windows (PowerShell/CMD)
 ```
 
-Python 3.10+.
+Your prompt should now be prefixed with `(.venv)`. Deactivate any time with
+`deactivate`.
+
+### 2. Install dependencies
+
+```bash
+pip install --upgrade pip
+pip install -r requirements.txt      # core stack + OpenAI planner
+
+# optional extras:
+pip install -e ".[synthetic]"        # SDV / imbalanced-learn
+pip install -e ".[llm]"              # extra providers: anthropic / litellm
+```
+
+### 3. Configure (optional — only for the LLM planner)
+
+```bash
+cp .env.example .env
+# edit .env and set OPENAI_API_KEY=sk-...  (and PLANNER_BACKEND=llm)
+```
+
+Skip this step to run the fully offline heuristic planner (no API key needed).
+
+### 4. Run it
+
+```bash
+# CLI — generate a dataset:
+python -m app.cli generate "fraud detection dataset with 5000 rows and 2% fraud rate"
+
+# Or start the API:
+uvicorn app.api.main:app --reload    # http://127.0.0.1:8000/docs
+
+# Or run the tests to verify the install:
+python -m pytest -q
+```
+
+See [Quickstart](#quickstart) below for more examples.
 
 ## Quickstart
 
