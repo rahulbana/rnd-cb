@@ -115,9 +115,7 @@ class DatasetPipeline:
                 result.data_dictionary,
             )
         if result.eda:
-            result.exports["eda"] = self.exporter.write_json(
-                out_dir, f"{result.spec.name}_eda.json", result.eda
-            )
+            result.exports["eda_notebook"] = self._write_eda_notebook(result, out_dir)
         card = self.documentation.dataset_card(result)
         result.exports["dataset_card"] = self.exporter.write_text(
             out_dir, f"{result.spec.name}_CARD.md", card
@@ -125,4 +123,25 @@ class DatasetPipeline:
         result.exports["json_schema"] = self.exporter.write_json(
             out_dir, f"{result.spec.name}_schema.json",
             self.documentation.json_schema(result.spec),
+        )
+
+    def _write_eda_notebook(self, result: GenerationResult, out_dir: Path) -> str:
+        """Emit a runnable EDA notebook that loads an exported data file."""
+
+        from app.utils.notebook import build_eda_notebook
+
+        # Reference the first available on-disk data export (csv > parquet > json).
+        data_filename = f"{result.spec.name}.csv"
+        for fmt in ("csv", "parquet", "json"):
+            if fmt in result.exports:
+                data_filename = Path(result.exports[fmt]).name
+                break
+        readiness = (
+            result.evaluation.ml_readiness_score if result.evaluation else None
+        )
+        notebook = build_eda_notebook(
+            result.spec, result.eda, data_filename, readiness
+        )
+        return self.exporter.write_notebook(
+            out_dir, f"{result.spec.name}_eda.ipynb", notebook
         )

@@ -165,8 +165,11 @@ For a prompt, the pipeline emits:
 
 - the **dataset** in every requested format,
 - a **data dictionary** (`*_data_dictionary.json`),
-- an **EDA report** (`*_eda.json`: summaries, correlations, missingness, target
-  distribution),
+- a **runnable EDA notebook** (`*_eda.ipynb`): a Jupyter notebook with live code
+  cells (summary stats, missing-value map, target distribution, numeric
+  histograms, correlation heatmap, categorical breakdowns) plus the precomputed
+  EDA summary embedded as markdown. Open it with `jupyter lab` / `jupyter
+  notebook` and run all cells,
 - a **dataset card** (`*_CARD.md`),
 - a **JSON schema** of the spec (`*_schema.json`),
 - a **validation report** and a **baseline evaluation** with an

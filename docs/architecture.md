@@ -67,7 +67,7 @@ human-in-the-loop review artifact: `POST /plan` returns it, a user edits it, and
 | `Target`        | Build a label as a tunable function of the features (+ noise).        |
 | `Quality`       | Inject missingness, duplicates, outliers, and Gaussian noise.         |
 | `Validation`    | Structural + statistical checks → `ValidationReport`.                 |
-| `EDA`           | Summaries, correlations, missingness, target distribution (JSON).     |
+| `EDA`           | Summaries, correlations, missingness, target distribution (dict). Exported as a runnable Jupyter notebook (`app/utils/notebook.py`). |
 | `Evaluation`    | Train a baseline model; report metrics + ML-readiness score.          |
 | `Documentation` | Data dictionary, dataset card, JSON schema.                           |
 | `Export`        | Write dataset + docs in many formats.                                 |

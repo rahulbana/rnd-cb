@@ -149,3 +149,12 @@ class ExportAgent(Agent):
         path = out_dir / filename
         path.write_text(json.dumps(data, indent=2, default=str))
         return str(path)
+
+    def write_notebook(self, out_dir: Path, filename: str, notebook: dict) -> str:
+        """Write an nbformat-v4 notebook dict to a ``.ipynb`` file."""
+
+        out_dir = Path(out_dir)
+        out_dir.mkdir(parents=True, exist_ok=True)
+        path = out_dir / filename
+        path.write_text(json.dumps(notebook, indent=1))
+        return str(path)

@@ -48,6 +48,33 @@ def test_service_full_run(tmp_path):
     assert ddl.startswith("CREATE TABLE")
 
 
+def test_eda_notebook_is_written(tmp_path):
+    import json
+
+    result = DatasetService().generate_from_prompt(
+        "Create a fraud detection dataset with 1200 rows and 3% fraud rate.",
+        formats=["csv"],
+        out_dir=tmp_path,
+    )
+    # A notebook is produced instead of a static eda.json.
+    assert "eda_notebook" in result.exports
+    assert "eda" not in result.exports
+    nb_path = tmp_path / f"{result.spec.name}_eda.ipynb"
+    assert nb_path.exists()
+
+    nb = json.loads(nb_path.read_text())
+    assert nb["nbformat"] == 4
+    assert len(nb["cells"]) > 5
+    # Every cell has an id (nbformat >= 4.5 requirement).
+    assert all(c.get("id") for c in nb["cells"])
+    assert any(c["cell_type"] == "code" for c in nb["cells"])
+    # The loader references the exported CSV so the notebook is runnable.
+    source = "\n".join(
+        c["source"] for c in nb["cells"] if c["cell_type"] == "code"
+    )
+    assert f"{result.spec.name}.csv" in source
+
+
 def test_exports_readable(tmp_path):
     result = DatasetService().generate_from_prompt(
         "Create a customer segmentation dataset with 1500 rows.",
