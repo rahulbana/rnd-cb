@@ -32,6 +32,11 @@ dev = [
     "pytest-asyncio>=0.23.0",
     "ruff>=0.6.0",
 ]
+# Langfuse tracing (OpenTelemetry-based) for the OpenAI Agents SDK.
+observability = [
+    "langfuse>=3.0.0",
+    "openinference-instrumentation-openai-agents>=0.1.0",
+]
 
 [project.scripts]
 agentic-chat = "agentic_app.main:cli"

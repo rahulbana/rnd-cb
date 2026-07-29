@@ -34,6 +34,16 @@ class Settings(BaseSettings):
     # ---- Custom tools ----
     fx_api_base: str = "https://open.er-api.com/v6/latest"
 
+    # ---- Observability (Langfuse) ----
+    # Tracing is enabled only when both keys are present; otherwise it's a no-op.
+    langfuse_public_key: str | None = None
+    langfuse_secret_key: str | None = None
+    langfuse_host: str = "https://cloud.langfuse.com"
+
+    @property
+    def langfuse_enabled(self) -> bool:
+        return bool(self.langfuse_public_key and self.langfuse_secret_key)
+
 
 @lru_cache
 def get_settings() -> Settings:

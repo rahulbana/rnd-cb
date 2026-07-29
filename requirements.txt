@@ -11,3 +11,7 @@ pydantic>=2.7.0
 pydantic-settings>=2.3.0
 python-dotenv>=1.0.0
 rich>=13.7.0
+
+# Optional: Langfuse tracing (or `pip install -e ".[observability]"`)
+# langfuse>=3.0.0
+# openinference-instrumentation-openai-agents>=0.1.0

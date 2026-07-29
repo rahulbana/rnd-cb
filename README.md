@@ -121,6 +121,27 @@ This is implemented with the Agents SDK lifecycle hooks (`on_tool_start` /
 `on_tool_end`) in `src/agentic_app/tracking.py`. `ToolUsageTracker` also keeps a
 structured record (`.calls`, `.counts()`) you can wire into logging or telemetry.
 
+## Observability (Langfuse)
+
+Optional LLM tracing via [Langfuse](https://langfuse.com). It instruments the
+OpenAI Agents SDK over OpenTelemetry, so **every agent run, LLM call, and tool
+call** (MCP client-directory ops, web search, currency) shows up as a span with
+inputs, outputs, latency, and token usage — no per-call code.
+
+```bash
+pip install -e ".[observability]"
+# then set in .env:
+#   LANGFUSE_PUBLIC_KEY=pk-lf-...
+#   LANGFUSE_SECRET_KEY=sk-lf-...
+#   LANGFUSE_HOST=https://cloud.langfuse.com   # or your self-hosted / US host
+```
+
+Tracing is **fully optional and gated**: with no keys it's a silent no-op and the
+app runs exactly as before. Buffered spans are flushed automatically on exit.
+Implementation lives in `src/agentic_app/observability.py`. This complements the
+in-terminal tool-usage tracker above: the tracker gives an instant per-turn
+readout, Langfuse gives durable, searchable traces.
+
 ## Testing
 
 ```bash

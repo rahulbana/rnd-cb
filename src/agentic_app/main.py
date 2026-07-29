@@ -20,6 +20,7 @@ from rich.markdown import Markdown
 
 from agentic_app.agent import build_agent, build_mcp_server
 from agentic_app.config import get_settings
+from agentic_app.observability import configure_langfuse, flush_langfuse
 from agentic_app.tools import CUSTOM_TOOL_NAMES, WEB_SEARCH_TOOL_NAMES
 from agentic_app.tracking import ToolUsageTracker
 
@@ -117,6 +118,7 @@ def cli() -> None:
     """Console-script entrypoint."""
     if not _preflight():
         sys.exit(1)
+    configure_langfuse()  # no-op unless Langfuse keys are configured
     query = " ".join(sys.argv[1:]).strip()
     try:
         if query:
@@ -125,6 +127,9 @@ def cli() -> None:
             asyncio.run(_repl())
     except KeyboardInterrupt:
         pass
+    finally:
+        # Ensure buffered traces are sent before the process exits.
+        flush_langfuse()
 
 
 if __name__ == "__main__":
