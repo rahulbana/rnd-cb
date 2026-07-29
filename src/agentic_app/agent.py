@@ -2,11 +2,25 @@
 
 from __future__ import annotations
 
-from agents import Agent
+from agents import Agent, set_default_openai_key
 from agents.mcp import MCPServerStreamableHttp
 
 from agentic_app.config import get_settings
 from agentic_app.tools import LOCAL_TOOLS
+
+
+def configure_openai() -> None:
+    """Register the OpenAI API key with the Agents SDK from settings.
+
+    The SDK also reads OPENAI_API_KEY from the environment automatically, but
+    setting it explicitly lets us source the key from our own config layer
+    (.env / pydantic-settings) as the single source of truth. No-op if unset.
+    """
+    settings = get_settings()
+    if settings.openai_api_key:
+        # Correct import is `from agents import set_default_openai_key`
+        # (there is no `agents.config` module in the SDK).
+        set_default_openai_key(settings.openai_api_key)
 
 INSTRUCTIONS = """\
 You are a capable business assistant for a client-services team.
@@ -43,6 +57,7 @@ def build_mcp_server() -> MCPServerStreamableHttp:
 
 def build_agent(mcp_server: MCPServerStreamableHttp) -> Agent:
     """Build the agent bound to the OpenAI model, local tools, and the MCP server."""
+    configure_openai()
     settings = get_settings()
     return Agent(
         name="Client Services Assistant",
