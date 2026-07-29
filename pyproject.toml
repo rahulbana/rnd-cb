@@ -1,0 +1,54 @@
+[project]
+name = "agentic-app"
+version = "0.1.0"
+description = "Agentic application powered by an OpenAI LLM with a remote SQLite MCP server, web search, and custom tools."
+readme = "README.md"
+requires-python = ">=3.10"
+authors = [{ name = "rnd-cb" }]
+dependencies = [
+    # Agent runtime (OpenAI LLM + tools + MCP client)
+    "openai-agents>=0.2.0",
+    "openai>=1.55.0",
+
+    # Remote MCP server (SQLite-backed client directory)
+    "mcp>=1.9.0",
+    "uvicorn>=0.30.0",
+
+    # Tools
+    "tavily-python>=0.5.0",
+    "ddgs>=6.0.0",
+    "httpx>=0.27.0",
+
+    # Config / DX
+    "pydantic>=2.7.0",
+    "pydantic-settings>=2.3.0",
+    "python-dotenv>=1.0.0",
+    "rich>=13.7.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.0.0",
+    "pytest-asyncio>=0.23.0",
+    "ruff>=0.6.0",
+]
+
+[project.scripts]
+agentic-chat = "agentic_app.main:cli"
+mcp-server = "mcp_server.server:main"
+
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+where = ["src", "."]
+include = ["agentic_app*", "mcp_server*"]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py310"
