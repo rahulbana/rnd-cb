@@ -99,6 +99,27 @@ Example prompts the agent can handle end-to-end:
 - "What's the latest news on the OpenAI Agents SDK?" (web search)
 - "Convert 250 EUR to INR." (currency tool)
 
+## Tool-usage tracking
+
+Every query prints which capability answered it. As each tool fires, a live line
+shows its category — **MCP** (client directory), **WEB** (web search), or
+**CUSTOM** (currency) — followed by a per-turn and per-session summary:
+
+```
+you › find clients in London and convert their retainer of 5000 GBP to USD
+  [MCP] → search_clients
+  [MCP] ✓ search_clients · 42ms
+  [CUSTOM] → convert_currency
+  [CUSTOM] ✓ convert_currency · 310ms
+assistant › …
+  tools used → MCP×1, CUSTOM×1
+  session totals → mcp×1, custom×1
+```
+
+This is implemented with the Agents SDK lifecycle hooks (`on_tool_start` /
+`on_tool_end`) in `src/agentic_app/tracking.py`. `ToolUsageTracker` also keeps a
+structured record (`.calls`, `.counts()`) you can wire into logging or telemetry.
+
 ## Testing
 
 ```bash

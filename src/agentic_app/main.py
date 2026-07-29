@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import asyncio
 import sys
+from collections import Counter
 
 from agents import Runner
 from agents.exceptions import AgentsException
@@ -19,15 +20,35 @@ from rich.markdown import Markdown
 
 from agentic_app.agent import build_agent, build_mcp_server
 from agentic_app.config import get_settings
+from agentic_app.tools import CUSTOM_TOOL_NAMES, WEB_SEARCH_TOOL_NAMES
+from agentic_app.tracking import ToolUsageTracker
 
 console = Console()
+
+
+async def _mcp_tool_names(mcp_server) -> set[str]:
+    """Names of the tools the connected MCP server exposes (for categorization)."""
+    try:
+        return {t.name for t in await mcp_server.list_tools()}
+    except Exception:  # noqa: BLE001 - tracking is best-effort, never block the run
+        return set()
+
+
+def _new_tracker(mcp_names: set[str]) -> ToolUsageTracker:
+    return ToolUsageTracker(
+        mcp_tool_names=mcp_names,
+        web_tool_names=WEB_SEARCH_TOOL_NAMES,
+        custom_tool_names=CUSTOM_TOOL_NAMES,
+    )
 
 
 async def _run_once(query: str) -> None:
     async with build_mcp_server() as mcp_server:
         agent = build_agent(mcp_server)
-        result = await Runner.run(agent, query)
+        tracker = _new_tracker(await _mcp_tool_names(mcp_server))
+        result = await Runner.run(agent, query, hooks=tracker)
         console.print(Markdown(str(result.final_output)))
+        tracker.print_summary()
 
 
 async def _repl() -> None:
@@ -40,6 +61,8 @@ async def _repl() -> None:
 
     async with build_mcp_server() as mcp_server:
         agent = build_agent(mcp_server)
+        mcp_names = await _mcp_tool_names(mcp_server)
+        session_counts: Counter = Counter()
         history: list = []
         while True:
             try:
@@ -57,14 +80,24 @@ async def _repl() -> None:
                 console.print("[dim]conversation reset[/]\n")
                 continue
 
+            tracker = _new_tracker(mcp_names)
             try:
-                result = await Runner.run(agent, history + [{"role": "user", "content": user}])
+                result = await Runner.run(
+                    agent,
+                    history + [{"role": "user", "content": user}],
+                    hooks=tracker,
+                )
             except AgentsException as exc:
                 console.print(f"[red]agent error:[/] {exc}")
                 continue
 
             console.print("[bold magenta]assistant ›[/]")
             console.print(Markdown(str(result.final_output)))
+            tracker.print_summary()
+            session_counts.update(tracker.counts())
+            if sum(session_counts.values()):
+                totals = ", ".join(f"{k}×{v}" for k, v in session_counts.items())
+                console.print(f"  [dim]session totals → {totals}[/]")
             console.print()
             # Carry full context forward for a coherent multi-turn conversation.
             history = result.to_input_list()
