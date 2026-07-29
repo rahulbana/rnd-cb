@@ -38,6 +38,9 @@ _EMAIL_RE = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
 # whitelisting column names rather than interpolating arbitrary keys.
 _MUTABLE_FIELDS = ("name", "country", "state", "city", "contact_number", "email", "notes")
 
+# Fields that must be present and non-empty when creating a client.
+_REQUIRED_FIELDS = ("name", "country", "state", "email")
+
 
 class ClientStore:
     """CRUD + search over the ``clients`` table."""
@@ -80,15 +83,26 @@ class ClientStore:
     def add_client(
         self,
         name: str,
-        country: str | None = None,
-        state: str | None = None,
+        country: str,
+        state: str,
+        email: str,
         city: str | None = None,
         contact_number: str | None = None,
-        email: str | None = None,
         notes: str | None = None,
     ) -> dict[str, Any]:
-        if not name or not name.strip():
-            raise ValueError("`name` is required and cannot be empty.")
+        # name, country, state, email are mandatory and must be non-empty.
+        missing = [
+            field
+            for field, value in (
+                ("name", name),
+                ("country", country),
+                ("state", state),
+                ("email", email),
+            )
+            if value is None or not str(value).strip()
+        ]
+        if missing:
+            raise ValueError(f"Missing required field(s): {', '.join(missing)}")
         self._validate_email(email)
         now = self._now()
         with self._connect() as conn:

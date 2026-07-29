@@ -94,7 +94,8 @@ python -m agentic_app.main "Add a client: Acme Corp, USA, California, SF, +1-415
 
 Example prompts the agent can handle end-to-end:
 
-- "Store a new client: Globex Ltd, London, UK, phone +44-20-7946-0000."
+- "Store a new client: Globex Ltd, UK, England, contact@globex.example."
+  (`name`, `country`, `state`, and `email` are **required**; city and phone are optional.)
 - "List all clients in India." / "Search clients named acme."
 - "What's the latest news on the OpenAI Agents SDK?" (web search)
 - "Convert 250 EUR to INR." (currency tool)

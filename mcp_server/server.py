@@ -38,33 +38,41 @@ store = ClientStore(settings.mcp_db_path)
 @mcp.tool()
 def add_client(
     name: str,
-    country: str | None = None,
-    state: str | None = None,
+    country: str,
+    state: str,
+    email: str,
     city: str | None = None,
     contact_number: str | None = None,
-    email: str | None = None,
     notes: str | None = None,
 ) -> dict[str, Any]:
     """Create a new client record and return it (including the assigned id).
 
-    Args:
-        name: Full client / company name. Required.
+    Required fields — the record cannot be created without all four:
+        name: Full client / company name.
         country: Country of the client.
         state: State or province.
+        email: Email address (validated).
+
+    Optional fields:
         city: City.
         contact_number: Phone number in any format.
-        email: Email address (validated).
         notes: Free-form notes.
+
+    If any required field is missing, ask the user for it before calling this tool.
+    Returns an ``{"error": ...}`` dict if validation fails.
     """
-    return store.add_client(
-        name=name,
-        country=country,
-        state=state,
-        city=city,
-        contact_number=contact_number,
-        email=email,
-        notes=notes,
-    )
+    try:
+        return store.add_client(
+            name=name,
+            country=country,
+            state=state,
+            email=email,
+            city=city,
+            contact_number=contact_number,
+            notes=notes,
+        )
+    except ValueError as exc:
+        return {"error": "validation_error", "detail": str(exc)}
 
 
 @mcp.tool()
