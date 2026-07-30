@@ -7,6 +7,7 @@ import { EditorPage } from "./pages/EditorPage";
 import { GeneratePage } from "./pages/GeneratePage";
 import { LoginPage } from "./pages/LoginPage";
 import { RegisterPage } from "./pages/RegisterPage";
+import { SettingsPage } from "./pages/SettingsPage";
 
 export default function App() {
   return (
@@ -18,6 +19,7 @@ export default function App() {
         <Route element={<AppLayout />}>
           <Route path="/" element={<DashboardPage />} />
           <Route path="/generate" element={<GeneratePage />} />
+          <Route path="/settings" element={<SettingsPage />} />
           <Route path="/articles/:id" element={<EditorPage />} />
         </Route>
       </Route>

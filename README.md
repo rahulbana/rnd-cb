@@ -24,6 +24,10 @@ library is searchable semantically and exportable to PDF, Word and Markdown.
   embeddings.
 - 🧠 **RAG style context** — generation retrieves your similar past articles so
   new content matches your voice.
+- 🎨 **Writing-style references** — in Settings, add links or upload .txt/.md/
+  .docx samples of your previous writing. They're embedded into a dedicated
+  index, and the most relevant samples are fed into every generation so the AI
+  writes in *your* voice.
 - 🌐 **Deep web research** — optionally search the live web before writing: the
   app plans multiple focused queries, searches, grounds the article in what it
   finds, and records the **real, verifiable source URLs**. Uses OpenAI's
@@ -138,6 +142,10 @@ Base path: `/api/v1`
 | POST   | `/generate/expand`            | Expand/lengthen an article body |
 | GET    | `/search?q=`                  | Semantic search                 |
 | GET    | `/articles/{id}/export?format=` | Export pdf \| docx \| md      |
+| GET    | `/style-references`           | List writing-style references   |
+| POST   | `/style-references/link`      | Add a style reference by URL    |
+| POST   | `/style-references/upload`    | Upload a .txt/.md/.docx sample  |
+| DELETE | `/style-references/{id}`      | Remove a style reference        |
 
 ---
 

@@ -16,6 +16,7 @@ import {
   IconArticle,
   IconLogout,
   IconMoon,
+  IconSettings,
   IconSparkles,
   IconSun,
 } from "@tabler/icons-react";
@@ -65,6 +66,13 @@ export function AppLayout() {
               </Menu.Target>
               <Menu.Dropdown>
                 <Menu.Label>{user?.email}</Menu.Label>
+                <Menu.Item
+                  leftSection={<IconSettings size={16} />}
+                  onClick={() => navigate("/settings")}
+                >
+                  Settings
+                </Menu.Item>
+                <Menu.Divider />
                 <Menu.Item
                   leftSection={<IconLogout size={16} />}
                   onClick={() => {

@@ -6,6 +6,7 @@ import type {
   GenerationRequest,
   GenerationResponse,
   SearchResult,
+  StyleReference,
   User,
 } from "./types";
 
@@ -74,6 +75,30 @@ export async function expandContent(payload: {
 }) {
   const { data } = await api.post<{ body: string }>("/generate/expand", payload);
   return data;
+}
+
+// --- Style references (writing-style settings) ---
+export async function listStyleRefs() {
+  const { data } = await api.get<StyleReference[]>("/style-references");
+  return data;
+}
+
+export async function addStyleLink(url: string) {
+  const { data } = await api.post<StyleReference>("/style-references/link", { url });
+  return data;
+}
+
+export async function uploadStyleFile(file: File) {
+  const form = new FormData();
+  form.append("file", file);
+  const { data } = await api.post<StyleReference>("/style-references/upload", form, {
+    headers: { "Content-Type": "multipart/form-data" },
+  });
+  return data;
+}
+
+export async function deleteStyleRef(id: string) {
+  await api.delete(`/style-references/${id}`);
 }
 
 // --- Search ---

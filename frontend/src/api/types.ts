@@ -36,6 +36,15 @@ export interface Article {
   updated_at: string;
 }
 
+export interface StyleReference {
+  id: string;
+  name: string;
+  source_type: "file" | "link";
+  origin: string;
+  char_count: number;
+  created_at: string;
+}
+
 export interface ArticleListItem {
   id: string;
   title: string;

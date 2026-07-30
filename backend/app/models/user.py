@@ -34,3 +34,7 @@ class User(Base):
         back_populates="owner",
         cascade="all, delete-orphan",
     )
+    style_references: Mapped[list["StyleReference"]] = relationship(  # noqa: F821
+        back_populates="owner",
+        cascade="all, delete-orphan",
+    )

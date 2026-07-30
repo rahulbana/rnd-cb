@@ -14,6 +14,7 @@ from app.api.deps import get_current_user
 from app.core.config import settings
 from app.core.database import get_db
 from app.models.article import Article
+from app.models.style_reference import StyleReference
 from app.models.user import User
 from app.schemas.generation import (
     DuplicateHit,
@@ -36,6 +37,17 @@ async def _fetch_articles(db: AsyncSession, ids: list[str]) -> dict[str, Article
         art = await db.get(Article, aid)
         if art is not None:
             out[aid] = art
+    return out
+
+
+async def _fetch_style_refs(
+    db: AsyncSession, ids: list[str]
+) -> dict[str, StyleReference]:
+    out: dict[str, StyleReference] = {}
+    for rid in ids:
+        ref = await db.get(StyleReference, rid)
+        if ref is not None:
+            out[rid] = ref
     return out
 
 
@@ -69,6 +81,25 @@ async def generate(
                         snippet="Your previous article used as style/context reference.",
                     )
                 )
+
+    # --- 1b. Writing-style references the user uploaded in Settings ---
+    style_hits = await asyncio.to_thread(
+        store.search_style_references, query=req.prompt, user_id=user.id, n_results=2
+    )
+    if style_hits:
+        refs = await _fetch_style_refs(db, [h[0] for h in style_hits])
+        style_samples = [
+            f"Sample — {refs[rid].name}:\n{refs[rid].content[:1500]}"
+            for rid, _ in style_hits
+            if rid in refs and refs[rid].content
+        ]
+        if style_samples:
+            rag_context.append(
+                "The following are samples of the author's own previous "
+                "writing. Study and closely match their voice, tone, sentence "
+                "rhythm and vocabulary (do not copy content):\n"
+                + "\n\n".join(style_samples)
+            )
 
     # --- 2. Deep web research (optional): ground the article in real sources ---
     web_findings = ""

@@ -53,8 +53,10 @@ class VectorStore:
     def __init__(self) -> None:
         self._embedder = get_embedder()
         self._backend = "memory"
-        self._collection = None
-        self._memory = _InMemoryIndex()
+        self._collection = None  # articles
+        self._style_collection = None  # style references
+        self._memory = _InMemoryIndex()  # articles
+        self._style_memory = _InMemoryIndex()  # style references
         self._init_chroma()
 
     def _init_chroma(self) -> None:
@@ -66,6 +68,10 @@ class VectorStore:
                 name=settings.CHROMA_COLLECTION,
                 metadata={"hnsw:space": "cosine"},
             )
+            self._style_collection = client.get_or_create_collection(
+                name=f"{settings.CHROMA_COLLECTION}_style",
+                metadata={"hnsw:space": "cosine"},
+            )
             self._backend = "chroma"
             logger.info("VectorStore using ChromaDB at %s", settings.CHROMA_PERSIST_DIR)
         except Exception as exc:  # pragma: no cover
@@ -73,51 +79,30 @@ class VectorStore:
                 "ChromaDB unavailable (%s); using in-memory vector index.", exc
             )
 
-    # --- write ------------------------------------------------------
-    def upsert_article(
-        self, *, article_id: str, user_id: str, title: str, body: str, summary: str
-    ) -> None:
-        text = _doc_text(title, body, summary)
-        embedding = self._embedder.embed_one(text)
-        metadata = {"user_id": user_id, "title": title or "Untitled"}
+    # --- generic helpers -------------------------------------------
+    def _upsert(self, collection, memory, doc_id, embedding, metadata, document):
         if self._backend == "chroma":
-            self._collection.upsert(
-                ids=[article_id],
+            collection.upsert(
+                ids=[doc_id],
                 embeddings=[embedding],
                 metadatas=[metadata],
-                documents=[text[:2000]],
+                documents=[document[:2000]],
             )
         else:
-            self._memory.upsert(article_id, embedding, metadata)
+            memory.upsert(doc_id, embedding, metadata)
 
-    def delete_article(self, article_id: str) -> None:
+    def _delete(self, collection, memory, doc_id):
         if self._backend == "chroma":
             try:
-                self._collection.delete(ids=[article_id])
+                collection.delete(ids=[doc_id])
             except Exception:  # pragma: no cover
                 pass
         else:
-            self._memory.delete(article_id)
+            memory.delete(doc_id)
 
-    # --- read -------------------------------------------------------
-    def search(
-        self, *, query: str, user_id: str, n_results: int = 10
-    ) -> list[tuple[str, float]]:
-        """Return (article_id, distance) pairs, closest first."""
-        embedding = self._embedder.embed_one(query)
-        return self._query(embedding, user_id, n_results)
-
-    def find_similar(
-        self, *, title: str, body: str, summary: str, user_id: str, n_results: int = 5
-    ) -> list[tuple[str, float]]:
-        embedding = self._embedder.embed_one(_doc_text(title, body, summary))
-        return self._query(embedding, user_id, n_results)
-
-    def _query(
-        self, embedding: list[float], user_id: str, n: int
-    ) -> list[tuple[str, float]]:
+    def _query_index(self, collection, memory, embedding, user_id, n):
         if self._backend == "chroma":
-            res = self._collection.query(
+            res = collection.query(
                 query_embeddings=[embedding],
                 n_results=n,
                 where={"user_id": user_id},
@@ -125,7 +110,54 @@ class VectorStore:
             ids = res.get("ids", [[]])[0]
             dists = res.get("distances", [[]])[0]
             return list(zip(ids, dists))
-        return [(rid, dist) for rid, dist, _ in self._memory.query(embedding, user_id, n)]
+        return [(rid, dist) for rid, dist, _ in memory.query(embedding, user_id, n)]
+
+    # --- articles ---------------------------------------------------
+    def upsert_article(
+        self, *, article_id: str, user_id: str, title: str, body: str, summary: str
+    ) -> None:
+        text = _doc_text(title, body, summary)
+        embedding = self._embedder.embed_one(text)
+        metadata = {"user_id": user_id, "title": title or "Untitled"}
+        self._upsert(self._collection, self._memory, article_id, embedding, metadata, text)
+
+    def delete_article(self, article_id: str) -> None:
+        self._delete(self._collection, self._memory, article_id)
+
+    def search(
+        self, *, query: str, user_id: str, n_results: int = 10
+    ) -> list[tuple[str, float]]:
+        """Return (article_id, distance) pairs, closest first."""
+        embedding = self._embedder.embed_one(query)
+        return self._query_index(self._collection, self._memory, embedding, user_id, n_results)
+
+    def find_similar(
+        self, *, title: str, body: str, summary: str, user_id: str, n_results: int = 5
+    ) -> list[tuple[str, float]]:
+        embedding = self._embedder.embed_one(_doc_text(title, body, summary))
+        return self._query_index(self._collection, self._memory, embedding, user_id, n_results)
+
+    # --- style references ------------------------------------------
+    def upsert_style_reference(
+        self, *, ref_id: str, user_id: str, name: str, content: str
+    ) -> None:
+        text = f"{name}\n\n{content}".strip()
+        embedding = self._embedder.embed_one(text)
+        metadata = {"user_id": user_id, "title": name or "Untitled"}
+        self._upsert(
+            self._style_collection, self._style_memory, ref_id, embedding, metadata, text
+        )
+
+    def delete_style_reference(self, ref_id: str) -> None:
+        self._delete(self._style_collection, self._style_memory, ref_id)
+
+    def search_style_references(
+        self, *, query: str, user_id: str, n_results: int = 3
+    ) -> list[tuple[str, float]]:
+        embedding = self._embedder.embed_one(query)
+        return self._query_index(
+            self._style_collection, self._style_memory, embedding, user_id, n_results
+        )
 
 
 _vector_store: VectorStore | None = None
