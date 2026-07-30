@@ -32,7 +32,11 @@ def _length_hint(length: str | None) -> str:
     }.get((length or "medium").lower(), "roughly 600-900 words")
 
 
-def _build_user_prompt(req: GenerationRequest, rag_context: list[str]) -> str:
+def _build_user_prompt(
+    req: GenerationRequest,
+    rag_context: list[str],
+    web_findings: str | None = None,
+) -> str:
     parts = [f"Write content about: {req.prompt}"]
     if req.tone:
         parts.append(f"Tone: {req.tone}.")
@@ -41,6 +45,14 @@ def _build_user_prompt(req: GenerationRequest, rag_context: list[str]) -> str:
     parts.append(f"Length: {_length_hint(req.length)}.")
     if req.keywords:
         parts.append(f"Weave in these SEO keywords naturally: {', '.join(req.keywords)}.")
+    if web_findings:
+        parts.append(
+            "Ground your factual claims in the researched findings below. "
+            "Prefer these facts over your own recollection, and stay accurate "
+            "to them. The underlying sources are recorded separately, so you "
+            "do not need to repeat URLs:\n"
+            f"{web_findings}"
+        )
     if rag_context:
         joined = "\n\n---\n\n".join(rag_context)
         parts.append(
@@ -57,7 +69,9 @@ def _json_schema() -> dict:
 
 
 def generate_content(
-    req: GenerationRequest, rag_context: list[str] | None = None
+    req: GenerationRequest,
+    rag_context: list[str] | None = None,
+    web_findings: str | None = None,
 ) -> GeneratedContent:
     if not settings.OPENAI_API_KEY:
         raise HTTPException(
@@ -73,7 +87,7 @@ def generate_content(
     client = OpenAI(
         api_key=settings.OPENAI_API_KEY, base_url=settings.OPENAI_BASE_URL
     )
-    user_prompt = _build_user_prompt(req, rag_context or [])
+    user_prompt = _build_user_prompt(req, rag_context or [], web_findings)
 
     try:
         completion = client.chat.completions.create(

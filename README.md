@@ -21,6 +21,10 @@ library is searchable semantically and exportable to PDF, Word and Markdown.
   embeddings.
 - 🧠 **RAG style context** — generation retrieves your similar past articles so
   new content matches your voice.
+- 🌐 **Deep web research** — optionally search the live web before writing: the
+  app plans multiple focused queries, searches, grounds the article in what it
+  finds, and records the **real, verifiable source URLs**. Uses OpenAI's
+  built-in web search by default (no extra key); Tavily supported as an option.
 - 🪞 **Duplicate detection** — warns when new content is very similar to
   something you already wrote.
 - 🔗 **Sources & references** — every article stores where its content came
@@ -109,6 +113,8 @@ Key ones:
 | `OPENAI_API_KEY`     | _(none)_                         | Enables AI generation                      |
 | `LLM_MODEL`          | `gpt-4o-mini`                    | OpenAI chat model                          |
 | `EMBEDDING_PROVIDER` | `hash`                           | `hash` · `sentence_transformers` · `openai`|
+| `WEB_SEARCH_PROVIDER`| `openai`                         | `openai` · `tavily` · `none`               |
+| `TAVILY_API_KEY`     | _(none)_                         | Required only for the `tavily` provider    |
 | `CHROMA_PERSIST_DIR` | `./chroma_data`                  | ChromaDB persistence path                  |
 
 ## API overview

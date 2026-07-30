@@ -47,6 +47,14 @@ class GenerationRequest(BaseModel):
         default=True,
         description="Retrieve the writer's similar past articles as style context.",
     )
+    use_web_search: bool = Field(
+        default=False,
+        description="Research the live web and ground the article in real sources.",
+    )
+    research_depth: str = Field(
+        default="deep",
+        description="quick (single search) | deep (multi-query research)",
+    )
 
 
 class GeneratedContent(BaseModel):
@@ -86,3 +94,7 @@ class GenerationResponse(BaseModel):
         description="IDs of past articles used as RAG context.",
     )
     possible_duplicates: list[DuplicateHit] = Field(default_factory=list)
+    research_queries: list[str] = Field(
+        default_factory=list,
+        description="Web search queries run during deep research.",
+    )

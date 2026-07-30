@@ -48,6 +48,16 @@ class Settings(BaseSettings):
     OPENAI_EMBEDDING_MODEL: str = "text-embedding-3-small"
     EMBEDDING_DIM: int = 384  # used by the hash fallback embedder
 
+    # --- Web research ---
+    # Provider: "openai" (built-in web search, no extra key), "tavily"
+    # (needs TAVILY_API_KEY) or "none" to disable.
+    WEB_SEARCH_PROVIDER: str = "openai"
+    WEB_SEARCH_MODEL: str = "gpt-4o-mini"  # must support the web_search tool
+    TAVILY_API_KEY: str | None = None
+    # "Deep" research plans and runs this many focused sub-queries.
+    DEEP_RESEARCH_MAX_QUERIES: int = 4
+    WEB_SEARCH_MAX_RESULTS: int = 5  # results per query (tavily)
+
     # --- Vector store (ChromaDB) ---
     CHROMA_PERSIST_DIR: str = "./chroma_data"
     CHROMA_COLLECTION: str = "articles"

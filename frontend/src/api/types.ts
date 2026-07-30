@@ -73,6 +73,7 @@ export interface GenerationResponse {
   content: GeneratedContent;
   context_used: string[];
   possible_duplicates: DuplicateHit[];
+  research_queries: string[];
 }
 
 export interface GenerationRequest {
@@ -82,6 +83,8 @@ export interface GenerationRequest {
   length?: string;
   keywords?: string[];
   use_rag?: boolean;
+  use_web_search?: boolean;
+  research_depth?: string;
 }
 
 export type ArticleUpsert = Partial<

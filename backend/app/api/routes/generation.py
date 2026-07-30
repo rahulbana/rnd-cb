@@ -1,4 +1,8 @@
-"""AI content generation route (with RAG context + duplicate detection)."""
+"""AI content generation route.
+
+Pipeline: RAG style context → optional deep web research → LLM generation
+→ duplicate detection. Sources are merged and deduped across all stages.
+"""
 from __future__ import annotations
 
 import asyncio
@@ -18,6 +22,7 @@ from app.schemas.generation import (
     Source,
 )
 from app.services.llm import generate_content
+from app.services.research import deep_research
 from app.services.vectorstore import get_vector_store
 
 router = APIRouter(prefix="/generate", tags=["generation"])
@@ -63,14 +68,33 @@ async def generate(
                     )
                 )
 
-    # --- 2. Generate content via the LLM ---
-    content = await asyncio.to_thread(generate_content, req, rag_context)
+    # --- 2. Deep web research (optional): ground the article in real sources ---
+    web_findings = ""
+    web_sources: list[Source] = []
+    research_queries: list[str] = []
+    if req.use_web_search:
+        research = await asyncio.to_thread(deep_research, req.prompt, req.research_depth)
+        web_findings = research.findings
+        web_sources = research.sources
+        research_queries = research.queries
 
-    # Prepend verifiable internal sources (the writer's own articles) ahead
-    # of any external references the model cited.
-    content.sources = internal_sources + content.sources
+    # --- 3. Generate content via the LLM ---
+    content = await asyncio.to_thread(
+        generate_content, req, rag_context, web_findings or None
+    )
 
-    # --- 3. Duplicate detection against existing library ---
+    # Merge sources: verifiable internal (writer's own) + researched web
+    # sources first, then any additional references the model cited, deduped.
+    merged: list[Source] = []
+    seen: set[str] = set()
+    for s in internal_sources + web_sources + content.sources:
+        key = (s.url or s.title or "").lower()
+        if key and key not in seen:
+            seen.add(key)
+            merged.append(s)
+    content.sources = merged
+
+    # --- 4. Duplicate detection against existing library ---
     dup_hits = await asyncio.to_thread(
         store.find_similar,
         title=content.title,
@@ -95,4 +119,5 @@ async def generate(
         content=content,
         context_used=context_ids,
         possible_duplicates=possible_duplicates,
+        research_queries=research_queries,
     )

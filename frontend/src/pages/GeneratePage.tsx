@@ -9,6 +9,7 @@ import {
   Group,
   List,
   Paper,
+  SegmentedControl,
   Select,
   Stack,
   Switch,
@@ -19,7 +20,12 @@ import {
 } from "@mantine/core";
 import { useForm } from "@mantine/form";
 import { notifications } from "@mantine/notifications";
-import { IconAlertTriangle, IconDeviceFloppy, IconSparkles } from "@tabler/icons-react";
+import {
+  IconAlertTriangle,
+  IconDeviceFloppy,
+  IconSparkles,
+  IconWorldSearch,
+} from "@tabler/icons-react";
 import { useMutation } from "@tanstack/react-query";
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
@@ -42,6 +48,8 @@ export function GeneratePage() {
       length: "medium",
       keywords: [] as string[],
       use_rag: true,
+      use_web_search: false,
+      research_depth: "deep",
     },
     validate: {
       prompt: (v) => (v.trim().length >= 3 ? null : "Describe what you want to write"),
@@ -90,6 +98,8 @@ export function GeneratePage() {
       length: values.length,
       keywords: values.keywords,
       use_rag: values.use_rag,
+      use_web_search: values.use_web_search,
+      research_depth: values.research_depth,
     });
   }
 
@@ -143,12 +153,36 @@ export function GeneratePage() {
                 checked={form.values.use_rag}
                 {...form.getInputProps("use_rag", { type: "checkbox" })}
               />
+              <Switch
+                label="Research the web for real, cited sources"
+                description="Searches the live web and grounds the article in what it finds."
+                checked={form.values.use_web_search}
+                {...form.getInputProps("use_web_search", { type: "checkbox" })}
+              />
+              {form.values.use_web_search && (
+                <SegmentedControl
+                  fullWidth
+                  data={[
+                    { value: "quick", label: "Quick (1 search)" },
+                    { value: "deep", label: "Deep (multi-query)" },
+                  ]}
+                  {...form.getInputProps("research_depth")}
+                />
+              )}
               <Button
                 type="submit"
-                leftSection={<IconSparkles size={18} />}
+                leftSection={
+                  form.values.use_web_search ? (
+                    <IconWorldSearch size={18} />
+                  ) : (
+                    <IconSparkles size={18} />
+                  )
+                }
                 loading={genMutation.isPending}
               >
-                Generate
+                {genMutation.isPending && form.values.use_web_search
+                  ? "Researching & writing…"
+                  : "Generate"}
               </Button>
             </Stack>
           </form>
@@ -173,6 +207,21 @@ export function GeneratePage() {
                 <Text size="xs" c="dimmed">
                   Used {result.context_used.length} past article(s) as style context.
                 </Text>
+              )}
+              {result.research_queries.length > 0 && (
+                <Alert
+                  icon={<IconWorldSearch size={18} />}
+                  color="blue"
+                  variant="light"
+                  title="Researched the web"
+                >
+                  <Text size="sm">Ran {result.research_queries.length} search(es):</Text>
+                  <List size="xs" mt={4}>
+                    {result.research_queries.map((q, i) => (
+                      <List.Item key={i}>{q}</List.Item>
+                    ))}
+                  </List>
+                </Alert>
               )}
 
               <Title order={3}>{result.content.title}</Title>
