@@ -46,8 +46,10 @@ library is searchable semantically and exportable to PDF, Word and Markdown.
 - 📊 **LLM observability (Langfuse)** — every generation/expand/banner request
   is traced end to end: the user's input, each model call, the tools that ran
   (RAG, style refs, web research, duplicate detection) as nested spans, and the
-  output — tagged by user. Activates automatically when Langfuse keys are set;
-  a no-op otherwise.
+  output — grouped by **working session** and tagged by user. Captures quality
+  signals too: an explicit **thumbs up/down** on each draft and an automatic
+  **edit-retention** score (how close the saved article stays to the AI draft).
+  Activates automatically when Langfuse keys are set; a no-op otherwise.
 
 ## Tech stack
 
@@ -176,6 +178,17 @@ the keys are absent. For each request you get a trace containing:
   `image.banner` — so you can see exactly what happened;
 - **`user_id`** and **tags** listing the tools used, so you can filter and
   aggregate per user and per capability.
+
+**Sessions & scores**
+
+- Each browser working session sends an `X-Session-Id` header, so a writer's
+  multiple generations, expands and banners group into one Langfuse **session**.
+- **Explicit feedback:** thumbs up/down on a generated draft posts to
+  `POST /generate/feedback`, recording a `user_rating` score on that trace.
+- **Implicit feedback:** when a generated article is saved, the backend scores
+  `edit_retention` — the similarity between the saved body and the original AI
+  draft (1.0 = kept as-is, lower = heavily rewritten) — so you can see which
+  prompts/settings produce drafts writers keep.
 
 Check `GET /health` — `"tracing": true` confirms it's active.
 

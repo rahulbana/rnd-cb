@@ -19,6 +19,7 @@ class ArticleBase(BaseModel):
     ner_tags: list[NerTag] = Field(default_factory=list)
     sources: list[Source] = Field(default_factory=list)
     banner_image: str | None = None
+    trace_id: str | None = None
     status: str = "draft"
     prompt: str | None = None
 

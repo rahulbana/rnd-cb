@@ -106,6 +106,15 @@ export async function deleteStyleRef(id: string) {
   await api.delete(`/style-references/${id}`);
 }
 
+export async function submitFeedback(payload: {
+  trace_id: string;
+  name?: string;
+  value: number;
+  comment?: string;
+}) {
+  await api.post("/generate/feedback", payload);
+}
+
 // --- Search ---
 export async function semanticSearch(q: string) {
   const { data } = await api.get<SearchResult[]>("/search", { params: { q } });

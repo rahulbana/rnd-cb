@@ -114,3 +114,13 @@ class GenerationResponse(BaseModel):
         default_factory=list,
         description="Web search queries run during deep research.",
     )
+    trace_id: str | None = Field(
+        default=None, description="Langfuse trace id for feedback/scoring."
+    )
+
+
+class FeedbackRequest(BaseModel):
+    trace_id: str
+    name: str = Field(default="user_rating", description="Score name")
+    value: float = Field(..., description="Score value, e.g. 1 (up) / 0 (down)")
+    comment: str | None = None

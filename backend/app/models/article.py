@@ -47,6 +47,11 @@ class Article(Base):
     # Banner image (relative media URL, e.g. /media/banners/<uuid>.png)
     banner_image: Mapped[str | None] = mapped_column(String(512), nullable=True)
 
+    # Observability: the Langfuse trace that produced this article, plus the
+    # original AI-generated body (used to score how much the user edited it).
+    trace_id: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    generated_body: Mapped[str | None] = mapped_column(Text, nullable=True)
+
     status: Mapped[str] = mapped_column(String(32), default="draft")  # draft|published
 
     created_at: Mapped[datetime] = mapped_column(

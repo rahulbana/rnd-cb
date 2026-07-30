@@ -1,7 +1,7 @@
 """Shared API dependencies."""
 from __future__ import annotations
 
-from fastapi import Depends, HTTPException, status
+from fastapi import Depends, Header, HTTPException, status
 from fastapi.security import OAuth2PasswordBearer
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -33,3 +33,10 @@ async def get_current_user(
     if user is None or not user.is_active:
         raise credentials_exc
     return user
+
+
+def get_session_id(
+    x_session_id: str | None = Header(default=None, alias="X-Session-Id"),
+) -> str | None:
+    """Client-provided working-session id, used to group Langfuse traces."""
+    return x_session_id

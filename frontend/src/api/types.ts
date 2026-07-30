@@ -32,6 +32,7 @@ export interface Article {
   ner_tags: NerTag[];
   sources: Source[];
   banner_image: string | null;
+  trace_id: string | null;
   status: string;
   created_at: string;
   updated_at: string;
@@ -85,6 +86,7 @@ export interface GenerationResponse {
   context_used: string[];
   possible_duplicates: DuplicateHit[];
   research_queries: string[];
+  trace_id: string | null;
 }
 
 export interface GenerationRequest {

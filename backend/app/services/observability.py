@@ -97,6 +97,45 @@ def set_trace(**kwargs: Any) -> None:
         logger.debug("Langfuse update_current_trace error: %s", exc)
 
 
+def current_trace_id() -> str | None:
+    """The active trace id (call inside a span). None when disabled."""
+    if not _enabled or _client is None:
+        return None
+    try:
+        return _client.get_current_trace_id()
+    except Exception:  # pragma: no cover
+        return None
+
+
+def score(
+    *,
+    trace_id: str,
+    name: str,
+    value: float | str,
+    data_type: str | None = None,
+    comment: str | None = None,
+    session_id: str | None = None,
+    metadata: dict | None = None,
+) -> bool:
+    """Attach a score/feedback signal to a trace. No-op when disabled."""
+    if not _enabled or _client is None or not trace_id:
+        return False
+    try:
+        _client.create_score(
+            trace_id=trace_id,
+            name=name,
+            value=value,
+            data_type=data_type,
+            comment=comment,
+            session_id=session_id,
+            metadata=metadata,
+        )
+        return True
+    except Exception as exc:  # pragma: no cover
+        logger.debug("Langfuse score '%s' error: %s", name, exc)
+        return False
+
+
 def flush() -> None:
     if _enabled and _client is not None:
         try:

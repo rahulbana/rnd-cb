@@ -10,7 +10,7 @@ import asyncio
 from fastapi import APIRouter, Depends
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.api.deps import get_current_user
+from app.api.deps import get_current_user, get_session_id
 from app.core.config import settings
 from app.core.database import get_db
 from app.models.article import Article
@@ -20,6 +20,7 @@ from app.schemas.generation import (
     DuplicateHit,
     ExpandRequest,
     ExpandResponse,
+    FeedbackRequest,
     GenerationRequest,
     GenerationResponse,
     Source,
@@ -57,6 +58,7 @@ async def generate(
     req: GenerationRequest,
     db: AsyncSession = Depends(get_db),
     user: User = Depends(get_current_user),
+    session_id: str | None = Depends(get_session_id),
 ):
     store = get_vector_store()
     tools_used: list[str] = []
@@ -200,6 +202,7 @@ async def generate(
 
         obs.set_trace(
             user_id=user.id,
+            session_id=session_id,
             tags=tools_used,
             output={
                 "title": content.title,
@@ -214,12 +217,14 @@ async def generate(
             },
         )
         trace.update(output={"title": content.title})
+        trace_id = obs.current_trace_id()
 
         return GenerationResponse(
             content=content,
             context_used=context_ids,
             possible_duplicates=possible_duplicates,
             research_queries=research_queries,
+            trace_id=trace_id,
         )
 
 
@@ -227,6 +232,7 @@ async def generate(
 async def expand(
     req: ExpandRequest,
     user: User = Depends(get_current_user),
+    session_id: str | None = Depends(get_session_id),
 ):
     """Expand/lengthen an existing article body."""
     with obs.span(
@@ -242,8 +248,28 @@ async def expand(
         )
         obs.set_trace(
             user_id=user.id,
+            session_id=session_id,
             tags=["expand", req.mode],
             output={"chars": len(body)},
         )
         trace.update(output={"chars": len(body)})
         return ExpandResponse(body=body)
+
+
+@router.post("/feedback", status_code=204)
+async def submit_feedback(
+    payload: FeedbackRequest,
+    user: User = Depends(get_current_user),
+    session_id: str | None = Depends(get_session_id),
+):
+    """Record an explicit quality signal (e.g. thumbs up/down) on a trace."""
+    await asyncio.to_thread(
+        obs.score,
+        trace_id=payload.trace_id,
+        name=payload.name,
+        value=payload.value,
+        data_type="NUMERIC",
+        comment=payload.comment,
+        session_id=session_id,
+        metadata={"user_id": user.id},
+    )

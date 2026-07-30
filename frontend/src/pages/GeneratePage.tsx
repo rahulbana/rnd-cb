@@ -1,4 +1,5 @@
 import {
+  ActionIcon,
   Alert,
   Anchor,
   Badge,
@@ -17,6 +18,7 @@ import {
   Text,
   Textarea,
   Title,
+  Tooltip,
 } from "@mantine/core";
 import { useForm } from "@mantine/form";
 import { notifications } from "@mantine/notifications";
@@ -24,6 +26,8 @@ import {
   IconAlertTriangle,
   IconDeviceFloppy,
   IconSparkles,
+  IconThumbDown,
+  IconThumbUp,
   IconWorldSearch,
 } from "@tabler/icons-react";
 import { useMutation } from "@tanstack/react-query";
@@ -31,7 +35,7 @@ import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 
 import { apiErrorMessage } from "../api/client";
-import { createArticle, generateContent } from "../api/endpoints";
+import { createArticle, generateContent, submitFeedback } from "../api/endpoints";
 import type { GenerationResponse } from "../api/types";
 import { SentimentBadge } from "../components/SentimentBadge";
 
@@ -39,6 +43,7 @@ export function GeneratePage() {
   const navigate = useNavigate();
   const [result, setResult] = useState<GenerationResponse | null>(null);
   const [lastPrompt, setLastPrompt] = useState("");
+  const [rated, setRated] = useState<number | null>(null);
 
   const form = useForm({
     initialValues: {
@@ -58,10 +63,22 @@ export function GeneratePage() {
 
   const genMutation = useMutation({
     mutationFn: generateContent,
-    onSuccess: (data) => setResult(data),
+    onSuccess: (data) => {
+      setResult(data);
+      setRated(null);
+    },
     onError: (e) =>
       notifications.show({ color: "red", message: apiErrorMessage(e, "Generation failed") }),
   });
+
+  function rate(value: number) {
+    if (!result?.trace_id) return;
+    setRated(value);
+    submitFeedback({ trace_id: result.trace_id, name: "user_rating", value }).catch(() => {
+      /* feedback is best-effort */
+    });
+    notifications.show({ color: "gray", message: "Thanks for the feedback!" });
+  }
 
   const saveMutation = useMutation({
     mutationFn: () => {
@@ -78,6 +95,7 @@ export function GeneratePage() {
         tags: c.tags,
         ner_tags: c.ner_tags,
         sources: c.sources,
+        trace_id: result.trace_id,
         status: "draft",
       });
     },
@@ -268,17 +286,48 @@ export function GeneratePage() {
               )}
 
               <Divider />
-              <Group justify="flex-end">
-                <Button variant="default" onClick={() => setResult(null)}>
-                  Discard
-                </Button>
-                <Button
-                  leftSection={<IconDeviceFloppy size={18} />}
-                  loading={saveMutation.isPending}
-                  onClick={() => saveMutation.mutate()}
-                >
-                  Save draft & edit
-                </Button>
+              <Group justify="space-between">
+                {result.trace_id ? (
+                  <Group gap={4}>
+                    <Text size="xs" c="dimmed" mr={4}>
+                      Rate this draft:
+                    </Text>
+                    <Tooltip label="Good">
+                      <ActionIcon
+                        variant={rated === 1 ? "filled" : "subtle"}
+                        color="teal"
+                        onClick={() => rate(1)}
+                        aria-label="Thumbs up"
+                      >
+                        <IconThumbUp size={18} />
+                      </ActionIcon>
+                    </Tooltip>
+                    <Tooltip label="Poor">
+                      <ActionIcon
+                        variant={rated === 0 ? "filled" : "subtle"}
+                        color="red"
+                        onClick={() => rate(0)}
+                        aria-label="Thumbs down"
+                      >
+                        <IconThumbDown size={18} />
+                      </ActionIcon>
+                    </Tooltip>
+                  </Group>
+                ) : (
+                  <span />
+                )}
+                <Group justify="flex-end">
+                  <Button variant="default" onClick={() => setResult(null)}>
+                    Discard
+                  </Button>
+                  <Button
+                    leftSection={<IconDeviceFloppy size={18} />}
+                    loading={saveMutation.isPending}
+                    onClick={() => saveMutation.mutate()}
+                  >
+                    Save draft & edit
+                  </Button>
+                </Group>
               </Group>
             </Stack>
           </Card>

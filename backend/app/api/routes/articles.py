@@ -2,12 +2,13 @@
 from __future__ import annotations
 
 import asyncio
+from difflib import SequenceMatcher
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.api.deps import get_current_user
+from app.api.deps import get_current_user, get_session_id
 from app.core.database import get_db
 from app.models.article import Article
 from app.models.user import User
@@ -70,6 +71,10 @@ async def create_article(
 ):
     data = payload.model_dump()
     article = Article(user_id=user.id, **data)
+    # Snapshot the AI-generated body so we can later score how much the user
+    # edits it (only meaningful for articles created from a generation).
+    if article.trace_id:
+        article.generated_body = article.body
     db.add(article)
     await db.commit()
     await db.refresh(article)
@@ -96,11 +101,27 @@ async def update_article(
     article = await _get_owned_article(db, article_id, user)
     # model_dump recursively converts nested models (ner_tags, sources) to dicts.
     updates = payload.model_dump(exclude_unset=True)
+    body_changed = "body" in updates and updates["body"] != article.body
     for field, value in updates.items():
         setattr(article, field, value)
     await db.commit()
     await db.refresh(article)
     await _index_article(article)
+
+    # Edit-retention quality signal: how close the saved body still is to the
+    # original AI generation (1.0 = untouched, lower = heavily rewritten).
+    if body_changed and article.trace_id and article.generated_body:
+        retention = round(
+            SequenceMatcher(None, article.generated_body, article.body or "").ratio(), 4
+        )
+        await asyncio.to_thread(
+            obs.score,
+            trace_id=article.trace_id,
+            name="edit_retention",
+            value=retention,
+            data_type="NUMERIC",
+            comment="Similarity of saved article to the AI-generated draft",
+        )
     return article
 
 
@@ -121,6 +142,7 @@ async def generate_article_banner(
     article_id: str,
     db: AsyncSession = Depends(get_db),
     user: User = Depends(get_current_user),
+    session_id: str | None = Depends(get_session_id),
 ):
     """Generate (or regenerate) a title-aware banner image for the article."""
     article = await _get_owned_article(db, article_id, user)
@@ -131,7 +153,12 @@ async def generate_article_banner(
             summary=article.summary,
             tags=article.tags or [],
         )
-        obs.set_trace(user_id=user.id, tags=["banner_image"], output={"url": banner_url})
+        obs.set_trace(
+            user_id=user.id,
+            session_id=session_id,
+            tags=["banner_image"],
+            output={"url": banner_url},
+        )
         trace.update(output={"url": banner_url})
     article.banner_image = banner_url
     await db.commit()

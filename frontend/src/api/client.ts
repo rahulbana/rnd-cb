@@ -15,10 +15,26 @@ export function setToken(token: string | null): void {
   else localStorage.removeItem(TOKEN_KEY);
 }
 
-// Attach the bearer token to every request.
+const SESSION_KEY = "acw_session_id";
+
+/** A per-browsing-session id used to group Langfuse traces for one writer. */
+export function getSessionId(): string {
+  let s = sessionStorage.getItem(SESSION_KEY);
+  if (!s) {
+    s =
+      typeof crypto !== "undefined" && "randomUUID" in crypto
+        ? crypto.randomUUID()
+        : `sess-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+    sessionStorage.setItem(SESSION_KEY, s);
+  }
+  return s;
+}
+
+// Attach the bearer token and session id to every request.
 api.interceptors.request.use((config) => {
   const token = getToken();
   if (token) config.headers.Authorization = `Bearer ${token}`;
+  config.headers["X-Session-Id"] = getSessionId();
   return config;
 });
 
