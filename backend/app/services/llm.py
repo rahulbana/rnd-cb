@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import json
 import logging
+import re
 
 from fastapi import HTTPException, status
 
@@ -84,6 +85,32 @@ def _json_schema() -> dict:
     return schema
 
 
+def _loads(raw: str) -> dict:
+    """Parse the model's JSON, tolerating stray prose or code fences."""
+    try:
+        return json.loads(raw)
+    except json.JSONDecodeError:
+        match = re.search(r"\{.*\}", raw, re.S)
+        if match:
+            return json.loads(match.group(0))
+        raise
+
+
+def _finalize(data: dict) -> GeneratedContent:
+    """Validate and backfill any fields the model may have omitted."""
+    content = GeneratedContent.model_validate(data)
+    if not content.title.strip():
+        content.title = "Untitled"
+    if not content.summary.strip() and content.body.strip():
+        plain = re.sub(r"\s+", " ", re.sub(r"[#>*`_\[\]()]", "", content.body)).strip()
+        content.summary = (
+            plain[:200].rsplit(" ", 1)[0] + "…" if len(plain) > 200 else plain
+        )
+    if not content.seo_description.strip():
+        content.seo_description = content.summary[:155]
+    return content
+
+
 def generate_content(
     req: GenerationRequest,
     rag_context: list[str] | None = None,
@@ -124,7 +151,7 @@ def generate_content(
             },
         )
         raw = completion.choices[0].message.content or "{}"
-        return GeneratedContent.model_validate(json.loads(raw))
+        return _finalize(_loads(raw))
     except HTTPException:
         raise
     except Exception as exc:

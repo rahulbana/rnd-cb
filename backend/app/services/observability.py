@@ -72,18 +72,23 @@ class _NoopSpan:
 
 @contextmanager
 def span(name: str, *, input: Any = None, metadata: dict | None = None):
-    """Context manager for a (possibly nested) trace span. No-op when disabled."""
+    """Context manager for a (possibly nested) trace span. No-op when disabled.
+
+    Only span *creation* is guarded; exceptions raised inside the ``with``
+    body propagate normally (the span records the error and closes). The
+    generator yields exactly once on every path.
+    """
     if not _enabled or _client is None:
         yield _NoopSpan()
         return
     try:
-        with _client.start_as_current_span(
-            name=name, input=input, metadata=metadata
-        ) as s:
-            yield s
+        cm = _client.start_as_current_span(name=name, input=input, metadata=metadata)
     except Exception as exc:  # pragma: no cover - never break the request
-        logger.debug("Langfuse span '%s' error: %s", name, exc)
+        logger.debug("Langfuse span '%s' create error: %s", name, exc)
         yield _NoopSpan()
+        return
+    with cm as s:
+        yield s
 
 
 def set_trace(**kwargs: Any) -> None:

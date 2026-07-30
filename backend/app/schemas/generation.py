@@ -58,13 +58,18 @@ class GenerationRequest(BaseModel):
 
 
 class GeneratedContent(BaseModel):
-    """Structured content returned by the LLM (also used as the JSON schema)."""
+    """Structured content returned by the LLM (also used as the JSON schema).
 
-    title: str
-    body: str = Field(..., description="Full article body in Markdown")
-    summary: str = Field(..., description="A short 1-2 sentence summary")
+    All fields have defaults so an occasional missing key from the model
+    never fails validation or loses the rest of the generation; the service
+    backfills sensible values (e.g. summary from the body).
+    """
+
+    title: str = Field(default="Untitled")
+    body: str = Field(default="", description="Full article body in Markdown")
+    summary: str = Field(default="", description="A short 1-2 sentence summary")
     seo_description: str = Field(
-        ..., description="Meta description for SEO, ~155 chars"
+        default="", description="Meta description for SEO, ~155 chars"
     )
     keywords: list[str] = Field(default_factory=list)
     sentiment: str = Field(

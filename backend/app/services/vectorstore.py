@@ -62,8 +62,12 @@ class VectorStore:
     def _init_chroma(self) -> None:
         try:
             import chromadb
+            from chromadb.config import Settings as ChromaSettings
 
-            client = chromadb.PersistentClient(path=settings.CHROMA_PERSIST_DIR)
+            client = chromadb.PersistentClient(
+                path=settings.CHROMA_PERSIST_DIR,
+                settings=ChromaSettings(anonymized_telemetry=False),
+            )
             self._collection = client.get_or_create_collection(
                 name=settings.CHROMA_COLLECTION,
                 metadata={"hnsw:space": "cosine"},
