@@ -218,3 +218,6 @@ backend/contentwriter.db
 frontend/node_modules/
 frontend/dist/
 frontend/.env
+
+# TS build info
+frontend/*.tsbuildinfo

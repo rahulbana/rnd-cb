@@ -1,0 +1,90 @@
+import { api } from "./client";
+import type {
+  Article,
+  ArticleListItem,
+  ArticleUpsert,
+  GenerationRequest,
+  GenerationResponse,
+  SearchResult,
+  User,
+} from "./types";
+
+// --- Auth ---
+export async function register(email: string, password: string, full_name?: string) {
+  const { data } = await api.post<{ access_token: string }>("/auth/register", {
+    email,
+    password,
+    full_name,
+  });
+  return data;
+}
+
+export async function login(email: string, password: string) {
+  // OAuth2 password form expects x-www-form-urlencoded with "username".
+  const form = new URLSearchParams();
+  form.append("username", email);
+  form.append("password", password);
+  const { data } = await api.post<{ access_token: string }>("/auth/login", form, {
+    headers: { "Content-Type": "application/x-www-form-urlencoded" },
+  });
+  return data;
+}
+
+export async function fetchMe() {
+  const { data } = await api.get<User>("/auth/me");
+  return data;
+}
+
+// --- Articles ---
+export async function listArticles(params?: { q?: string; status?: string }) {
+  const { data } = await api.get<ArticleListItem[]>("/articles", { params });
+  return data;
+}
+
+export async function getArticle(id: string) {
+  const { data } = await api.get<Article>(`/articles/${id}`);
+  return data;
+}
+
+export async function createArticle(payload: ArticleUpsert) {
+  const { data } = await api.post<Article>("/articles", payload);
+  return data;
+}
+
+export async function updateArticle(id: string, payload: ArticleUpsert) {
+  const { data } = await api.patch<Article>(`/articles/${id}`, payload);
+  return data;
+}
+
+export async function deleteArticle(id: string) {
+  await api.delete(`/articles/${id}`);
+}
+
+// --- Generation ---
+export async function generateContent(payload: GenerationRequest) {
+  const { data } = await api.post<GenerationResponse>("/generate", payload);
+  return data;
+}
+
+// --- Search ---
+export async function semanticSearch(q: string) {
+  const { data } = await api.get<SearchResult[]>("/search", { params: { q } });
+  return data;
+}
+
+// --- Export (fetched as a blob so the bearer token is sent) ---
+export async function downloadExport(id: string, format: string, title: string) {
+  const res = await api.get(`/articles/${id}/export`, {
+    params: { format },
+    responseType: "blob",
+  });
+  const url = window.URL.createObjectURL(res.data as Blob);
+  const a = document.createElement("a");
+  const slug = title.replace(/[^a-zA-Z0-9]+/g, "-").toLowerCase().slice(0, 60) || "article";
+  a.href = url;
+  a.download = `${slug}.${format === "markdown" ? "md" : format}`;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  window.URL.revokeObjectURL(url);
+}
