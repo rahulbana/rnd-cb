@@ -1,0 +1,38 @@
+# --- Web framework ---
+fastapi==0.115.6
+uvicorn[standard]==0.34.0
+python-multipart==0.0.20
+
+# --- Data / ORM ---
+sqlalchemy==2.0.36
+asyncpg==0.30.0            # PostgreSQL async driver (production)
+aiosqlite==0.20.0          # SQLite async driver (local dev fallback)
+greenlet==3.1.1
+
+# --- Config / validation ---
+pydantic==2.10.4
+pydantic-settings==2.7.1
+email-validator==2.2.0
+
+# --- Auth / security ---
+bcrypt==4.2.1
+pyjwt==2.10.1
+
+# --- LLM ---
+openai==1.59.6
+
+# --- Vector store ---
+chromadb==0.5.23
+
+# --- Export ---
+python-docx==1.1.2
+reportlab==4.2.5
+markdown==3.7
+
+# --- Optional: local embedding models -------------------------------
+# The app runs without these (it falls back to a deterministic hash
+# embedder). Install to enable real semantic embeddings:
+#   pip install sentence-transformers
+# and set EMBEDDING_PROVIDER=sentence_transformers
+# For BAAI/bge-m3 set EMBEDDING_MODEL=BAAI/bge-m3
+# sentence-transformers==3.3.1
