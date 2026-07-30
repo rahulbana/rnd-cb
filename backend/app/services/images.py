@@ -57,9 +57,11 @@ def generate_banner(
             detail="OPENAI_API_KEY is not configured; cannot generate images.",
         )
 
-    from openai import OpenAI
+    from app.services.observability import get_openai_client
 
-    client = OpenAI(api_key=settings.OPENAI_API_KEY, base_url=settings.OPENAI_BASE_URL)
+    client = get_openai_client(
+        api_key=settings.OPENAI_API_KEY, base_url=settings.OPENAI_BASE_URL
+    )
     prompt = _build_prompt(title, summary, tags or [])
 
     try:

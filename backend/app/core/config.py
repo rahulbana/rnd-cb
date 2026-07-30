@@ -66,6 +66,13 @@ class Settings(BaseSettings):
     DEEP_RESEARCH_MAX_QUERIES: int = 4
     WEB_SEARCH_MAX_RESULTS: int = 5  # results per query (tavily)
 
+    # --- Observability (Langfuse) ---
+    # Tracing activates automatically when both keys are set.
+    LANGFUSE_ENABLED: bool = True
+    LANGFUSE_PUBLIC_KEY: str | None = None
+    LANGFUSE_SECRET_KEY: str | None = None
+    LANGFUSE_HOST: str = "https://cloud.langfuse.com"
+
     # --- Vector store (ChromaDB) ---
     CHROMA_PERSIST_DIR: str = "./chroma_data"
     CHROMA_COLLECTION: str = "articles"

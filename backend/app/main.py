@@ -12,14 +12,17 @@ from fastapi.staticfiles import StaticFiles
 from app.api import api_router
 from app.core.config import settings
 from app.core.database import init_db
+from app.services import observability
 
 logging.basicConfig(level=logging.INFO)
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    observability.configure()
     await init_db()
     yield
+    observability.flush()
 
 
 app = FastAPI(
@@ -56,4 +59,5 @@ async def health() -> dict:
         "env": settings.ENV,
         "llm_configured": bool(settings.OPENAI_API_KEY),
         "embedding_provider": settings.EMBEDDING_PROVIDER,
+        "tracing": observability.is_enabled(),
     }

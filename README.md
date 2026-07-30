@@ -43,6 +43,11 @@ library is searchable semantically and exportable to PDF, Word and Markdown.
   embedded into PDF/DOCX/Markdown exports.
 - 📤 **Export** — download any article as PDF, DOCX or Markdown.
 - 🌗 Modern, responsive UI (Mantine) with light/dark mode.
+- 📊 **LLM observability (Langfuse)** — every generation/expand/banner request
+  is traced end to end: the user's input, each model call, the tools that ran
+  (RAG, style refs, web research, duplicate detection) as nested spans, and the
+  output — tagged by user. Activates automatically when Langfuse keys are set;
+  a no-op otherwise.
 
 ## Tech stack
 
@@ -125,6 +130,9 @@ Key ones:
 | `EMBEDDING_PROVIDER` | `hash`                           | `hash` · `sentence_transformers` · `openai`|
 | `WEB_SEARCH_PROVIDER`| `openai`                         | `openai` · `tavily` · `none`               |
 | `TAVILY_API_KEY`     | _(none)_                         | Required only for the `tavily` provider    |
+| `LANGFUSE_PUBLIC_KEY`| _(none)_                         | Enables LLM tracing when set (with secret) |
+| `LANGFUSE_SECRET_KEY`| _(none)_                         | Langfuse secret key                        |
+| `LANGFUSE_HOST`      | `https://cloud.langfuse.com`     | Langfuse endpoint (cloud or self-hosted)   |
 | `CHROMA_PERSIST_DIR` | `./chroma_data`                  | ChromaDB persistence path                  |
 
 ## API overview
@@ -152,6 +160,24 @@ Base path: `/api/v1`
 | DELETE | `/style-references/{id}`      | Remove a style reference        |
 
 ---
+
+## Observability (Langfuse)
+
+Set `LANGFUSE_PUBLIC_KEY` and `LANGFUSE_SECRET_KEY` (from
+[Langfuse Cloud](https://cloud.langfuse.com) or a self-hosted instance) and
+tracing switches on automatically — no code changes, and it's a no-op when
+the keys are absent. For each request you get a trace containing:
+
+- the user's **input** (prompt, tone, length, flags) and the final **output**;
+- the **OpenAI calls** (query planning, generation, expansion, embeddings,
+  image) captured automatically with token usage and latency;
+- nested **spans for each tool** that ran — `retrieve.rag`,
+  `retrieve.style_references`, `research.web`, `detect.duplicates`,
+  `image.banner` — so you can see exactly what happened;
+- **`user_id`** and **tags** listing the tools used, so you can filter and
+  aggregate per user and per capability.
+
+Check `GET /health` — `"tracing": true` confirms it's active.
 
 ## Project structure
 

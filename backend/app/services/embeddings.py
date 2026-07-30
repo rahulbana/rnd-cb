@@ -68,9 +68,9 @@ class SentenceTransformerEmbedder(BaseEmbedder):
 
 class OpenAIEmbedder(BaseEmbedder):
     def __init__(self, model_name: str) -> None:
-        from openai import OpenAI  # lazy import
+        from app.services.observability import get_openai_client
 
-        self._client = OpenAI(
+        self._client = get_openai_client(
             api_key=settings.OPENAI_API_KEY, base_url=settings.OPENAI_BASE_URL
         )
         self._model = model_name

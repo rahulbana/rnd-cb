@@ -17,6 +17,7 @@ from app.schemas.article import (
     ArticleOut,
     ArticleUpdate,
 )
+from app.services import observability as obs
 from app.services.images import generate_banner
 from app.services.vectorstore import get_vector_store
 
@@ -123,12 +124,15 @@ async def generate_article_banner(
 ):
     """Generate (or regenerate) a title-aware banner image for the article."""
     article = await _get_owned_article(db, article_id, user)
-    banner_url = await asyncio.to_thread(
-        generate_banner,
-        title=article.title,
-        summary=article.summary,
-        tags=article.tags or [],
-    )
+    with obs.span("image.banner", input={"title": article.title}) as trace:
+        banner_url = await asyncio.to_thread(
+            generate_banner,
+            title=article.title,
+            summary=article.summary,
+            tags=article.tags or [],
+        )
+        obs.set_trace(user_id=user.id, tags=["banner_image"], output={"url": banner_url})
+        trace.update(output={"url": banner_url})
     article.banner_image = banner_url
     await db.commit()
     await db.refresh(article)

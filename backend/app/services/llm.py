@@ -98,9 +98,9 @@ def generate_content(
             ),
         )
 
-    from openai import OpenAI  # lazy import
+    from app.services.observability import get_openai_client
 
-    client = OpenAI(
+    client = get_openai_client(
         api_key=settings.OPENAI_API_KEY, base_url=settings.OPENAI_BASE_URL
     )
     user_prompt = _build_user_prompt(req, rag_context or [], web_findings)
@@ -172,9 +172,9 @@ def expand_content(
         else _EXPAND_MODES.get(mode, _EXPAND_MODES["longer"])
     )
 
-    from openai import OpenAI  # lazy import
+    from app.services.observability import get_openai_client
 
-    client = OpenAI(
+    client = get_openai_client(
         api_key=settings.OPENAI_API_KEY, base_url=settings.OPENAI_BASE_URL
     )
     try:

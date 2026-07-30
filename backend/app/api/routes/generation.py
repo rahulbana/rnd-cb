@@ -24,6 +24,7 @@ from app.schemas.generation import (
     GenerationResponse,
     Source,
 )
+from app.services import observability as obs
 from app.services.llm import expand_content, generate_content
 from app.services.research import deep_research
 from app.services.vectorstore import get_vector_store
@@ -58,102 +59,168 @@ async def generate(
     user: User = Depends(get_current_user),
 ):
     store = get_vector_store()
+    tools_used: list[str] = []
 
-    # --- 1. RAG: gather style context from the writer's past articles ---
-    rag_context: list[str] = []
-    context_ids: list[str] = []
-    internal_sources: list[Source] = []
-    if req.use_rag:
-        hits = await asyncio.to_thread(
-            store.search, query=req.prompt, user_id=user.id, n_results=3
-        )
-        articles = await _fetch_articles(db, [h[0] for h in hits])
-        for aid, _dist in hits:
-            art = articles.get(aid)
-            if art and art.body:
-                context_ids.append(aid)
-                rag_context.append(f"Title: {art.title}\n{art.body[:1200]}")
-                internal_sources.append(
-                    Source(
-                        title=art.title or "Untitled",
-                        url=f"/articles/{aid}",
-                        type="internal",
-                        snippet="Your previous article used as style/context reference.",
-                    )
+    with obs.span(
+        "content.generate",
+        input={
+            "prompt": req.prompt,
+            "tone": req.tone,
+            "audience": req.audience,
+            "length": req.length,
+            "use_rag": req.use_rag,
+            "use_web_search": req.use_web_search,
+            "research_depth": req.research_depth,
+        },
+    ) as trace:
+        # --- 1. RAG: gather style context from the writer's past articles ---
+        rag_context: list[str] = []
+        context_ids: list[str] = []
+        internal_sources: list[Source] = []
+        if req.use_rag:
+            with obs.span("retrieve.rag", input={"query": req.prompt}) as sp:
+                hits = await asyncio.to_thread(
+                    store.search, query=req.prompt, user_id=user.id, n_results=3
                 )
+                articles = await _fetch_articles(db, [h[0] for h in hits])
+                for aid, _dist in hits:
+                    art = articles.get(aid)
+                    if art and art.body:
+                        context_ids.append(aid)
+                        rag_context.append(f"Title: {art.title}\n{art.body[:1200]}")
+                        internal_sources.append(
+                            Source(
+                                title=art.title or "Untitled",
+                                url=f"/articles/{aid}",
+                                type="internal",
+                                snippet="Your previous article used as style/context reference.",
+                            )
+                        )
+                sp.update(output={"article_ids": context_ids})
+            if context_ids:
+                tools_used.append("rag")
 
-    # --- 1b. Writing-style references the user uploaded in Settings ---
-    style_hits = await asyncio.to_thread(
-        store.search_style_references, query=req.prompt, user_id=user.id, n_results=2
-    )
-    if style_hits:
-        refs = await _fetch_style_refs(db, [h[0] for h in style_hits])
-        style_samples = [
-            f"Sample — {refs[rid].name}:\n{refs[rid].content[:1500]}"
-            for rid, _ in style_hits
-            if rid in refs and refs[rid].content
-        ]
-        if style_samples:
-            rag_context.append(
-                "The following are samples of the author's own previous "
-                "writing. Study and closely match their voice, tone, sentence "
-                "rhythm and vocabulary (do not copy content):\n"
-                + "\n\n".join(style_samples)
+        # --- 1b. Writing-style references the user uploaded in Settings ---
+        style_ref_ids: list[str] = []
+        with obs.span("retrieve.style_references", input={"query": req.prompt}) as sp:
+            style_hits = await asyncio.to_thread(
+                store.search_style_references,
+                query=req.prompt,
+                user_id=user.id,
+                n_results=2,
             )
+            if style_hits:
+                refs = await _fetch_style_refs(db, [h[0] for h in style_hits])
+                style_samples = [
+                    f"Sample — {refs[rid].name}:\n{refs[rid].content[:1500]}"
+                    for rid, _ in style_hits
+                    if rid in refs and refs[rid].content
+                ]
+                style_ref_ids = [
+                    rid for rid, _ in style_hits if rid in refs and refs[rid].content
+                ]
+                if style_samples:
+                    rag_context.append(
+                        "The following are samples of the author's own previous "
+                        "writing. Study and closely match their voice, tone, "
+                        "sentence rhythm and vocabulary (do not copy content):\n"
+                        + "\n\n".join(style_samples)
+                    )
+            sp.update(output={"reference_ids": style_ref_ids})
+        if style_ref_ids:
+            tools_used.append("style_references")
 
-    # --- 2. Deep web research (optional): ground the article in real sources ---
-    web_findings = ""
-    web_sources: list[Source] = []
-    research_queries: list[str] = []
-    if req.use_web_search:
-        research = await asyncio.to_thread(deep_research, req.prompt, req.research_depth)
-        web_findings = research.findings
-        web_sources = research.sources
-        research_queries = research.queries
+        # --- 2. Deep web research (optional): ground in real sources ---
+        web_findings = ""
+        web_sources: list[Source] = []
+        research_queries: list[str] = []
+        if req.use_web_search:
+            with obs.span(
+                "research.web",
+                input={"prompt": req.prompt, "depth": req.research_depth},
+            ) as sp:
+                research = await asyncio.to_thread(
+                    deep_research, req.prompt, req.research_depth
+                )
+                web_findings = research.findings
+                web_sources = research.sources
+                research_queries = research.queries
+                sp.update(
+                    output={
+                        "queries": research_queries,
+                        "source_count": len(web_sources),
+                    }
+                )
+            tools_used.append("web_search")
 
-    # --- 3. Generate content via the LLM ---
-    content = await asyncio.to_thread(
-        generate_content, req, rag_context, web_findings or None
-    )
-
-    # Merge sources: verifiable internal (writer's own) + researched web
-    # sources first, then any additional references the model cited, deduped.
-    merged: list[Source] = []
-    seen: set[str] = set()
-    for s in internal_sources + web_sources + content.sources:
-        key = (s.url or s.title or "").lower()
-        if key and key not in seen:
-            seen.add(key)
-            merged.append(s)
-    content.sources = merged
-
-    # --- 4. Duplicate detection against existing library ---
-    dup_hits = await asyncio.to_thread(
-        store.find_similar,
-        title=content.title,
-        body=content.body,
-        summary=content.summary,
-        user_id=user.id,
-        n_results=5,
-    )
-    dup_ids = [aid for aid, dist in dup_hits if dist <= settings.DUPLICATE_DISTANCE_THRESHOLD]
-    dup_articles = await _fetch_articles(db, dup_ids)
-    possible_duplicates = [
-        DuplicateHit(
-            article_id=aid,
-            title=dup_articles[aid].title if aid in dup_articles else "Unknown",
-            distance=round(dist, 4),
+        # --- 3. Generate content via the LLM (auto-traced by Langfuse) ---
+        content = await asyncio.to_thread(
+            generate_content, req, rag_context, web_findings or None
         )
-        for aid, dist in dup_hits
-        if dist <= settings.DUPLICATE_DISTANCE_THRESHOLD and aid in dup_articles
-    ]
+        tools_used.append("llm_generation")
 
-    return GenerationResponse(
-        content=content,
-        context_used=context_ids,
-        possible_duplicates=possible_duplicates,
-        research_queries=research_queries,
-    )
+        # Merge sources: verifiable internal + researched web sources first,
+        # then any additional references the model cited, deduped.
+        merged: list[Source] = []
+        seen: set[str] = set()
+        for s in internal_sources + web_sources + content.sources:
+            key = (s.url or s.title or "").lower()
+            if key and key not in seen:
+                seen.add(key)
+                merged.append(s)
+        content.sources = merged
+
+        # --- 4. Duplicate detection against existing library ---
+        with obs.span("detect.duplicates") as sp:
+            dup_hits = await asyncio.to_thread(
+                store.find_similar,
+                title=content.title,
+                body=content.body,
+                summary=content.summary,
+                user_id=user.id,
+                n_results=5,
+            )
+            dup_ids = [
+                aid
+                for aid, dist in dup_hits
+                if dist <= settings.DUPLICATE_DISTANCE_THRESHOLD
+            ]
+            dup_articles = await _fetch_articles(db, dup_ids)
+            possible_duplicates = [
+                DuplicateHit(
+                    article_id=aid,
+                    title=dup_articles[aid].title if aid in dup_articles else "Unknown",
+                    distance=round(dist, 4),
+                )
+                for aid, dist in dup_hits
+                if dist <= settings.DUPLICATE_DISTANCE_THRESHOLD and aid in dup_articles
+            ]
+            sp.update(output={"possible_duplicates": len(possible_duplicates)})
+        tools_used.append("duplicate_detection")
+
+        obs.set_trace(
+            user_id=user.id,
+            tags=tools_used,
+            output={
+                "title": content.title,
+                "sentiment": content.sentiment,
+                "source_count": len(content.sources),
+                "possible_duplicates": len(possible_duplicates),
+            },
+            metadata={
+                "context_used": context_ids,
+                "style_reference_ids": style_ref_ids,
+                "research_queries": research_queries,
+            },
+        )
+        trace.update(output={"title": content.title})
+
+        return GenerationResponse(
+            content=content,
+            context_used=context_ids,
+            possible_duplicates=possible_duplicates,
+            research_queries=research_queries,
+        )
 
 
 @router.post("/expand", response_model=ExpandResponse)
@@ -162,11 +229,21 @@ async def expand(
     user: User = Depends(get_current_user),
 ):
     """Expand/lengthen an existing article body."""
-    body = await asyncio.to_thread(
-        expand_content,
-        title=req.title,
-        body=req.body,
-        mode=req.mode,
-        instruction=req.instruction,
-    )
-    return ExpandResponse(body=body)
+    with obs.span(
+        "content.expand",
+        input={"title": req.title, "mode": req.mode, "chars": len(req.body)},
+    ) as trace:
+        body = await asyncio.to_thread(
+            expand_content,
+            title=req.title,
+            body=req.body,
+            mode=req.mode,
+            instruction=req.instruction,
+        )
+        obs.set_trace(
+            user_id=user.id,
+            tags=["expand", req.mode],
+            output={"chars": len(body)},
+        )
+        trace.update(output={"chars": len(body)})
+        return ExpandResponse(body=body)

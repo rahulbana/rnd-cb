@@ -29,9 +29,11 @@ class ResearchResult:
 
 
 def _openai_client():
-    from openai import OpenAI
+    from app.services.observability import get_openai_client
 
-    return OpenAI(api_key=settings.OPENAI_API_KEY, base_url=settings.OPENAI_BASE_URL)
+    return get_openai_client(
+        api_key=settings.OPENAI_API_KEY, base_url=settings.OPENAI_BASE_URL
+    )
 
 
 # --- Query planning --------------------------------------------------
