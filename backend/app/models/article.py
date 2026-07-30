@@ -44,6 +44,9 @@ class Article(Base):
     # Resources/references the content was drawn from.
     sources: Mapped[list] = mapped_column(JSON, default=list)
 
+    # Banner image (relative media URL, e.g. /media/banners/<uuid>.png)
+    banner_image: Mapped[str | None] = mapped_column(String(512), nullable=True)
+
     status: Mapped[str] = mapped_column(String(32), default="draft")  # draft|published
 
     created_at: Mapped[datetime] = mapped_column(

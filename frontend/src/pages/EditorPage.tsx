@@ -1,13 +1,16 @@
 import {
   ActionIcon,
+  AspectRatio,
   Badge,
   Button,
   Card,
   Center,
   Grid,
   Group,
+  Image,
   Loader,
   Menu,
+  Overlay,
   Paper,
   Select,
   Stack,
@@ -27,6 +30,8 @@ import {
   IconListDetails,
   IconMarkdown,
   IconMessageQuestion,
+  IconPhoto,
+  IconRefresh,
   IconTextPlus,
   IconWand,
 } from "@tabler/icons-react";
@@ -34,10 +39,11 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 
-import { apiErrorMessage } from "../api/client";
+import { apiErrorMessage, mediaUrl } from "../api/client";
 import {
   downloadExport,
   expandContent,
+  generateBanner,
   getArticle,
   updateArticle,
 } from "../api/endpoints";
@@ -64,6 +70,9 @@ export function EditorPage() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const [draft, setDraft] = useState<Draft | null>(null);
+  // Banner is managed independently of the editable draft (set via its own
+  // endpoint), so it stays out of the unsaved-changes tracking.
+  const [banner, setBanner] = useState<string | null>(null);
 
   const { data: article, isLoading } = useQuery({
     queryKey: ["article", id],
@@ -85,8 +94,23 @@ export function EditorPage() {
         sources: article.sources ?? [],
         status: article.status || "draft",
       });
+      setBanner(article.banner_image);
     }
   }, [article]);
+
+  const bannerMutation = useMutation({
+    mutationFn: () => generateBanner(id),
+    onSuccess: (updated) => {
+      setBanner(updated.banner_image);
+      notifications.show({ color: "teal", message: "Banner image generated" });
+      queryClient.invalidateQueries({ queryKey: ["articles"] });
+    },
+    onError: (e) =>
+      notifications.show({
+        color: "red",
+        message: apiErrorMessage(e, "Banner generation failed"),
+      }),
+  });
 
   const saveMutation = useMutation({
     mutationFn: (payload: ArticleUpsert) => updateArticle(id, payload),
@@ -209,6 +233,48 @@ export function EditorPage() {
       <Grid gutter="lg">
         <Grid.Col span={{ base: 12, md: 8 }}>
           <Stack>
+            {/* Banner image */}
+            {banner ? (
+              <Card withBorder radius="md" p={0} pos="relative">
+                <AspectRatio ratio={3 / 2}>
+                  <Image src={mediaUrl(banner)} alt={draft.title} />
+                </AspectRatio>
+                {bannerMutation.isPending && (
+                  <Overlay color="#000" backgroundOpacity={0.5} center>
+                    <Loader color="white" />
+                  </Overlay>
+                )}
+                <Button
+                  size="xs"
+                  variant="white"
+                  color="dark"
+                  leftSection={<IconRefresh size={14} />}
+                  onClick={() => bannerMutation.mutate()}
+                  loading={bannerMutation.isPending}
+                  style={{ position: "absolute", top: 10, right: 10 }}
+                >
+                  Regenerate
+                </Button>
+              </Card>
+            ) : (
+              <Card withBorder radius="md" py="xl">
+                <Stack align="center" gap="xs">
+                  <IconPhoto size={32} color="var(--mantine-color-dimmed)" />
+                  <Text size="sm" c="dimmed" ta="center">
+                    Add a title-aware banner image to the top of this article.
+                  </Text>
+                  <Button
+                    variant="light"
+                    leftSection={<IconPhoto size={16} />}
+                    onClick={() => bannerMutation.mutate()}
+                    loading={bannerMutation.isPending}
+                  >
+                    Generate banner image
+                  </Button>
+                </Stack>
+              </Card>
+            )}
+
             <TextInput
               size="lg"
               placeholder="Article title"

@@ -61,6 +61,11 @@ export async function deleteArticle(id: string) {
   await api.delete(`/articles/${id}`);
 }
 
+export async function generateBanner(id: string) {
+  const { data } = await api.post<Article>(`/articles/${id}/banner`);
+  return data;
+}
+
 // --- Generation ---
 export async function generateContent(payload: GenerationRequest) {
   const { data } = await api.post<GenerationResponse>("/generate", payload);

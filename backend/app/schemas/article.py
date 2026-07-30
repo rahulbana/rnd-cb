@@ -18,6 +18,7 @@ class ArticleBase(BaseModel):
     tags: list[str] = Field(default_factory=list)
     ner_tags: list[NerTag] = Field(default_factory=list)
     sources: list[Source] = Field(default_factory=list)
+    banner_image: str | None = None
     status: str = "draft"
     prompt: str | None = None
 
@@ -38,6 +39,7 @@ class ArticleUpdate(BaseModel):
     tags: list[str] | None = None
     ner_tags: list[NerTag] | None = None
     sources: list[Source] | None = None
+    banner_image: str | None = None
     status: str | None = None
     prompt: str | None = None
 
@@ -61,6 +63,7 @@ class ArticleListItem(BaseModel):
     summary: str
     sentiment: str
     tags: list[str]
+    banner_image: str | None = None
     status: str
     updated_at: datetime
 

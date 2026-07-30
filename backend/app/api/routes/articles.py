@@ -17,6 +17,7 @@ from app.schemas.article import (
     ArticleOut,
     ArticleUpdate,
 )
+from app.services.images import generate_banner
 from app.services.vectorstore import get_vector_store
 
 router = APIRouter(prefix="/articles", tags=["articles"])
@@ -112,3 +113,23 @@ async def delete_article(
     await db.delete(article)
     await db.commit()
     await asyncio.to_thread(get_vector_store().delete_article, article_id)
+
+
+@router.post("/{article_id}/banner", response_model=ArticleOut)
+async def generate_article_banner(
+    article_id: str,
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    """Generate (or regenerate) a title-aware banner image for the article."""
+    article = await _get_owned_article(db, article_id, user)
+    banner_url = await asyncio.to_thread(
+        generate_banner,
+        title=article.title,
+        summary=article.summary,
+        tags=article.tags or [],
+    )
+    article.banner_image = banner_url
+    await db.commit()
+    await db.refresh(article)
+    return article

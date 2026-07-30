@@ -50,6 +50,12 @@ class Settings(BaseSettings):
     OPENAI_EMBEDDING_MODEL: str = "text-embedding-3-small"
     EMBEDDING_DIM: int = 384  # used by the hash fallback embedder
 
+    # --- Images (banners) ---
+    IMAGE_MODEL: str = "gpt-image-1"
+    IMAGE_SIZE: str = "1536x1024"  # landscape banner
+    MEDIA_DIR: str = "./media"
+    MEDIA_URL_PREFIX: str = "/media"
+
     # --- Web research ---
     # Provider: "openai" (built-in web search, no extra key), "tavily"
     # (needs TAVILY_API_KEY) or "none" to disable.

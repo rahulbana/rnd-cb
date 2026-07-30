@@ -50,3 +50,7 @@ export function apiErrorMessage(error: unknown, fallback = "Something went wrong
  *  possible via <a>, so exports are fetched as blobs — see articles api). */
 export const exportUrl = (id: string, format: string) =>
   `${baseURL}/articles/${id}/export?format=${format}`;
+
+/** Resolve a stored media path (e.g. /media/banners/x.png) to a loadable URL. */
+export const mediaUrl = (path: string | null | undefined): string | undefined =>
+  path ? `${import.meta.env.VITE_API_URL || ""}${path}` : undefined;

@@ -1,11 +1,13 @@
 import {
   ActionIcon,
+  AspectRatio,
   Badge,
   Box,
   Button,
   Card,
   Center,
   Group,
+  Image,
   Loader,
   Menu,
   SimpleGrid,
@@ -28,7 +30,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 
-import { apiErrorMessage } from "../api/client";
+import { apiErrorMessage, mediaUrl } from "../api/client";
 import {
   deleteArticle,
   downloadExport,
@@ -134,6 +136,17 @@ export function DashboardPage() {
         <SimpleGrid cols={{ base: 1, sm: 2, lg: 3 }} spacing="md">
           {items.map(({ article, score }) => (
             <Card key={article.id} withBorder shadow="sm" radius="md" padding="md">
+              {article.banner_image && (
+                <Card.Section
+                  mb="xs"
+                  style={{ cursor: "pointer" }}
+                  onClick={() => navigate(`/articles/${article.id}`)}
+                >
+                  <AspectRatio ratio={3 / 2}>
+                    <Image src={mediaUrl(article.banner_image)} alt={article.title} />
+                  </AspectRatio>
+                </Card.Section>
+              )}
               <Group justify="space-between" mb="xs" wrap="nowrap">
                 <Badge
                   variant="dot"

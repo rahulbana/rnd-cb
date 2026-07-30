@@ -38,6 +38,9 @@ library is searchable semantically and exportable to PDF, Word and Markdown.
   from: the writer's own past articles used as RAG context (tracked reliably),
   plus any external references the model cites. Editable, and included in
   exports.
+- 🖼️ **AI banner images** — generate a title-aware hero image for any article
+  with one click; it sits on top of the content, shows on library cards, and is
+  embedded into PDF/DOCX/Markdown exports.
 - 📤 **Export** — download any article as PDF, DOCX or Markdown.
 - 🌗 Modern, responsive UI (Mantine) with light/dark mode.
 
@@ -138,6 +141,7 @@ Base path: `/api/v1`
 | GET    | `/articles/{id}`              | Get one                         |
 | PATCH  | `/articles/{id}`              | Partial update (edit any field) |
 | DELETE | `/articles/{id}`              | Delete                          |
+| POST   | `/articles/{id}/banner`       | Generate a banner image         |
 | POST   | `/generate`                   | AI-generate content + metadata  |
 | POST   | `/generate/expand`            | Expand/lengthen an article body |
 | GET    | `/search?q=`                  | Semantic search                 |

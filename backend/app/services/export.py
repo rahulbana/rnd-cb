@@ -5,6 +5,7 @@ import io
 import re
 
 from app.models.article import Article
+from app.services.images import resolve_media_path
 
 
 def _source_label(src: dict) -> str:
@@ -18,8 +19,10 @@ def _source_label(src: dict) -> str:
 def to_markdown(article: Article) -> bytes:
     kw = ", ".join(article.keywords or [])
     tags = ", ".join(article.tags or [])
+    banner = f"![{article.title}]({article.banner_image})\n\n" if article.banner_image else ""
     front = (
-        f"# {article.title}\n\n"
+        banner
+        + f"# {article.title}\n\n"
         f"> {article.summary}\n\n"
         f"**Keywords:** {kw}\n\n"
         f"**Tags:** {tags}\n\n"
@@ -50,6 +53,14 @@ def to_docx(article: Article) -> bytes:
     from docx.shared import Pt
 
     doc = Document()
+    banner_path = resolve_media_path(article.banner_image)
+    if banner_path:
+        from docx.shared import Inches
+
+        try:
+            doc.add_picture(banner_path, width=Inches(6.0))
+        except Exception:  # pragma: no cover - never fail export on image
+            pass
     doc.add_heading(article.title or "Untitled", level=0)
     if article.summary:
         p = doc.add_paragraph(article.summary)
@@ -85,7 +96,7 @@ def to_pdf(article: Article) -> bytes:
     from reportlab.lib.enums import TA_LEFT
     from reportlab.lib.pagesizes import LETTER
     from reportlab.lib.styles import ParagraphStyle, getSampleStyleSheet
-    from reportlab.platypus import Paragraph, SimpleDocTemplate, Spacer
+    from reportlab.platypus import Image, Paragraph, SimpleDocTemplate, Spacer
 
     buf = io.BytesIO()
     doc = SimpleDocTemplate(buf, pagesize=LETTER, title=article.title or "Untitled")
@@ -94,7 +105,17 @@ def to_pdf(article: Article) -> bytes:
         "Body", parent=styles["Normal"], fontSize=11, leading=16, alignment=TA_LEFT
     )
 
-    flow = [Paragraph(_escape(article.title or "Untitled"), styles["Title"])]
+    flow: list = []
+    banner_path = resolve_media_path(article.banner_image)
+    if banner_path:
+        try:
+            img = Image(banner_path, width=468, height=312)  # 3:2 within letter margins
+            img.hAlign = "CENTER"
+            flow.append(img)
+            flow.append(Spacer(1, 12))
+        except Exception:  # pragma: no cover
+            pass
+    flow.append(Paragraph(_escape(article.title or "Untitled"), styles["Title"]))
     if article.summary:
         flow.append(Paragraph(f"<i>{_escape(article.summary)}</i>", styles["Italic"]))
     flow.append(Spacer(1, 12))

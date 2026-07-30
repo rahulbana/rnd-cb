@@ -221,3 +221,6 @@ frontend/.env
 
 # TS build info
 frontend/*.tsbuildinfo
+
+# Generated media (banner images)
+backend/media/

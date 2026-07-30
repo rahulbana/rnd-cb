@@ -31,6 +31,7 @@ export interface Article {
   tags: string[];
   ner_tags: NerTag[];
   sources: Source[];
+  banner_image: string | null;
   status: string;
   created_at: string;
   updated_at: string;
@@ -51,6 +52,7 @@ export interface ArticleListItem {
   summary: string;
   sentiment: string;
   tags: string[];
+  banner_image: string | null;
   status: string;
   updated_at: string;
 }

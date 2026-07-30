@@ -30,9 +30,11 @@ services:
       EMBEDDING_PROVIDER: ${EMBEDDING_PROVIDER:-hash}
       EMBEDDING_MODEL: ${EMBEDDING_MODEL:-sentence-transformers/all-MiniLM-L6-v2}
       CHROMA_PERSIST_DIR: /data/chroma
+      MEDIA_DIR: /data/media
       CORS_ORIGINS: http://localhost:8080,http://localhost:5173
     volumes:
       - chromadata:/data/chroma
+      - mediadata:/data/media
     ports:
       - "8000:8000"
 
@@ -46,3 +48,4 @@ services:
 volumes:
   pgdata:
   chromadata:
+  mediadata:
