@@ -38,7 +38,9 @@ class Settings(BaseSettings):
     OPENAI_BASE_URL: str | None = None  # optional (Azure / proxy / local)
     LLM_MODEL: str = "gpt-4o-mini"
     LLM_TEMPERATURE: float = 0.7
-    LLM_MAX_TOKENS: int = 4096
+    # gpt-4o / gpt-4o-mini support up to 16k output tokens; keep headroom
+    # for long, in-depth articles.
+    LLM_MAX_TOKENS: int = 12000
 
     # --- Embeddings ---
     # Provider: "hash" (default, zero-dependency), "sentence_transformers"

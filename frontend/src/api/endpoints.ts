@@ -66,6 +66,16 @@ export async function generateContent(payload: GenerationRequest) {
   return data;
 }
 
+export async function expandContent(payload: {
+  title: string;
+  body: string;
+  mode: string;
+  instruction?: string;
+}) {
+  const { data } = await api.post<{ body: string }>("/generate/expand", payload);
+  return data;
+}
+
 // --- Search ---
 export async function semanticSearch(q: string) {
   const { data } = await api.get<SearchResult[]>("/search", { params: { q } });

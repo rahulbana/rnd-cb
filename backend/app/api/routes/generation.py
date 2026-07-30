@@ -17,11 +17,13 @@ from app.models.article import Article
 from app.models.user import User
 from app.schemas.generation import (
     DuplicateHit,
+    ExpandRequest,
+    ExpandResponse,
     GenerationRequest,
     GenerationResponse,
     Source,
 )
-from app.services.llm import generate_content
+from app.services.llm import expand_content, generate_content
 from app.services.research import deep_research
 from app.services.vectorstore import get_vector_store
 
@@ -121,3 +123,19 @@ async def generate(
         possible_duplicates=possible_duplicates,
         research_queries=research_queries,
     )
+
+
+@router.post("/expand", response_model=ExpandResponse)
+async def expand(
+    req: ExpandRequest,
+    user: User = Depends(get_current_user),
+):
+    """Expand/lengthen an existing article body."""
+    body = await asyncio.to_thread(
+        expand_content,
+        title=req.title,
+        body=req.body,
+        mode=req.mode,
+        instruction=req.instruction,
+    )
+    return ExpandResponse(body=body)

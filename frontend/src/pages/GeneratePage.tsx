@@ -129,9 +129,10 @@ export function GeneratePage() {
                 <Select
                   label="Length"
                   data={[
-                    { value: "short", label: "Short (~300 words)" },
-                    { value: "medium", label: "Medium (~800 words)" },
-                    { value: "long", label: "Long (~1500 words)" },
+                    { value: "short", label: "Short (~500 words)" },
+                    { value: "medium", label: "Medium (~1000 words)" },
+                    { value: "long", label: "Long (~2000 words)" },
+                    { value: "xl", label: "Deep-dive (3000+ words)" },
                   ]}
                   {...form.getInputProps("length")}
                 />

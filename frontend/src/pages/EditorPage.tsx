@@ -24,14 +24,23 @@ import {
   IconDownload,
   IconFileTypeDocx,
   IconFileTypePdf,
+  IconListDetails,
   IconMarkdown,
+  IconMessageQuestion,
+  IconTextPlus,
+  IconWand,
 } from "@tabler/icons-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 
 import { apiErrorMessage } from "../api/client";
-import { downloadExport, getArticle, updateArticle } from "../api/endpoints";
+import {
+  downloadExport,
+  expandContent,
+  getArticle,
+  updateArticle,
+} from "../api/endpoints";
 import type { ArticleUpsert, NerTag, Source } from "../api/types";
 import { MarkdownEditor } from "../components/RichTextEditor";
 import { NerTagsEditor } from "../components/NerTagsEditor";
@@ -112,6 +121,22 @@ export function EditorPage() {
     setDraft((d) => (d ? { ...d, [key]: value } : d));
   }
 
+  const wordCount = useMemo(
+    () => (draft?.body?.trim() ? draft.body.trim().split(/\s+/).length : 0),
+    [draft?.body]
+  );
+
+  const expandMutation = useMutation({
+    mutationFn: (mode: string) =>
+      expandContent({ title: draft?.title ?? "", body: draft?.body ?? "", mode }),
+    onSuccess: (data) => {
+      set("body", data.body);
+      notifications.show({ color: "teal", message: "Content expanded — review & save" });
+    },
+    onError: (e) =>
+      notifications.show({ color: "red", message: apiErrorMessage(e, "Expand failed") }),
+  });
+
   async function handleExport(format: string) {
     try {
       await downloadExport(id, format, draft?.title ?? "article");
@@ -191,6 +216,50 @@ export function EditorPage() {
               onChange={(e) => set("title", e.currentTarget.value)}
               styles={{ input: { fontWeight: 700, fontSize: 22 } }}
             />
+            <Group justify="space-between">
+              <Text size="sm" c="dimmed">
+                {wordCount} words
+              </Text>
+              <Menu position="bottom-end">
+                <Menu.Target>
+                  <Button
+                    variant="light"
+                    size="xs"
+                    leftSection={<IconWand size={16} />}
+                    loading={expandMutation.isPending}
+                  >
+                    Expand with AI
+                  </Button>
+                </Menu.Target>
+                <Menu.Dropdown>
+                  <Menu.Label>Make it longer / richer</Menu.Label>
+                  <Menu.Item
+                    leftSection={<IconTextPlus size={16} />}
+                    onClick={() => expandMutation.mutate("longer")}
+                  >
+                    Expand &amp; lengthen (~2×)
+                  </Menu.Item>
+                  <Menu.Item
+                    leftSection={<IconListDetails size={16} />}
+                    onClick={() => expandMutation.mutate("examples")}
+                  >
+                    Add examples &amp; detail
+                  </Menu.Item>
+                  <Menu.Item
+                    leftSection={<IconWand size={16} />}
+                    onClick={() => expandMutation.mutate("depth")}
+                  >
+                    Deepen existing sections
+                  </Menu.Item>
+                  <Menu.Item
+                    leftSection={<IconMessageQuestion size={16} />}
+                    onClick={() => expandMutation.mutate("faq")}
+                  >
+                    Append an FAQ section
+                  </Menu.Item>
+                </Menu.Dropdown>
+              </Menu>
+            </Group>
             <MarkdownEditor value={draft.body} onChange={(md) => set("body", md)} />
           </Stack>
         </Grid.Col>

@@ -17,6 +17,9 @@ library is searchable semantically and exportable to PDF, Word and Markdown.
 - 📝 **Fully editable** — a WYSIWYG (Markdown-backed) body editor plus editable
   title, summary, SEO fields, sentiment, tags and named entities. Edit any time
   after saving.
+- ➕ **Long-form + Expand** — pick a length up to a 3000+ word deep-dive, and
+  expand any existing article on demand (lengthen, add examples, deepen
+  sections, or append an FAQ) with a live word count.
 - 🔎 **Semantic search** — find past articles by meaning, powered by ChromaDB +
   embeddings.
 - 🧠 **RAG style context** — generation retrieves your similar past articles so
@@ -132,6 +135,7 @@ Base path: `/api/v1`
 | PATCH  | `/articles/{id}`              | Partial update (edit any field) |
 | DELETE | `/articles/{id}`              | Delete                          |
 | POST   | `/generate`                   | AI-generate content + metadata  |
+| POST   | `/generate/expand`            | Expand/lengthen an article body |
 | GET    | `/search?q=`                  | Semantic search                 |
 | GET    | `/articles/{id}/export?format=` | Export pdf \| docx \| md      |
 

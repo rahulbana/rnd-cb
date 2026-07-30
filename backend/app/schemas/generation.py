@@ -81,6 +81,22 @@ class GeneratedContent(BaseModel):
     )
 
 
+class ExpandRequest(BaseModel):
+    title: str = Field(default="", description="Article title for context")
+    body: str = Field(..., min_length=1, description="Current Markdown body to expand")
+    mode: str = Field(
+        default="longer",
+        description="longer | examples | faq | depth | custom",
+    )
+    instruction: str | None = Field(
+        default=None, description="Extra guidance (used with mode=custom)"
+    )
+
+
+class ExpandResponse(BaseModel):
+    body: str
+
+
 class DuplicateHit(BaseModel):
     article_id: str
     title: str
