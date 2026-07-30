@@ -11,6 +11,13 @@ export interface NerTag {
   type: string;
 }
 
+export interface Source {
+  title: string;
+  url?: string | null;
+  type: string;
+  snippet?: string | null;
+}
+
 export interface Article {
   id: string;
   user_id: string;
@@ -23,6 +30,7 @@ export interface Article {
   sentiment: string;
   tags: string[];
   ner_tags: NerTag[];
+  sources: Source[];
   status: string;
   created_at: string;
   updated_at: string;
@@ -52,6 +60,7 @@ export interface GeneratedContent {
   sentiment: string;
   tags: string[];
   ner_tags: NerTag[];
+  sources: Source[];
 }
 
 export interface DuplicateHit {

@@ -7,6 +7,14 @@ import re
 from app.models.article import Article
 
 
+def _source_label(src: dict) -> str:
+    title = src.get("title") or "Untitled source"
+    url = src.get("url")
+    stype = src.get("type")
+    label = f"{title} ({url})" if url else title
+    return f"[{stype}] {label}" if stype else label
+
+
 def to_markdown(article: Article) -> bytes:
     kw = ", ".join(article.keywords or [])
     tags = ", ".join(article.tags or [])
@@ -18,7 +26,13 @@ def to_markdown(article: Article) -> bytes:
         f"**Sentiment:** {article.sentiment}\n\n"
         "---\n\n"
     )
-    return (front + (article.body or "")).encode("utf-8")
+    body = article.body or ""
+    if article.sources:
+        lines = "\n".join(
+            f"- {_source_label(s)}" for s in article.sources if isinstance(s, dict)
+        )
+        body += f"\n\n## Sources\n\n{lines}\n"
+    return (front + body).encode("utf-8")
 
 
 def _strip_md(text: str) -> str:
@@ -56,6 +70,12 @@ def to_docx(article: Article) -> bytes:
         doc.add_heading("Keywords", level=2)
         doc.add_paragraph(", ".join(article.keywords)).runs[0].font.size = Pt(10)
 
+    if article.sources:
+        doc.add_heading("Sources", level=2)
+        for s in article.sources:
+            if isinstance(s, dict):
+                doc.add_paragraph(_source_label(s), style="List Bullet")
+
     buf = io.BytesIO()
     doc.save(buf)
     return buf.getvalue()
@@ -90,6 +110,13 @@ def to_pdf(article: Article) -> bytes:
         else:
             flow.append(Paragraph(_escape(_strip_md(block)), body_style))
         flow.append(Spacer(1, 6))
+
+    if article.sources:
+        flow.append(Spacer(1, 12))
+        flow.append(Paragraph("Sources", styles["Heading2"]))
+        for s in article.sources:
+            if isinstance(s, dict):
+                flow.append(Paragraph(f"• {_escape(_source_label(s))}", body_style))
 
     doc.build(flow)
     return buf.getvalue()

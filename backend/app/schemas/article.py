@@ -5,7 +5,7 @@ from datetime import datetime
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from app.schemas.generation import NerTag
+from app.schemas.generation import NerTag, Source
 
 
 class ArticleBase(BaseModel):
@@ -17,6 +17,7 @@ class ArticleBase(BaseModel):
     sentiment: str = "neutral"
     tags: list[str] = Field(default_factory=list)
     ner_tags: list[NerTag] = Field(default_factory=list)
+    sources: list[Source] = Field(default_factory=list)
     status: str = "draft"
     prompt: str | None = None
 
@@ -36,6 +37,7 @@ class ArticleUpdate(BaseModel):
     sentiment: str | None = None
     tags: list[str] | None = None
     ner_tags: list[NerTag] | None = None
+    sources: list[Source] | None = None
     status: str | None = None
     prompt: str | None = None
 

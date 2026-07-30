@@ -9,6 +9,22 @@ class NerTag(BaseModel):
     type: str = Field(..., description="Entity type, e.g. PERSON, ORG, LOCATION, DATE")
 
 
+class Source(BaseModel):
+    """A resource the content was drawn from or references."""
+
+    title: str = Field(..., description="Name/title of the source")
+    url: str | None = Field(
+        default=None, description="Link to the source, if a reliable one is known"
+    )
+    type: str = Field(
+        default="reference",
+        description="reference | internal | dataset | quote | website",
+    )
+    snippet: str | None = Field(
+        default=None, description="Optional note or excerpt explaining relevance"
+    )
+
+
 class GenerationRequest(BaseModel):
     prompt: str = Field(
         ...,
@@ -48,6 +64,13 @@ class GeneratedContent(BaseModel):
     )
     tags: list[str] = Field(default_factory=list)
     ner_tags: list[NerTag] = Field(default_factory=list)
+    sources: list[Source] = Field(
+        default_factory=list,
+        description=(
+            "References the article draws on. Include real, well-known "
+            "sources; only add a URL when confident it is correct."
+        ),
+    )
 
 
 class DuplicateHit(BaseModel):

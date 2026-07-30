@@ -41,6 +41,9 @@ class Article(Base):
     tags: Mapped[list] = mapped_column(JSON, default=list)
     ner_tags: Mapped[list] = mapped_column(JSON, default=list)
 
+    # Resources/references the content was drawn from.
+    sources: Mapped[list] = mapped_column(JSON, default=list)
+
     status: Mapped[str] = mapped_column(String(32), default="draft")  # draft|published
 
     created_at: Mapped[datetime] = mapped_column(

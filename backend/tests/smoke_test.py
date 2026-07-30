@@ -65,6 +65,13 @@ async def main() -> None:
                         "keywords": ["python", "async"],
                         "tags": ["engineering"],
                         "ner_tags": [{"text": "Python", "type": "LANGUAGE"}],
+                        "sources": [
+                            {
+                                "title": "Python asyncio docs",
+                                "url": "https://docs.python.org/3/library/asyncio.html",
+                                "type": "reference",
+                            }
+                        ],
                     },
                 )
                 assert r.status_code == 201, r.text
@@ -74,6 +81,12 @@ async def main() -> None:
             # list
             r = await c.get(f"{api}/articles", headers=h)
             assert r.status_code == 200 and len(r.json()) == 2, r.text
+
+            # sources persisted on create
+            r = await c.get(f"{api}/articles/{ids[0]}", headers=h)
+            assert r.status_code == 200, r.text
+            assert r.json()["sources"][0]["title"] == "Python asyncio docs", r.text
+            print("sources persisted:", r.json()["sources"])
 
             # update
             r = await c.patch(
@@ -89,6 +102,7 @@ async def main() -> None:
             # export (md + docx + pdf if libs available)
             r = await c.get(f"{api}/articles/{ids[0]}/export", headers=h, params={"format": "md"})
             assert r.status_code == 200 and b"Async Python" in r.content, r.text
+            assert b"## Sources" in r.content and b"asyncio" in r.content, r.text
             print("markdown export bytes:", len(r.content))
 
             # generation without key -> 503

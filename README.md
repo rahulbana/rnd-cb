@@ -2,8 +2,8 @@
 
 A full-stack web application that helps content writers produce and manage
 articles with AI. Describe what you want to write, and the app generates the
-**title, body, summary, SEO description, SEO keywords, sentiment, tags and NER
-tags** — every field editable before and after saving. Your whole content
+**title, body, summary, SEO description, SEO keywords, sentiment, tags, NER
+tags and sources/references** — every field editable before and after saving. Your whole content
 library is searchable semantically and exportable to PDF, Word and Markdown.
 
 ---
@@ -23,6 +23,10 @@ library is searchable semantically and exportable to PDF, Word and Markdown.
   new content matches your voice.
 - 🪞 **Duplicate detection** — warns when new content is very similar to
   something you already wrote.
+- 🔗 **Sources & references** — every article stores where its content came
+  from: the writer's own past articles used as RAG context (tracked reliably),
+  plus any external references the model cites. Editable, and included in
+  exports.
 - 📤 **Export** — download any article as PDF, DOCX or Markdown.
 - 🌗 Modern, responsive UI (Mantine) with light/dark mode.
 

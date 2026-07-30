@@ -15,7 +15,13 @@ SYSTEM_PROMPT = """You are an expert content strategist and SEO writer.
 You produce polished, publication-ready articles and rich metadata.
 Always return well-structured Markdown for the body (headings, lists,
 emphasis where useful). Keep the SEO meta description around 155
-characters. Extract named entities accurately."""
+characters. Extract named entities accurately.
+
+For 'sources', list the key references, studies, standards or well-known
+works the article draws on. Be honest: only include a URL when you are
+confident it is real and correct — otherwise omit the url and give just
+the title. Never fabricate links. If the piece is original and does not
+rely on external sources, return an empty list."""
 
 
 def _length_hint(length: str | None) -> str:

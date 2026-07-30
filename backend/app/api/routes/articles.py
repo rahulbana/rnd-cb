@@ -67,7 +67,6 @@ async def create_article(
     user: User = Depends(get_current_user),
 ):
     data = payload.model_dump()
-    data["ner_tags"] = [t if isinstance(t, dict) else t.model_dump() for t in payload.ner_tags]
     article = Article(user_id=user.id, **data)
     db.add(article)
     await db.commit()
@@ -93,12 +92,8 @@ async def update_article(
     user: User = Depends(get_current_user),
 ):
     article = await _get_owned_article(db, article_id, user)
+    # model_dump recursively converts nested models (ner_tags, sources) to dicts.
     updates = payload.model_dump(exclude_unset=True)
-    if "ner_tags" in updates and updates["ner_tags"] is not None:
-        updates["ner_tags"] = [
-            t if isinstance(t, dict) else t.model_dump()
-            for t in (payload.ner_tags or [])
-        ]
     for field, value in updates.items():
         setattr(article, field, value)
     await db.commit()

@@ -15,6 +15,7 @@ from app.schemas.generation import (
     DuplicateHit,
     GenerationRequest,
     GenerationResponse,
+    Source,
 )
 from app.services.llm import generate_content
 from app.services.vectorstore import get_vector_store
@@ -42,6 +43,7 @@ async def generate(
     # --- 1. RAG: gather style context from the writer's past articles ---
     rag_context: list[str] = []
     context_ids: list[str] = []
+    internal_sources: list[Source] = []
     if req.use_rag:
         hits = await asyncio.to_thread(
             store.search, query=req.prompt, user_id=user.id, n_results=3
@@ -52,9 +54,21 @@ async def generate(
             if art and art.body:
                 context_ids.append(aid)
                 rag_context.append(f"Title: {art.title}\n{art.body[:1200]}")
+                internal_sources.append(
+                    Source(
+                        title=art.title or "Untitled",
+                        url=f"/articles/{aid}",
+                        type="internal",
+                        snippet="Your previous article used as style/context reference.",
+                    )
+                )
 
     # --- 2. Generate content via the LLM ---
     content = await asyncio.to_thread(generate_content, req, rag_context)
+
+    # Prepend verifiable internal sources (the writer's own articles) ahead
+    # of any external references the model cited.
+    content.sources = internal_sources + content.sources
 
     # --- 3. Duplicate detection against existing library ---
     dup_hits = await asyncio.to_thread(

@@ -32,9 +32,10 @@ import { useNavigate, useParams } from "react-router-dom";
 
 import { apiErrorMessage } from "../api/client";
 import { downloadExport, getArticle, updateArticle } from "../api/endpoints";
-import type { ArticleUpsert, NerTag } from "../api/types";
+import type { ArticleUpsert, NerTag, Source } from "../api/types";
 import { MarkdownEditor } from "../components/RichTextEditor";
 import { NerTagsEditor } from "../components/NerTagsEditor";
+import { SourcesEditor } from "../components/SourcesEditor";
 
 interface Draft {
   title: string;
@@ -45,6 +46,7 @@ interface Draft {
   tags: string[];
   sentiment: string;
   ner_tags: NerTag[];
+  sources: Source[];
   status: string;
 }
 
@@ -71,6 +73,7 @@ export function EditorPage() {
         tags: article.tags ?? [],
         sentiment: article.sentiment || "neutral",
         ner_tags: article.ner_tags ?? [],
+        sources: article.sources ?? [],
         status: article.status || "draft",
       });
     }
@@ -99,6 +102,7 @@ export function EditorPage() {
         tags: article.tags ?? [],
         sentiment: article.sentiment,
         ner_tags: article.ner_tags ?? [],
+        sources: article.sources ?? [],
         status: article.status,
       }) !== JSON.stringify(draft)
     );
@@ -265,6 +269,13 @@ export function EditorPage() {
                   />
                 </div>
               </Stack>
+            </Paper>
+
+            <Paper withBorder p="md" radius="md">
+              <Text fw={600} mb="sm">
+                Sources &amp; references
+              </Text>
+              <SourcesEditor value={draft.sources} onChange={(v) => set("sources", v)} />
             </Paper>
           </Stack>
         </Grid.Col>

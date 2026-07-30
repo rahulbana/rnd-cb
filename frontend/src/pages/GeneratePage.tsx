@@ -1,11 +1,13 @@
 import {
   Alert,
+  Anchor,
   Badge,
   Button,
   Card,
   Divider,
   Grid,
   Group,
+  List,
   Paper,
   Select,
   Stack,
@@ -67,6 +69,7 @@ export function GeneratePage() {
         sentiment: c.sentiment,
         tags: c.tags,
         ner_tags: c.ner_tags,
+        sources: c.sources,
         status: "draft",
       });
     },
@@ -191,6 +194,29 @@ export function GeneratePage() {
               >
                 {result.content.body}
               </Text>
+
+              {result.content.sources.length > 0 && (
+                <>
+                  <Divider label="Sources & references" labelPosition="left" />
+                  <List size="sm" spacing={4}>
+                    {result.content.sources.map((s, i) => (
+                      <List.Item key={`${s.title}-${i}`}>
+                        <Badge size="xs" variant="light" mr={6}>
+                          {s.type}
+                        </Badge>
+                        {s.url && !s.url.startsWith("/") ? (
+                          <Anchor href={s.url} target="_blank" rel="noopener noreferrer">
+                            {s.title}
+                          </Anchor>
+                        ) : (
+                          s.title
+                        )}
+                      </List.Item>
+                    ))}
+                  </List>
+                </>
+              )}
+
               <Divider />
               <Group justify="flex-end">
                 <Button variant="default" onClick={() => setResult(null)}>
