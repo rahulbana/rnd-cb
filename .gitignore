@@ -205,3 +205,15 @@ cython_debug/
 marimo/_static/
 marimo/_lsp/
 __marimo__/
+
+# ---- Project-specific ----
+# Node
+node_modules/
+frontend/dist/
+
+# Local databases
+*.db
+backend/chatbot.db
+
+# Env
+.env.local
