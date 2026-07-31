@@ -12,6 +12,7 @@ from fastapi.staticfiles import StaticFiles
 from app.api import api_router
 from app.core.config import settings
 from app.core.database import init_db
+from app.core.tracing import LangfuseTracingMiddleware
 from app.services import observability
 
 logging.basicConfig(level=logging.INFO)
@@ -39,6 +40,10 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# Records each API request as a single Langfuse trace (no-op when tracing
+# is off). Added after CORS so CORS remains the outermost middleware.
+app.add_middleware(LangfuseTracingMiddleware)
 
 app.include_router(api_router, prefix=settings.API_V1_PREFIX)
 

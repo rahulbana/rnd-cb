@@ -72,6 +72,9 @@ class Settings(BaseSettings):
     LANGFUSE_PUBLIC_KEY: str | None = None
     LANGFUSE_SECRET_KEY: str | None = None
     LANGFUSE_HOST: str = "https://cloud.langfuse.com"
+    # Trace every API request as a single trace (full request in / response
+    # out, with LLM + tool spans nested). Turn off to trace only LLM calls.
+    LANGFUSE_TRACE_REQUESTS: bool = True
 
     # --- Vector store (ChromaDB) ---
     CHROMA_PERSIST_DIR: str = "./chroma_data"

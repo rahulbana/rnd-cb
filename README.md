@@ -168,16 +168,24 @@ Base path: `/api/v1`
 Set `LANGFUSE_PUBLIC_KEY` and `LANGFUSE_SECRET_KEY` (from
 [Langfuse Cloud](https://cloud.langfuse.com) or a self-hosted instance) and
 tracing switches on automatically — no code changes, and it's a no-op when
-the keys are absent. For each request you get a trace containing:
+the keys are absent.
 
-- the user's **input** (prompt, tone, length, flags) and the final **output**;
-- the **OpenAI calls** (query planning, generation, expansion, embeddings,
-  image) captured automatically with token usage and latency;
-- nested **spans for each tool** that ran — `retrieve.rag`,
+**One trace per request.** An ASGI middleware wraps every API call in a single
+trace, so you can observe a user's whole request → response in one place:
+
+- the **full request payload** as the trace input and the **full response**
+  as the output (secrets like passwords/tokens are redacted, bodies size-capped;
+  large uploads and file downloads are skipped);
+- nested underneath, the **OpenAI calls** (query planning, generation,
+  expansion, embeddings, image) with token usage and latency, plus a
+  **span for each tool** that ran — `retrieve.rag`,
   `retrieve.style_references`, `research.web`, `detect.duplicates`,
-  `image.banner` — so you can see exactly what happened;
-- **`user_id`** and **tags** listing the tools used, so you can filter and
-  aggregate per user and per capability.
+  `image.banner`;
+- **`user_id`**, **session id** and **tags** (the tools used), so you can
+  filter and aggregate per user, per session and per capability.
+
+Set `LANGFUSE_TRACE_REQUESTS=false` to trace only the LLM calls instead of
+every request.
 
 **Sessions & scores**
 
