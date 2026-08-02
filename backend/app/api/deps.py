@@ -31,6 +31,7 @@ from app.models import (
     OrganizationMembership,
     User,
 )
+from sqlalchemy import exists as sa_exists
 
 _bearer = HTTPBearer(auto_error=False)
 
@@ -111,6 +112,31 @@ async def ensure_org_admin(db: AsyncSession, user: User, org_id: int) -> None:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Organization admin privileges required",
+        )
+
+
+async def can_view_org(db: AsyncSession, user: User, org_id: int) -> bool:
+    """A user may view an organization if they administer it OR they have a
+    dashboard grant within it (so viewers/developers can browse org -> dashboards)."""
+    if await is_org_admin(db, user, org_id):
+        return True
+    result = await db.execute(
+        select(
+            sa_exists().where(
+                DashboardAccess.user_id == user.id,
+                DashboardAccess.dashboard_id == Dashboard.id,
+                Dashboard.organization_id == org_id,
+            )
+        )
+    )
+    return bool(result.scalar())
+
+
+async def ensure_org_viewer(db: AsyncSession, user: User, org_id: int) -> None:
+    if not await can_view_org(db, user, org_id):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="You don't have access to this organization",
         )
 
 

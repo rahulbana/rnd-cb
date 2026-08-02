@@ -2,6 +2,8 @@ import type {
   AccessGrantInput,
   Dashboard,
   DashboardAccess,
+  DBConnection,
+  DBConnectionInput,
   MemberInput,
   Me,
   Membership,
@@ -201,6 +203,32 @@ export const api = {
   },
   removeMember(orgId: number, userId: number): Promise<void> {
     return request<void>(`/organizations/${orgId}/members/${userId}`, {
+      method: "DELETE",
+    });
+  },
+
+  // --- organization DB connections ---
+  listConnections(orgId: number): Promise<DBConnection[]> {
+    return request<DBConnection[]>(`/organizations/${orgId}/connections`);
+  },
+  createConnection(orgId: number, input: DBConnectionInput): Promise<DBConnection> {
+    return request<DBConnection>(`/organizations/${orgId}/connections`, {
+      method: "POST",
+      body: input,
+    });
+  },
+  updateConnection(
+    orgId: number,
+    connId: number,
+    input: Partial<DBConnectionInput>,
+  ): Promise<DBConnection> {
+    return request<DBConnection>(`/organizations/${orgId}/connections/${connId}`, {
+      method: "PATCH",
+      body: input,
+    });
+  },
+  deleteConnection(orgId: number, connId: number): Promise<void> {
+    return request<void>(`/organizations/${orgId}/connections/${connId}`, {
       method: "DELETE",
     });
   },

@@ -465,6 +465,24 @@ textarea {
   min-width: 160px;
 }
 
+.conn-form {
+  margin-top: 16px;
+  border-top: 1px solid var(--border);
+  padding-top: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+.conn-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 12px;
+}
+.mono {
+  font-family: ui-monospace, "SFMono-Regular", Menlo, monospace;
+  font-size: 13px;
+}
+
 .toolbar {
   display: flex;
   gap: 8px;
@@ -547,6 +565,21 @@ textarea {
 .badge-none {
   background: var(--panel-2);
   color: var(--muted);
+}
+.badge-postgres {
+  background: rgba(56, 139, 253, 0.16);
+  color: #7db5ff;
+  border-color: rgba(56, 139, 253, 0.4);
+}
+.badge-mysql {
+  background: rgba(0, 188, 212, 0.14);
+  color: #6fd6e4;
+  border-color: rgba(0, 188, 212, 0.4);
+}
+.badge-mssql {
+  background: rgba(200, 100, 255, 0.14);
+  color: #cf9bff;
+  border-color: rgba(200, 100, 255, 0.4);
 }
 
 @media (max-width: 900px) {

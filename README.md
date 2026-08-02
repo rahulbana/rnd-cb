@@ -17,9 +17,14 @@ runtime by superadmins (application scope) and admins (organization scope).
 | Role | Scope | Can do |
 | --- | --- | --- |
 | **superadmin** | Application | Everything. Creates organizations, manages all users, assigns admins, full access to every dashboard. |
-| **admin** | Organization | All permissions **within their organization(s)**: edit org info, manage admins, create/delete dashboards, grant developer/viewer access. A user can be admin of one or many organizations. |
-| **developer** | Dashboard | Read **and edit** a dashboard they've been granted. |
-| **viewer** | Dashboard | Read-only access to a dashboard they've been granted. |
+| **admin** | Organization | All permissions **within their organization(s)**: edit org info, manage admins, manage **DB connections**, create/delete dashboards, grant developer/viewer access. A user can be admin of one or many organizations. |
+| **developer** | Dashboard | Browse their org(s) → dashboards; read **and edit** a dashboard they've been granted. |
+| **viewer** | Dashboard | Browse their org(s) → dashboards; read-only on a dashboard they've been granted. |
+
+**Navigation (viewer / developer):** they see their organization(s) as cards,
+click into one, see the dashboards **they can access** in that org as cards, and
+open a dashboard. Superadmins and admins get the same cards but with full
+management inside each organization.
 
 Key rules from the spec, enforced in the API:
 
@@ -54,6 +59,11 @@ User ──< OrganizationMembership >── Organization ──< Dashboard >─�
 - `OrganizationMembership` — links a user to an org as **admin**.
 - `Dashboard` — belongs to one organization.
 - `DashboardAccess` — grants a user **developer** or **viewer** on one dashboard.
+- `DBConnection` — a database connection owned by an org (type `postgres` /
+  `mysql` / `mssql`, host, port, database, username, password). An org can have
+  many. The **password is encrypted at rest** (Fernet) and never returned by
+  the API — responses expose only a `has_password` flag; updates rotate it only
+  when a new value is supplied.
 
 ---
 
@@ -139,9 +149,11 @@ All endpoints are under `/api`. Auth is a Bearer JWT access token
 | `PATCH/DELETE /users/{id}` | superadmin | Update / delete a user |
 | `GET /organizations` | any user | Orgs the caller can see |
 | `POST /organizations` | superadmin | Create an org with ≥1 `admins` |
-| `GET/PATCH /organizations/{id}` | org admin | Read / update org info |
+| `GET /organizations/{id}` | org member | Read org info (admins, or viewers/developers with a dashboard grant in it) |
+| `PATCH /organizations/{id}` | org admin | Update org info |
 | `DELETE /organizations/{id}` | superadmin | Delete an organization |
 | `GET/POST/DELETE /organizations/{id}/members` | org admin | Manage org admins |
+| `GET/POST/PATCH/DELETE /organizations/{id}/connections` | org admin | Manage the org's DB connections |
 | `GET /dashboards` | any user | Dashboards the caller can access |
 | `POST /dashboards` | org admin | Create a dashboard in an org |
 | `GET /dashboards/{id}` | viewer+ | Read a dashboard |

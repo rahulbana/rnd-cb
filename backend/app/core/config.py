@@ -24,6 +24,12 @@ class Settings(BaseSettings):
     access_token_expire_minutes: int = 30
     refresh_token_expire_days: int = 7
 
+    # Symmetric key used to encrypt stored DB-connection passwords at rest.
+    # If unset, a key is derived from `jwt_secret` (fine for local dev; set an
+    # explicit Fernet key in production so rotating the JWT secret doesn't make
+    # stored secrets undecryptable).
+    encryption_key: str | None = None
+
     # CORS
     cors_origins: list[str] = [
         "http://localhost:5173",

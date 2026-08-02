@@ -12,7 +12,6 @@ export default function Layout() {
   };
 
   const isSuperadmin = me?.is_superadmin ?? false;
-  const isAdmin = (me?.admin_organizations.length ?? 0) > 0;
 
   return (
     <div className="layout">
@@ -24,9 +23,9 @@ export default function Layout() {
           <NavLink to="/" end>
             Overview
           </NavLink>
-          {(isSuperadmin || isAdmin) && (
-            <NavLink to="/organizations">Organizations</NavLink>
-          )}
+          {/* Everyone browses via organization cards, then drills into
+              dashboards; superadmins/admins also manage from here. */}
+          <NavLink to="/organizations">Organizations</NavLink>
           <NavLink to="/dashboards">Dashboards</NavLink>
           {isSuperadmin && <NavLink to="/users">Users</NavLink>}
         </nav>

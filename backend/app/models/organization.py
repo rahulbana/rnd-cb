@@ -10,6 +10,7 @@ from app.core.database import Base
 
 if TYPE_CHECKING:
     from app.models.dashboard import Dashboard
+    from app.models.db_connection import DBConnection
     from app.models.membership import OrganizationMembership
 
 
@@ -32,5 +33,8 @@ class Organization(Base):
         back_populates="organization", cascade="all, delete-orphan"
     )
     dashboards: Mapped[list["Dashboard"]] = relationship(
+        back_populates="organization", cascade="all, delete-orphan"
+    )
+    db_connections: Mapped[list["DBConnection"]] = relationship(
         back_populates="organization", cascade="all, delete-orphan"
     )

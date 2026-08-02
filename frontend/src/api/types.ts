@@ -67,6 +67,31 @@ export interface DashboardAccess {
   user: User;
 }
 
+export type DBType = "postgres" | "mysql" | "mssql";
+
+export interface DBConnection {
+  id: number;
+  organization_id: number;
+  name: string;
+  db_type: DBType;
+  host: string;
+  port: number | null;
+  database: string;
+  username: string;
+  has_password: boolean;
+  created_at: string;
+}
+
+export interface DBConnectionInput {
+  name: string;
+  db_type: DBType;
+  host: string;
+  port?: number | null;
+  database: string;
+  username: string;
+  password?: string;
+}
+
 export interface Tokens {
   access_token: string;
   refresh_token: string;
