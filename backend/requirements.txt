@@ -9,3 +9,5 @@ langchain-mcp-adapters>=0.1.0
 # langchain-mcp-adapters (<=0.3.x) targets the mcp 1.x SDK; pin to avoid the
 # incompatible mcp 2.0 line being resolved.
 mcp>=1.9,<2.0
+# Backs the native translation tool.
+deep-translator>=1.11.4

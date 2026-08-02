@@ -1,9 +1,10 @@
 """World-time and timezone utilities built on the stdlib ``zoneinfo`` database.
 
-These tools let the agent answer "what time is it in Tokyo?" and "what's the
-offset between New York and London right now?" without any external service.
-A small alias table maps common city / country names to IANA timezone keys so
-users don't have to know that Tokyo is ``Asia/Tokyo``.
+These are *native application tools* (not sourced from the remote MCP server).
+They let the agent answer "what time is it in Tokyo?" and "what's the offset
+between New York and London?" without any external service. A small alias table
+maps common city / country names to IANA timezone keys so users don't have to
+know that Tokyo is ``Asia/Tokyo``.
 """
 
 from __future__ import annotations

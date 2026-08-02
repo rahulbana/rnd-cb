@@ -1,4 +1,4 @@
-"""Remote MCP server exposing TMDB, translation, and world-time tools.
+"""Remote MCP server exposing The Movie Database (TMDB) tools.
 
 Run with::
 
@@ -7,6 +7,10 @@ Run with::
 The server speaks the MCP *streamable-HTTP* transport, so any MCP-capable
 client (including the LangGraph backend in this repo) can connect over the
 network at ``http://<host>:<port>/mcp``.
+
+Scope: this server provides *movie* tools only. The application's other
+capabilities (translation, world-time) are native tools that live in the
+backend, not here.
 
 Every tool has a rich docstring: the docstring *is* the tool description the
 LLM sees, so it is written to guide correct tool selection and argument use.
@@ -21,7 +25,6 @@ from mcp.server.fastmcp import FastMCP
 from mcp.server.transport_security import TransportSecuritySettings
 from pydantic import Field
 
-from . import timetools, translation
 from .settings import get_settings
 from .tmdb import TMDBClient
 
@@ -43,12 +46,12 @@ _transport_security = TransportSecuritySettings(
 )
 
 mcp = FastMCP(
-    name="movies-and-utilities",
+    name="tmdb-movies",
     instructions=(
-        "Tools for The Movie Database (TMDB) plus general utilities: language "
-        "translation and world-time/timezone calculations. Prefer these tools "
-        "over guessing when a user asks about films, actors, showtimes across "
-        "regions, or translations."
+        "Tools for The Movie Database (TMDB). Use these to look up films, TV, "
+        "people (actors/directors), ratings, and what's trending. Prefer these "
+        "tools over guessing whenever a user asks about movies or the people who "
+        "make them."
     ),
     host=settings.host,
     port=settings.port,
@@ -146,65 +149,6 @@ async def list_movie_genres() -> dict[str, int]:
     """Return the TMDB genre name -> id map (needed for ``discover_movies``)."""
     async with TMDBClient(settings) as client:
         return await client.genre_map()
-
-
-# ---------------------------------------------------------------------------
-# Translation tools
-# ---------------------------------------------------------------------------
-@mcp.tool()
-async def translate(
-    text: Annotated[str, Field(description="The text to translate.")],
-    target_language: Annotated[
-        str, Field(description="Target language as ISO code ('es') or name ('spanish').")
-    ],
-    source_language: Annotated[
-        str, Field(description="Source language, or 'auto' to detect.")
-    ] = "auto",
-) -> dict[str, Any]:
-    """Translate text between languages (source auto-detected by default).
-
-    Accepts either ISO 639-1 codes (``en``, ``fr``, ``ja``) or plain language
-    names (``english``, ``french``, ``japanese``).
-    """
-    return await translation.translate_text(text, target_language, source_language)
-
-
-@mcp.tool()
-def list_supported_languages() -> dict[str, str]:
-    """Return supported translation languages as a name -> ISO code map."""
-    return translation.list_languages()
-
-
-# ---------------------------------------------------------------------------
-# World-time tools
-# ---------------------------------------------------------------------------
-@mcp.tool()
-def get_current_time(
-    location: Annotated[
-        str, Field(description="City, country, or IANA timezone, e.g. 'Tokyo' or 'Asia/Tokyo'.")
-    ],
-) -> dict[str, Any]:
-    """Get the current local date/time and UTC offset for a location."""
-    return timetools.current_time(location)
-
-
-@mcp.tool()
-def compare_timezones(
-    location_a: Annotated[str, Field(description="First city/country/timezone.")],
-    location_b: Annotated[str, Field(description="Second city/country/timezone.")],
-) -> dict[str, Any]:
-    """Compare the current time in two locations and report the hour difference."""
-    return timetools.compare_timezones(location_a, location_b)
-
-
-@mcp.tool()
-def convert_time(
-    time_str: Annotated[str, Field(description="A 24-hour time 'HH:MM', e.g. '14:30'.")],
-    from_location: Annotated[str, Field(description="Source city/country/timezone.")],
-    to_location: Annotated[str, Field(description="Target city/country/timezone.")],
-) -> dict[str, Any]:
-    """Convert a wall-clock time (today) from one location's zone to another's."""
-    return timetools.convert_time(time_str, from_location, to_location)
 
 
 def main() -> None:

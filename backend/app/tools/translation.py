@@ -1,9 +1,8 @@
 """Language translation backed by the free Google Translate web endpoint.
 
-We use :mod:`deep_translator`, which requires no API key. The helper normalises
-language hints (accepting either ISO codes like ``es`` or names like
-``spanish``) and runs the blocking translate call in a worker thread so it never
-stalls the async MCP event loop.
+This is a *native application tool* (not sourced from the remote MCP server). It
+uses :mod:`deep_translator`, which requires no API key, and runs the blocking
+translate call in a worker thread so it never stalls the async event loop.
 """
 
 from __future__ import annotations

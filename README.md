@@ -2,24 +2,28 @@
 
 A full-stack AI assistant that answers questions about movies, translates text,
 and does world-time math — built on **OpenAI**, **LangGraph**, **FastAPI**, and
-**React**, with all of its capabilities served from a **remote MCP server**.
+**React**.
 
-The MCP server is the interesting bit: rather than hard-coding tools into the
-agent, the backend connects to a standalone [Model Context
-Protocol](https://modelcontextprotocol.io) server over the network, discovers
-its tools at runtime, and hands them to a LangGraph ReAct agent. Swap or extend
-the MCP server and the agent picks up the new tools with no code changes.
+The agent draws its tools from **two sources at once**:
+
+- **A remote MCP server** provides the **movie (TMDB)** tools. Rather than
+  hard-coding them, the backend connects to a standalone [Model Context
+  Protocol](https://modelcontextprotocol.io) server over the network and
+  discovers its tools at runtime — swap or extend that server and the agent
+  picks up the changes with no code edits.
+- **Native application tools** provide **translation** and **world-time**. These
+  live inside the backend and are registered directly with the same LangGraph
+  agent.
 
 ```
-┌─────────────┐     HTTP/SSE      ┌──────────────────────┐   streamable-HTTP   ┌────────────────────┐
-│   React UI  │ ◀───────────────▶ │  FastAPI + LangGraph │ ◀─────────(MCP)───▶ │  Remote MCP server │
-│  (Vite/TS)  │   /api/chat/stream│   ReAct agent (OpenAI)│    tool discovery   │  TMDB · translate  │
-└─────────────┘                   └──────────────────────┘   + invocation      │  · world-time      │
-                                                                                └─────────┬──────────┘
-                                                                                          │ REST
-                                                                                    ┌─────▼──────┐
-                                                                                    │    TMDB    │
-                                                                                    └────────────┘
+┌─────────────┐   HTTP/SSE    ┌──────────────────────────────┐  streamable-HTTP  ┌────────────────────┐
+│   React UI  │ ◀───────────▶ │  FastAPI + LangGraph agent    │ ◀──────(MCP)────▶ │  Remote MCP server │
+│  (Vite/TS)  │ /api/chat/... │  (OpenAI ReAct)               │  movie tools only │      (TMDB)        │
+└─────────────┘               │                               │                   └─────────┬──────────┘
+                              │  + native tools:              │                             │ REST
+                              │    translate · world-time     │                       ┌─────▼──────┐
+                              └──────────────────────────────┘                        │    TMDB    │
+                                                                                       └────────────┘
 ```
 
 ## Features
@@ -27,27 +31,29 @@ the MCP server and the agent picks up the new tools with no code changes.
 - **Streaming chat** — assistant tokens stream to the browser over SSE, with
   live "tool call" chips so you can see the agent search TMDB or translate text
   in real time.
-- **TMDB tools** — search movies, full movie details (cast, director, trailers),
-  trending, genre-aware discovery, and people search.
-- **Utility tools** — language translation (auto source detection) and
+- **Movie tools (remote MCP)** — search movies, full movie details (cast,
+  director, trailers), trending, genre-aware discovery, and people search.
+- **Native app tools** — language translation (auto source detection) and
   world-time helpers (current time, timezone comparison, time conversion).
-- **Remote MCP architecture** — tools live in a separate, independently
-  deployable server and are consumed via `langchain-mcp-adapters`.
+- **Hybrid tool wiring** — MCP-discovered tools and local tools are merged into
+  one agent, so the model uses them interchangeably.
 
 ## Project layout
 
 ```
-mcp_server/    Remote MCP server (FastMCP, streamable-HTTP)
+mcp_server/    Remote MCP server — movie tools only (FastMCP, streamable-HTTP)
   app/
-    server.py      Tool registrations + transport
+    server.py      TMDB tool registrations + transport
     tmdb.py        Async TMDB REST client
-    translation.py Google-Translate-backed translator
-    timetools.py   zoneinfo-based world-time helpers
-backend/       FastAPI + LangGraph agent (MCP client)
+backend/       FastAPI + LangGraph agent (MCP client + native tools)
   app/
     main.py        API + SSE streaming endpoint
-    agent.py       MCP tool loading + create_react_agent
+    agent.py       Merges MCP movie tools with local tools; create_react_agent
     config.py      Settings (OpenAI, MCP URL, CORS)
+    tools/         Native application tools
+      translation.py  Google-Translate-backed translator
+      timetools.py    zoneinfo-based world-time helpers
+      __init__.py     LangChain @tool wrappers (LOCAL_TOOLS)
 frontend/      React + Vite + TypeScript chat UI
 docker-compose.yml
 ```
@@ -128,13 +134,27 @@ and emits SSE frames: `start`, `token`, `tool_call`, `tool_result`, `done`,
 
 ## Extending the tools
 
-Add a function to the MCP server and decorate it with `@mcp.tool()`; its
-docstring becomes the description the LLM reads. Restart the MCP server and the
-backend rediscovers it on next startup — no agent code changes needed.
+There are two places to add a tool, depending on where it belongs:
+
+**1. A movie / external tool → the remote MCP server.** Add a function in
+`mcp_server/app/server.py` decorated with `@mcp.tool()`; its docstring becomes
+the description the LLM reads. Restart the MCP server and the backend
+rediscovers it on next startup — no agent code changes needed.
 
 ```python
 @mcp.tool()
-def now_playing(region: str = "US") -> dict:
+async def now_playing(region: str = "US") -> dict:
     """List movies currently in theaters for a region."""
+    ...
+```
+
+**2. A native application tool → the backend.** Add a `@tool` in
+`backend/app/tools/` and include it in `LOCAL_TOOLS`. It is registered with the
+agent alongside the MCP tools.
+
+```python
+@tool
+def convert_currency(amount: float, base: str, quote: str) -> dict:
+    """Convert an amount between two currencies."""
     ...
 ```

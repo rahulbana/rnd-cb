@@ -1,11 +1,16 @@
-"""LangGraph agent construction and MCP tool wiring.
+"""LangGraph agent construction and tool wiring.
 
-The backend connects to the *remote* MCP server over streamable-HTTP, loads its
-tools through ``langchain-mcp-adapters``, and hands them to a LangGraph
-``create_react_agent`` powered by an OpenAI chat model. The agent is built once
-at startup and reused across requests; conversation state is supplied per
-request by the caller (the frontend sends prior turns), so the graph itself is
-stateless and safe to share.
+The agent's tools come from two places:
+
+* **Remote MCP server** — the movie (TMDB) tools, discovered over
+  streamable-HTTP via ``langchain-mcp-adapters``.
+* **Native application tools** — translation and world-time helpers defined in
+  :mod:`app.tools` and bundled directly into the backend.
+
+Both sets are handed to a LangGraph ``create_react_agent`` powered by an OpenAI
+chat model. The agent is built once at startup and reused across requests;
+conversation state is supplied per request by the caller (the frontend sends
+prior turns), so the graph itself is stateless and safe to share.
 """
 
 from __future__ import annotations
@@ -19,6 +24,7 @@ from langgraph.graph.state import CompiledStateGraph
 from langgraph.prebuilt import create_react_agent
 
 from .config import Settings
+from .tools import LOCAL_TOOLS
 
 logger = logging.getLogger("backend.agent")
 
@@ -40,16 +46,20 @@ async def build_assistant(settings: Settings) -> Assistant:
     """Connect to the MCP server, load tools, and compile the agent graph."""
     mcp_client = MultiServerMCPClient(
         {
-            "movies-and-utilities": {
+            "tmdb-movies": {
                 "url": settings.mcp_server_url,
                 "transport": settings.mcp_transport,
             }
         }
     )
 
-    logger.info("Loading tools from MCP server at %s", settings.mcp_server_url)
-    tools = await mcp_client.get_tools()
-    logger.info("Loaded %d MCP tools: %s", len(tools), [t.name for t in tools])
+    logger.info("Loading movie tools from MCP server at %s", settings.mcp_server_url)
+    mcp_tools = await mcp_client.get_tools()
+    logger.info("Loaded %d MCP tools: %s", len(mcp_tools), [t.name for t in mcp_tools])
+
+    # Movie tools (remote MCP) + translation/time tools (local application).
+    tools = [*mcp_tools, *LOCAL_TOOLS]
+    logger.info("Registered %d local tools: %s", len(LOCAL_TOOLS), [t.name for t in LOCAL_TOOLS])
 
     model = ChatOpenAI(
         model=settings.openai_model,
