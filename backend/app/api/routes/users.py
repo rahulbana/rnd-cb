@@ -4,10 +4,11 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.api.deps import require_superadmin
+from app.api.deps import get_dashboard_or_404, get_org_or_404, require_superadmin
 from app.core.database import get_db
+from app.core.permissions import Role
 from app.core.security import hash_password
-from app.models import User
+from app.models import DashboardAccess, OrganizationMembership, User
 from app.schemas.user import UserCreate, UserOut, UserUpdate
 from app.services import get_user_by_email
 
@@ -39,14 +40,51 @@ async def create_user(
             status_code=status.HTTP_409_CONFLICT,
             detail="A user with that email already exists",
         )
+
     user = User(
         email=payload.email,
         full_name=payload.full_name,
         hashed_password=hash_password(payload.password),
-        is_superadmin=payload.is_superadmin,
+        is_superadmin=payload.role == Role.superadmin,
         is_active=True,
     )
     db.add(user)
+    await db.flush()  # assign user.id for the scope bindings below
+
+    # Attach the new user to an organization / dashboard per their role.
+    if payload.role == Role.admin:
+        # organization_id is guaranteed present by schema validation.
+        await get_org_or_404(db, payload.organization_id)  # type: ignore[arg-type]
+        db.add(
+            OrganizationMembership(
+                user_id=user.id,
+                organization_id=payload.organization_id,
+                role=Role.admin.value,
+            )
+        )
+    elif payload.role in (Role.developer, Role.viewer):
+        if payload.dashboard_id is not None:
+            dashboard = await get_dashboard_or_404(db, payload.dashboard_id)
+            if (
+                payload.organization_id is not None
+                and dashboard.organization_id != payload.organization_id
+            ):
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="Dashboard does not belong to the given organization",
+                )
+            db.add(
+                DashboardAccess(
+                    user_id=user.id,
+                    dashboard_id=dashboard.id,
+                    role=payload.role.value,
+                )
+            )
+        elif payload.organization_id is not None:
+            # Org given but no dashboard: nothing concrete to grant yet, but
+            # make sure the organization actually exists.
+            await get_org_or_404(db, payload.organization_id)
+
     await db.commit()
     await db.refresh(user)
     return user

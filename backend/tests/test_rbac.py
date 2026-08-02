@@ -15,14 +15,22 @@ async def _login(client, email, password):
 
 
 async def _create_org(client, token, name="Acme"):
+    slug = name.lower().replace(" ", "-")
     resp = await client.post(
         "/api/organizations",
         headers=auth_header(token),
         json={
             "name": name,
-            "email": f"{name.lower()}@corp.example.com",
+            "email": f"{slug}@corp.example.com",
             "contact_person": "Jane Doe",
             "country": "US",
+            "admins": [
+                {
+                    "email": f"owner-{slug}@corp.example.com",
+                    "full_name": f"{name} Owner",
+                    "password": "OwnerPass123",
+                }
+            ],
         },
     )
     assert resp.status_code == 201, resp.text
@@ -290,3 +298,181 @@ async def test_user_can_belong_to_multiple_orgs_and_dashboards(client, superadmi
         )
     resp = await client.get("/api/dashboards", headers=auth_header(token))
     assert len(resp.json()) == 2
+
+
+# --------------------------------------------------------------------------- #
+# Org creation requires admins
+# --------------------------------------------------------------------------- #
+async def test_org_creation_requires_at_least_one_admin(client, superadmin_token):
+    resp = await client.post(
+        "/api/organizations",
+        headers=auth_header(superadmin_token),
+        json={
+            "name": "NoAdmins",
+            "email": "noadmins@corp.example.com",
+            "contact_person": "X",
+            "country": "US",
+            "admins": [],
+        },
+    )
+    assert resp.status_code == 422
+
+    # Omitting the field entirely also fails.
+    resp = await client.post(
+        "/api/organizations",
+        headers=auth_header(superadmin_token),
+        json={
+            "name": "NoAdmins2",
+            "email": "noadmins2@corp.example.com",
+            "contact_person": "X",
+            "country": "US",
+        },
+    )
+    assert resp.status_code == 422
+
+
+async def test_org_creation_attaches_admins(client, superadmin_token):
+    resp = await client.post(
+        "/api/organizations",
+        headers=auth_header(superadmin_token),
+        json={
+            "name": "Founded",
+            "email": "founded@corp.example.com",
+            "contact_person": "Founder",
+            "country": "US",
+            "admins": [
+                {
+                    "email": "founder@corp.example.com",
+                    "full_name": "The Founder",
+                    "password": "FounderPass1",
+                }
+            ],
+        },
+    )
+    assert resp.status_code == 201, resp.text
+    org = resp.json()
+
+    # The attached admin can manage the new org.
+    token = await _login(client, "founder@corp.example.com", "FounderPass1")
+    me = await client.get("/api/me", headers=auth_header(token))
+    body = me.json()
+    assert body["primary_role"] == "admin"
+    assert [o["organization_id"] for o in body["admin_organizations"]] == [org["id"]]
+
+
+# --------------------------------------------------------------------------- #
+# User creation with role + optional org / dashboard
+# --------------------------------------------------------------------------- #
+async def test_create_user_admin_role_requires_org(client, superadmin_token):
+    resp = await client.post(
+        "/api/users",
+        headers=auth_header(superadmin_token),
+        json={
+            "email": "needsorg@example.com",
+            "full_name": "Needs Org",
+            "password": "SomePass123",
+            "role": "admin",
+        },
+    )
+    assert resp.status_code == 422
+
+
+async def test_create_user_admin_role_with_org(client, superadmin_token):
+    org = await _create_org(client, superadmin_token, "RoleCorp")
+    resp = await client.post(
+        "/api/users",
+        headers=auth_header(superadmin_token),
+        json={
+            "email": "newadmin@example.com",
+            "full_name": "New Admin",
+            "password": "NewAdmin123",
+            "role": "admin",
+            "organization_id": org["id"],
+        },
+    )
+    assert resp.status_code == 201, resp.text
+
+    token = await _login(client, "newadmin@example.com", "NewAdmin123")
+    me = await client.get("/api/me", headers=auth_header(token))
+    assert me.json()["primary_role"] == "admin"
+    assert len(me.json()["admin_organizations"]) == 1
+
+
+async def test_create_user_superadmin_role(client, superadmin_token):
+    resp = await client.post(
+        "/api/users",
+        headers=auth_header(superadmin_token),
+        json={
+            "email": "second.super@example.com",
+            "full_name": "Second Super",
+            "password": "SuperPass123",
+            "role": "superadmin",
+        },
+    )
+    assert resp.status_code == 201
+    assert resp.json()["is_superadmin"] is True
+
+
+async def test_create_user_developer_with_dashboard_grant(client, superadmin_token):
+    org = await _create_org(client, superadmin_token, "GrantCorp")
+    dash = await client.post(
+        "/api/dashboards",
+        headers=auth_header(superadmin_token),
+        json={"organization_id": org["id"], "name": "Metrics"},
+    )
+    dashboard = dash.json()
+
+    resp = await client.post(
+        "/api/users",
+        headers=auth_header(superadmin_token),
+        json={
+            "email": "newdev@example.com",
+            "full_name": "New Dev",
+            "password": "NewDev12345",
+            "role": "developer",
+            "organization_id": org["id"],
+            "dashboard_id": dashboard["id"],
+        },
+    )
+    assert resp.status_code == 201, resp.text
+
+    token = await _login(client, "newdev@example.com", "NewDev12345")
+    # Developer can read and edit the granted dashboard.
+    resp = await client.get(
+        f"/api/dashboards/{dashboard['id']}", headers=auth_header(token)
+    )
+    assert resp.status_code == 200
+    resp = await client.patch(
+        f"/api/dashboards/{dashboard['id']}",
+        headers=auth_header(token),
+        json={"description": "set by new dev"},
+    )
+    assert resp.status_code == 200
+
+    me = await client.get("/api/me", headers=auth_header(token))
+    assert me.json()["primary_role"] == "developer"
+
+
+async def test_create_user_dashboard_org_mismatch(client, superadmin_token):
+    org_a = await _create_org(client, superadmin_token, "MismatchA")
+    org_b = await _create_org(client, superadmin_token, "MismatchB")
+    dash = await client.post(
+        "/api/dashboards",
+        headers=auth_header(superadmin_token),
+        json={"organization_id": org_b["id"], "name": "BDash"},
+    )
+    dashboard = dash.json()
+
+    resp = await client.post(
+        "/api/users",
+        headers=auth_header(superadmin_token),
+        json={
+            "email": "mismatch@example.com",
+            "full_name": "Mismatch",
+            "password": "Mismatch123",
+            "role": "viewer",
+            "organization_id": org_a["id"],
+            "dashboard_id": dashboard["id"],
+        },
+    )
+    assert resp.status_code == 400

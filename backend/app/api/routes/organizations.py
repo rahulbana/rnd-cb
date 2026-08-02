@@ -60,6 +60,29 @@ async def create_organization(
         created_by_id=admin.id,
     )
     db.add(org)
+    await db.flush()  # assign org.id before attaching admins
+
+    # Attach the (>=1) admins. Each entry resolves an existing user or creates
+    # a new one; duplicates within the same request are ignored.
+    seen: set[int] = set()
+    for entry in payload.admins:
+        target = await resolve_or_create_user(
+            db,
+            email=entry.email,
+            full_name=entry.full_name,
+            password=entry.password,
+        )
+        if target.id in seen:
+            continue
+        seen.add(target.id)
+        db.add(
+            OrganizationMembership(
+                user_id=target.id,
+                organization_id=org.id,
+                role=Role.admin.value,
+            )
+        )
+
     await db.commit()
     await db.refresh(org)
     return org

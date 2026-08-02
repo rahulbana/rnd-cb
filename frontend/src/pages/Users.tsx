@@ -1,10 +1,17 @@
 import { useEffect, useState, type FormEvent } from "react";
 import { api, ApiError } from "../api/client";
-import type { User } from "../api/types";
+import type { Dashboard, Organization, Role, User } from "../api/types";
 import { useAuth } from "../auth/AuthContext";
 import { Card, Empty, ErrorText, RoleBadge, Spinner } from "../components/ui";
 
-const EMPTY = { email: "", full_name: "", password: "", is_superadmin: false };
+const EMPTY = {
+  email: "",
+  full_name: "",
+  password: "",
+  role: "viewer" as Role,
+  organization_id: "" as string,
+  dashboard_id: "" as string,
+};
 
 export default function Users() {
   const { me } = useAuth();
@@ -17,6 +24,10 @@ export default function Users() {
   const [showForm, setShowForm] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+
+  // Data for the role/org/dashboard selectors.
+  const [orgs, setOrgs] = useState<Organization[]>([]);
+  const [orgDashboards, setOrgDashboards] = useState<Dashboard[]>([]);
 
   const load = async (q?: string) => {
     setLoading(true);
@@ -34,12 +45,42 @@ export default function Users() {
     load();
   }, []);
 
+  // Load organizations once (for admin/developer/viewer assignment).
+  useEffect(() => {
+    api.listOrganizations().then(setOrgs).catch(() => setOrgs([]));
+  }, []);
+
+  // When a developer/viewer picks an org, fetch that org's dashboards.
+  const needsDashboard = form.role === "developer" || form.role === "viewer";
+  useEffect(() => {
+    if (needsDashboard && form.organization_id) {
+      api
+        .listDashboards(Number(form.organization_id))
+        .then(setOrgDashboards)
+        .catch(() => setOrgDashboards([]));
+    } else {
+      setOrgDashboards([]);
+    }
+  }, [needsDashboard, form.organization_id]);
+
+  const setRole = (role: Role) =>
+    setForm((f) => ({ ...f, role, dashboard_id: "" }));
+
   const onCreate = async (e: FormEvent) => {
     e.preventDefault();
     setSaving(true);
     setFormError(null);
     try {
-      await api.createUser(form);
+      await api.createUser({
+        email: form.email,
+        full_name: form.full_name,
+        password: form.password,
+        role: form.role,
+        organization_id: form.organization_id
+          ? Number(form.organization_id)
+          : null,
+        dashboard_id: form.dashboard_id ? Number(form.dashboard_id) : null,
+      });
       setForm(EMPTY);
       setShowForm(false);
       await load(search);
@@ -120,16 +161,63 @@ export default function Users() {
                 required
               />
             </label>
-            <label className="checkbox">
-              <input
-                type="checkbox"
-                checked={form.is_superadmin}
-                onChange={(e) =>
-                  setForm({ ...form, is_superadmin: e.target.checked })
-                }
-              />
-              Grant superadmin
+            <label>
+              Role
+              <select
+                value={form.role}
+                onChange={(e) => setRole(e.target.value as Role)}
+              >
+                <option value="viewer">viewer — read a dashboard</option>
+                <option value="developer">developer — edit a dashboard</option>
+                <option value="admin">admin — manage an organization</option>
+                <option value="superadmin">superadmin — full platform access</option>
+              </select>
             </label>
+
+            {form.role !== "superadmin" && (
+              <label>
+                Organization{" "}
+                {form.role === "admin" ? "(required)" : "(optional)"}
+                <select
+                  value={form.organization_id}
+                  onChange={(e) =>
+                    setForm({
+                      ...form,
+                      organization_id: e.target.value,
+                      dashboard_id: "",
+                    })
+                  }
+                  required={form.role === "admin"}
+                >
+                  <option value="">— none —</option>
+                  {orgs.map((o) => (
+                    <option key={o.id} value={o.id}>
+                      {o.name}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            )}
+
+            {needsDashboard && form.organization_id && (
+              <label>
+                Dashboard grant (optional)
+                <select
+                  value={form.dashboard_id}
+                  onChange={(e) =>
+                    setForm({ ...form, dashboard_id: e.target.value })
+                  }
+                >
+                  <option value="">— grant later —</option>
+                  {orgDashboards.map((d) => (
+                    <option key={d.id} value={d.id}>
+                      {d.name}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            )}
+
             <div className="form-actions">
               <ErrorText message={formError} />
               <button className="btn btn-primary" disabled={saving}>

@@ -6,6 +6,7 @@ import type {
   Me,
   Membership,
   Organization,
+  Role,
   Tokens,
   User,
 } from "./types";
@@ -135,7 +136,9 @@ export const api = {
     email: string;
     full_name: string;
     password: string;
-    is_superadmin?: boolean;
+    role: Role;
+    organization_id?: number | null;
+    dashboard_id?: number | null;
   }): Promise<User> {
     return request<User>("/users", { method: "POST", body: input });
   },
@@ -166,6 +169,7 @@ export const api = {
     email: string;
     contact_person: string;
     country: string;
+    admins: MemberInput[];
   }): Promise<Organization> {
     return request<Organization>("/organizations", { method: "POST", body: input });
   },

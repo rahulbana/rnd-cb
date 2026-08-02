@@ -24,6 +24,15 @@ runtime by superadmins (application scope) and admins (organization scope).
 Key rules from the spec, enforced in the API:
 
 - Only a **superadmin** can create or delete organizations.
+- **Creating a user assigns a role**, and optionally attaches them to a scope:
+  - `superadmin` → application scope (no org needed).
+  - `admin` → **requires an organization** (added as an org admin).
+  - `developer` / `viewer` → optionally granted a specific dashboard at creation
+    (these roles are per-dashboard), otherwise granted later.
+- **Creating an organization requires at least one admin** — you assign the
+  founding admin(s) (existing users by email, or new users) in the same request.
+- A **dashboard can only be created inside an organization** (it always carries
+  an `organization_id`, and only that org's admins/superadmin can create it).
 - A user can belong to **multiple organizations** (as admin) and have access to
   **multiple dashboards** (as developer or viewer).
 - Each organization owns its own set of dashboards.
@@ -125,10 +134,11 @@ All endpoints are under `/api`. Auth is a Bearer JWT access token
 | `POST /auth/login` | public | Email + password → access & refresh tokens |
 | `POST /auth/refresh` | public | Refresh token → new access token |
 | `GET /me` | any user | Profile, primary role, permissions, memberships, grants |
-| `GET/POST /users` | superadmin | List / create users |
+| `GET /users` | superadmin | List users |
+| `POST /users` | superadmin | Create a user with a `role` (+ optional `organization_id` / `dashboard_id`) |
 | `PATCH/DELETE /users/{id}` | superadmin | Update / delete a user |
 | `GET /organizations` | any user | Orgs the caller can see |
-| `POST /organizations` | superadmin | Create an organization |
+| `POST /organizations` | superadmin | Create an org with ≥1 `admins` |
 | `GET/PATCH /organizations/{id}` | org admin | Read / update org info |
 | `DELETE /organizations/{id}` | superadmin | Delete an organization |
 | `GET/POST/DELETE /organizations/{id}/members` | org admin | Manage org admins |

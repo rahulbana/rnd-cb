@@ -423,6 +423,48 @@ textarea {
   width: auto;
 }
 
+.admins-block {
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  background: var(--bg-soft);
+}
+.admins-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  color: var(--muted);
+  font-size: 13px;
+}
+.admin-row {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.admin-row-main {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+.admin-row-main input[type="email"] {
+  flex: 1;
+  min-width: 180px;
+}
+.admin-row-new {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  padding-left: 4px;
+}
+.admin-row-new input {
+  flex: 1;
+  min-width: 160px;
+}
+
 .toolbar {
   display: flex;
   gap: 8px;

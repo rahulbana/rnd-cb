@@ -7,6 +7,20 @@ import { Card, Empty, ErrorText, Spinner } from "../components/ui";
 
 const EMPTY = { name: "", email: "", contact_person: "", country: "" };
 
+interface AdminRow {
+  email: string;
+  createNew: boolean;
+  full_name: string;
+  password: string;
+}
+
+const EMPTY_ADMIN: AdminRow = {
+  email: "",
+  createNew: false,
+  full_name: "",
+  password: "",
+};
+
 export default function Organizations() {
   const { me } = useAuth();
   const [orgs, setOrgs] = useState<Organization[]>([]);
@@ -14,6 +28,7 @@ export default function Organizations() {
   const [error, setError] = useState<string | null>(null);
   const [showForm, setShowForm] = useState(false);
   const [form, setForm] = useState(EMPTY);
+  const [admins, setAdmins] = useState<AdminRow[]>([{ ...EMPTY_ADMIN }]);
   const [formError, setFormError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
 
@@ -35,13 +50,31 @@ export default function Organizations() {
     load();
   }, []);
 
+  const updateAdmin = (i: number, patch: Partial<AdminRow>) =>
+    setAdmins((rows) => rows.map((r, idx) => (idx === i ? { ...r, ...patch } : r)));
+  const addAdmin = () => setAdmins((rows) => [...rows, { ...EMPTY_ADMIN }]);
+  const removeAdmin = (i: number) =>
+    setAdmins((rows) => rows.filter((_, idx) => idx !== i));
+
+  const resetForm = () => {
+    setForm(EMPTY);
+    setAdmins([{ ...EMPTY_ADMIN }]);
+  };
+
   const onCreate = async (e: FormEvent) => {
     e.preventDefault();
     setSaving(true);
     setFormError(null);
     try {
-      await api.createOrganization(form);
-      setForm(EMPTY);
+      await api.createOrganization({
+        ...form,
+        admins: admins.map((a) => ({
+          email: a.email,
+          full_name: a.createNew ? a.full_name : undefined,
+          password: a.createNew ? a.password : undefined,
+        })),
+      });
+      resetForm();
       setShowForm(false);
       await load();
     } catch (err) {
@@ -107,6 +140,74 @@ export default function Organizations() {
                 required
               />
             </label>
+
+            <div className="admins-block">
+              <div className="admins-head">
+                <span>Admins (at least one required)</span>
+                <button
+                  type="button"
+                  className="btn btn-ghost btn-sm"
+                  onClick={addAdmin}
+                >
+                  + Add admin
+                </button>
+              </div>
+              {admins.map((a, i) => (
+                <div className="admin-row" key={i}>
+                  <div className="admin-row-main">
+                    <input
+                      type="email"
+                      placeholder="admin@company.com"
+                      value={a.email}
+                      onChange={(e) => updateAdmin(i, { email: e.target.value })}
+                      required
+                    />
+                    <label className="checkbox">
+                      <input
+                        type="checkbox"
+                        checked={a.createNew}
+                        onChange={(e) =>
+                          updateAdmin(i, { createNew: e.target.checked })
+                        }
+                      />
+                      New user
+                    </label>
+                    {admins.length > 1 && (
+                      <button
+                        type="button"
+                        className="btn btn-ghost btn-sm"
+                        onClick={() => removeAdmin(i)}
+                      >
+                        Remove
+                      </button>
+                    )}
+                  </div>
+                  {a.createNew && (
+                    <div className="admin-row-new">
+                      <input
+                        placeholder="Full name"
+                        value={a.full_name}
+                        onChange={(e) =>
+                          updateAdmin(i, { full_name: e.target.value })
+                        }
+                        required
+                      />
+                      <input
+                        type="password"
+                        placeholder="Temp password (min 8)"
+                        value={a.password}
+                        onChange={(e) =>
+                          updateAdmin(i, { password: e.target.value })
+                        }
+                        minLength={8}
+                        required
+                      />
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+
             <div className="form-actions">
               <ErrorText message={formError} />
               <button className="btn btn-primary" disabled={saving}>

@@ -7,6 +7,18 @@ from pydantic import BaseModel, ConfigDict, EmailStr, Field
 from app.schemas.user import UserOut
 
 
+class MemberCreate(BaseModel):
+    """Add an admin to an organization.
+
+    If a user with ``email`` already exists they are attached; otherwise a new
+    user is created from ``full_name`` + ``password``.
+    """
+
+    email: EmailStr
+    full_name: str | None = Field(default=None, min_length=1, max_length=255)
+    password: str | None = Field(default=None, min_length=8, max_length=128)
+
+
 class OrganizationBase(BaseModel):
     name: str = Field(min_length=1, max_length=255)
     email: EmailStr
@@ -15,7 +27,9 @@ class OrganizationBase(BaseModel):
 
 
 class OrganizationCreate(OrganizationBase):
-    pass
+    # An organization must be created with at least one admin. Each entry
+    # attaches an existing user (by email) or creates a new one.
+    admins: list[MemberCreate] = Field(min_length=1)
 
 
 class OrganizationUpdate(BaseModel):
@@ -43,15 +57,3 @@ class MembershipOut(BaseModel):
     role: str
     created_at: datetime
     user: UserOut
-
-
-class MemberCreate(BaseModel):
-    """Add an admin to an organization.
-
-    If a user with ``email`` already exists they are attached; otherwise a new
-    user is created from ``full_name`` + ``password``.
-    """
-
-    email: EmailStr
-    full_name: str | None = Field(default=None, min_length=1, max_length=255)
-    password: str | None = Field(default=None, min_length=8, max_length=128)
