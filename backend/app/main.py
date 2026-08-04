@@ -12,10 +12,12 @@ from . import db
 from . import repository as repo
 from . import tools
 from .agent import AgentRunner
-from .config import has_api_key, settings
+from .config import has_api_key, settings, venv_python
 from .schemas import (
     AppSettings,
     ApprovalRequest,
+    CreateProjectRequest,
+    CreateProjectResponse,
     ModelUpdate,
     PermissionModeUpdate,
     ProjectPathUpdate,
@@ -80,6 +82,62 @@ async def set_project_path(body: ProjectPathUpdate) -> AppSettings:
     if body.path and os.path.isdir(body.path):
         settings.project_path = body.path
     return _app_settings()
+
+
+@app.post("/api/projects/create", response_model=CreateProjectResponse)
+async def create_project(body: CreateProjectRequest) -> CreateProjectResponse:
+    parent = os.path.abspath(os.path.expanduser(body.parentPath.strip()))
+    name = body.name.strip()
+
+    if not name or any(sep in name for sep in ("/", "\\")) or name in (".", ".."):
+        raise HTTPException(status_code=400, detail="Invalid project name.")
+    if not os.path.isdir(parent):
+        raise HTTPException(status_code=400, detail=f"Parent directory does not exist: {parent}")
+
+    target = os.path.join(parent, name)
+    if os.path.exists(target):
+        raise HTTPException(status_code=400, detail=f"A file or folder named '{name}' already exists here.")
+
+    try:
+        os.makedirs(target)
+    except OSError as exc:
+        raise HTTPException(status_code=400, detail=f"Could not create project directory: {exc}")
+
+    venv_created = False
+    venv_message = ""
+    if body.createVenv:
+        py = venv_python()
+        try:
+            proc = await asyncio.create_subprocess_exec(
+                py,
+                "-m",
+                "venv",
+                ".venv",
+                cwd=target,
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.STDOUT,
+            )
+            stdout, _ = await asyncio.wait_for(proc.communicate(), timeout=120)
+            output = stdout.decode("utf-8", errors="replace").strip() if stdout else ""
+            if proc.returncode == 0:
+                venv_created = True
+                venv_message = f"Virtual environment created at .venv using {py}."
+            else:
+                venv_message = f"venv creation failed (exit {proc.returncode}): {output or 'no output'}"
+        except FileNotFoundError:
+            venv_message = f"'{py}' not found. Set VENV_PYTHON to a valid Python interpreter."
+        except asyncio.TimeoutError:
+            venv_message = "venv creation timed out."
+
+    # Make the new project the active one.
+    settings.project_path = target
+
+    return CreateProjectResponse(
+        settings=_app_settings(),
+        projectPath=target,
+        venvCreated=venv_created,
+        venvMessage=venv_message,
+    )
 
 
 @app.get("/api/files")

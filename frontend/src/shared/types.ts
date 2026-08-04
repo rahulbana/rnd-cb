@@ -66,6 +66,13 @@ export interface FileEntry {
   type: 'dir' | 'file'
 }
 
+export interface CreateProjectResult {
+  settings: AppSettings
+  projectPath: string
+  venvCreated: boolean
+  venvMessage: string
+}
+
 // Bridge exposed by the Electron preload (window.desktop).
 export interface DesktopBridge {
   backendUrl: string

@@ -12,6 +12,7 @@ import ChatView from './components/ChatView'
 import Composer from './components/Composer'
 import ApprovalModal from './components/ApprovalModal'
 import FileViewer from './components/FileViewer'
+import NewProjectModal from './components/NewProjectModal'
 import { client } from './api/client'
 
 let localSeq = 0
@@ -26,6 +27,7 @@ export default function App(): JSX.Element {
   const [approval, setApproval] = useState<ApprovalRequest | null>(null)
   const [openFilePath, setOpenFilePath] = useState<string | null>(null)
   const [filesReloadToken, setFilesReloadToken] = useState('0')
+  const [newProjectOpen, setNewProjectOpen] = useState(false)
 
   const activeIdRef = useRef<string | null>(null)
   activeIdRef.current = activeId
@@ -197,7 +199,11 @@ export default function App(): JSX.Element {
         onRefreshFiles={refreshFiles}
       />
       <div className="main">
-        <TopBar settings={settings} onSettingsChange={updateSettings} />
+        <TopBar
+          settings={settings}
+          onSettingsChange={updateSettings}
+          onNewProject={() => setNewProjectOpen(true)}
+        />
         {openFilePath ? (
           <FileViewer path={openFilePath} onClose={() => setOpenFilePath(null)} />
         ) : (
@@ -208,6 +214,17 @@ export default function App(): JSX.Element {
         )}
       </div>
       {approval && <ApprovalModal request={approval} onRespond={respondApproval} />}
+      {newProjectOpen && (
+        <NewProjectModal
+          defaultParent={
+            settings?.projectPath
+              ? settings.projectPath.replace(/[/\\][^/\\]+[/\\]?$/, '') || settings.projectPath
+              : null
+          }
+          onClose={() => setNewProjectOpen(false)}
+          onCreated={updateSettings}
+        />
+      )}
     </div>
   )
 }

@@ -44,3 +44,8 @@ def has_api_key() -> bool:
 
 def database_url() -> str | None:
     return os.getenv("DATABASE_URL")
+
+
+def venv_python() -> str:
+    """Python interpreter used to create per-project virtualenvs."""
+    return os.getenv("VENV_PYTHON", "python3.12")

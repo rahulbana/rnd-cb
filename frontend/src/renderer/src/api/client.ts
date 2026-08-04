@@ -5,6 +5,7 @@ import type {
   ApprovalResponse,
   ChatMessage,
   Conversation,
+  CreateProjectResult,
   FileEntry,
   PermissionMode
 } from '../../../shared/types'
@@ -56,6 +57,17 @@ class BackendClient {
     return req<AppSettings>('/api/settings/project-path', {
       method: 'POST',
       body: JSON.stringify({ path })
+    })
+  }
+
+  chooseDirectory(): Promise<string | null> {
+    return window.desktop.chooseDirectory()
+  }
+
+  createProject(parentPath: string, name: string, createVenv: boolean): Promise<CreateProjectResult> {
+    return req<CreateProjectResult>('/api/projects/create', {
+      method: 'POST',
+      body: JSON.stringify({ parentPath, name, createVenv })
     })
   }
 

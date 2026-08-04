@@ -4,11 +4,12 @@ import { client } from '../api/client'
 interface Props {
   settings: AppSettings | null
   onSettingsChange: (s: AppSettings) => void
+  onNewProject: () => void
 }
 
 const MODELS = ['gpt-4o', 'gpt-4o-mini', 'gpt-4.1', 'gpt-4.1-mini', 'o4-mini']
 
-export default function TopBar({ settings, onSettingsChange }: Props): JSX.Element {
+export default function TopBar({ settings, onSettingsChange, onNewProject }: Props): JSX.Element {
   if (!settings) return <div className="topbar">Loading…</div>
 
   const chooseDir = async (): Promise<void> => {
@@ -30,6 +31,10 @@ export default function TopBar({ settings, onSettingsChange }: Props): JSX.Eleme
 
   return (
     <div className="topbar">
+      <button className="pill" onClick={onNewProject} title="Create a new project">
+        ＋ New project
+      </button>
+
       <button className="pill" onClick={chooseDir} title={settings.projectPath ?? ''}>
         📁 {shortPath}
       </button>

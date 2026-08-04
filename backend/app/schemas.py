@@ -53,6 +53,19 @@ class ProjectPathUpdate(BaseModel):
     path: str
 
 
+class CreateProjectRequest(BaseModel):
+    parentPath: str
+    name: str
+    createVenv: bool = True
+
+
+class CreateProjectResponse(BaseModel):
+    settings: AppSettings
+    projectPath: str
+    venvCreated: bool = False
+    venvMessage: str = ""
+
+
 # ---- WebSocket client -> server messages ----
 class RunMessage(BaseModel):
     type: Literal["run"] = "run"

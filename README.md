@@ -137,6 +137,7 @@ Backend settings live in **`backend/.env`** (see `backend/.env.example`):
 | `DATABASE_URL`          | ➖       | Postgres connection string. Omit for in-memory history.         |
 | `PROJECT_DIR`           | ➖       | Default directory the agent operates in. Changeable in the UI.  |
 | `AGENT_PERMISSION_MODE` | ➖       | `ask` (default) or `auto` for side-effecting tools.             |
+| `VENV_PYTHON`           | ➖       | Interpreter used to create a project's virtualenv. Default `python3.12`. |
 
 Frontend/spawn settings live in the repo-root **`.env`** (see `.env.example`):
 `BACKEND_HOST`, `BACKEND_PORT`, `BACKEND_URL`, `PYTHON`.
@@ -144,7 +145,10 @@ Frontend/spawn settings live in the repo-root **`.env`** (see `.env.example`):
 ## Usage
 
 1. Launch with `npm run dev`.
-2. In the top bar, pick your **project folder**, **model**, and **approval mode**.
+2. **＋ New project** creates a fresh project folder and offers to create a Python
+   virtual environment (`.venv`) for it using `python3.12` (configurable via
+   `VENV_PYTHON`). Or use the **📁** button to open an existing folder.
+3. In the top bar, pick your **model** and **approval mode**.
 3. Ask the agent to do something, e.g.:
    - *"List the files and summarize what this project does."*
    - *"Add a `/health` endpoint and write a test for it."*
