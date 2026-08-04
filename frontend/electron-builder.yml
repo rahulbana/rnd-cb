@@ -9,7 +9,7 @@ files:
 extraResources:
   # Ship the FastAPI backend alongside the app. A Python runtime with the
   # backend's requirements installed must be available on the target machine.
-  - from: backend
+  - from: ../backend
     to: backend
     filter:
       - '**/*'

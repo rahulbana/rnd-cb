@@ -19,7 +19,7 @@ let backend: ChildProcess | null = null
 function resolveBackendDir(): string {
   const candidates = [
     process.env.BACKEND_DIR,
-    join(__dirname, '../../backend'), // dev: out/main -> repo/backend
+    join(__dirname, '../../../backend'), // dev: frontend/out/main -> repo/backend
     join(process.resourcesPath || '', 'backend'), // packaged
     join(app.getAppPath(), 'backend')
   ].filter(Boolean) as string[]

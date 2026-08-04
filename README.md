@@ -41,16 +41,24 @@ that changes your machine.
                                    OpenAI API  +  Postgres
 ```
 
+The repo is split into two top-level directories:
+
+```
+rnd-cb/
+├── backend/     FastAPI + Python service
+└── frontend/    Electron + React + TypeScript desktop app
+```
+
 - **`backend/`** — FastAPI service: the OpenAI agent loop, filesystem/shell tools,
   Postgres persistence, REST endpoints, and a `/ws/agent` WebSocket that streams
   agent events and negotiates approvals.
-- **`src/main`** — Electron main process: spawns & supervises the Python backend and
-  provides the native folder picker.
-- **`src/preload`** — secure `contextBridge` exposing `window.desktop` (backend URL +
-  directory picker).
-- **`src/renderer`** — React UI that talks to the backend over REST + WebSocket
-  (`src/renderer/src/api/client.ts`).
-- **`src/shared`** — types shared across the frontend.
+- **`frontend/src/main`** — Electron main process: spawns & supervises the Python
+  backend and provides the native folder picker.
+- **`frontend/src/preload`** — secure `contextBridge` exposing `window.desktop`
+  (backend URL + directory picker).
+- **`frontend/src/renderer`** — React UI that talks to the backend over REST +
+  WebSocket (`frontend/src/renderer/src/api/client.ts`).
+- **`frontend/src/shared`** — types shared across the frontend.
 
 ### Backend API
 
@@ -81,19 +89,22 @@ WebSocket messages — client → server: `run`, `approval`, `cancel`. Server �
 
 ```bash
 # 1. Frontend dependencies
+cd frontend
 npm install
+cd ..
 
 # 2. Backend dependencies (into a virtualenv is recommended)
 python3 -m venv backend/.venv
 source backend/.venv/bin/activate        # Windows: backend\.venv\Scripts\activate
-npm run backend:install                  # pip install -r backend/requirements.txt
+pip install -r backend/requirements.txt
 
 # 3. Configure the backend
 cp backend/.env.example backend/.env
 #    then edit backend/.env and set at least OPENAI_API_KEY
 #    (add DATABASE_URL to enable persistent history)
 
-# 4. Run everything (Electron spawns the backend for you)
+# 4. Run the app (Electron spawns the backend for you)
+cd frontend
 npm run dev
 ```
 
@@ -107,12 +118,12 @@ npm run dev
 If you prefer to run the backend yourself (e.g. with `--reload`):
 
 ```bash
-# terminal 1
+# terminal 1 — from the backend directory
 source backend/.venv/bin/activate
-npm run backend                          # uvicorn on 127.0.0.1:8000
+cd backend && python -m uvicorn app.main:app --reload --host 127.0.0.1 --port 8000
 
-# terminal 2 — tell Electron to connect instead of spawning
-BACKEND_URL=http://127.0.0.1:8000 npm run dev
+# terminal 2 — from the frontend directory; tell Electron to connect, not spawn
+cd frontend && BACKEND_URL=http://127.0.0.1:8000 npm run dev
 ```
 
 ### Configuration
@@ -141,6 +152,8 @@ Frontend/spawn settings live in the repo-root **`.env`** (see `.env.example`):
 4. In `ask` mode you'll get an approval dialog before any **file write** or **command**.
 
 ## Scripts
+
+Run these from the **`frontend/`** directory:
 
 | Script                     | Description                                        |
 | -------------------------- | -------------------------------------------------- |

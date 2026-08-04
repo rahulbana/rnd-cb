@@ -12,8 +12,8 @@
     "typecheck:node": "tsc --noEmit -p tsconfig.node.json",
     "typecheck:web": "tsc --noEmit -p tsconfig.web.json",
     "typecheck": "npm run typecheck:node && npm run typecheck:web",
-    "backend:install": "pip install -r backend/requirements.txt",
-    "backend": "cd backend && python3 -m uvicorn app.main:app --reload --host 127.0.0.1 --port 8000",
+    "backend:install": "pip install -r ../backend/requirements.txt",
+    "backend": "cd ../backend && python3 -m uvicorn app.main:app --reload --host 127.0.0.1 --port 8000",
     "package": "electron-vite build && electron-builder"
   },
   "dependencies": {
