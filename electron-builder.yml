@@ -6,6 +6,16 @@ directories:
 files:
   - out/**/*
   - package.json
+extraResources:
+  # Ship the FastAPI backend alongside the app. A Python runtime with the
+  # backend's requirements installed must be available on the target machine.
+  - from: backend
+    to: backend
+    filter:
+      - '**/*'
+      - '!**/__pycache__/**'
+      - '!.env'
+      - '!.venv/**'
 mac:
   category: public.app-category.developer-tools
   target:

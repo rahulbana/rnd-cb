@@ -1,8 +1,8 @@
-import type { RendererApi } from '../../shared/types'
+import type { DesktopBridge } from '../../shared/types'
 
 declare global {
   interface Window {
-    api: RendererApi
+    desktop: DesktopBridge
   }
 }
 

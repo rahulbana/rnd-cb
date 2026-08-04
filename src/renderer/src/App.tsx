@@ -11,6 +11,7 @@ import TopBar from './components/TopBar'
 import ChatView from './components/ChatView'
 import Composer from './components/Composer'
 import ApprovalModal from './components/ApprovalModal'
+import { client } from './api/client'
 
 let localSeq = 0
 const localId = (): string => `local-${Date.now()}-${localSeq++}`
@@ -27,21 +28,27 @@ export default function App(): JSX.Element {
   activeIdRef.current = activeId
 
   const refreshConversations = useCallback(async () => {
-    setConversations(await window.api.listConversations())
+    setConversations(await client.listConversations())
   }, [])
 
   // Initial load + event subscriptions (registered once).
   useEffect(() => {
-    void window.api.getSettings().then(setSettings)
+    void client.getSettings().then(setSettings)
     void refreshConversations()
 
-    const offEvent = window.api.onAgentEvent((e: AgentEvent) => {
+    const offEvent = client.onAgentEvent((e: AgentEvent) => {
       if (e.conversationId !== activeIdRef.current) return
       handleAgentEvent(e)
     })
-    const offApproval = window.api.onApprovalRequest((r) => setApproval(r))
-    const offCreated = window.api.onConversationCreated((c) => {
+    const offApproval = client.onApprovalRequest((r) => setApproval(r))
+    const offCreated = client.onConversationCreated((c) => {
       setConversations((prev) => [c, ...prev])
+      // A new conversation is only created when we started fresh; adopt it so
+      // subsequent agent events (filtered by active id) are accepted.
+      if (activeIdRef.current === null) {
+        activeIdRef.current = c.id
+        setActiveId(c.id)
+      }
     })
 
     return () => {
@@ -98,7 +105,7 @@ export default function App(): JSX.Element {
         setRunning(false)
         // Reload canonical history + refresh titles.
         if (activeIdRef.current) {
-          void window.api.getMessages(activeIdRef.current).then(setMessages)
+          void client.getMessages(activeIdRef.current).then(setMessages)
         }
         void refreshConversations()
         break
@@ -107,7 +114,7 @@ export default function App(): JSX.Element {
 
   const selectConversation = useCallback(async (id: string) => {
     setActiveId(id)
-    setMessages(await window.api.getMessages(id))
+    setMessages(await client.getMessages(id))
   }, [])
 
   const newConversation = useCallback(() => {
@@ -117,7 +124,7 @@ export default function App(): JSX.Element {
 
   const deleteConversation = useCallback(
     async (id: string) => {
-      await window.api.deleteConversation(id)
+      await client.deleteConversation(id)
       if (activeIdRef.current === id) newConversation()
       await refreshConversations()
     },
@@ -135,20 +142,21 @@ export default function App(): JSX.Element {
       }
       setMessages((prev) => [...prev, optimistic])
       setRunning(true)
-      const { conversationId } = await window.api.runAgent({ conversationId: activeId, prompt })
-      setActiveId(conversationId)
+      // For an existing conversation the active id is already correct; for a
+      // new one, the backend emits `conversation_created` which we adopt.
+      await client.run(activeId, prompt)
     },
     [activeId]
   )
 
-  const cancel = useCallback(async () => {
-    if (activeId) await window.api.cancelAgent(activeId)
+  const cancel = useCallback(() => {
+    if (activeId) client.cancel(activeId)
     setRunning(false)
   }, [activeId])
 
   const respondApproval = useCallback(
     (approved: boolean) => {
-      if (approval) window.api.respondApproval({ id: approval.id, approved })
+      if (approval) client.respondApproval({ id: approval.id, approved })
       setApproval(null)
     },
     [approval]

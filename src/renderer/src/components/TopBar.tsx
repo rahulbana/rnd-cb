@@ -1,4 +1,5 @@
 import type { AppSettings, PermissionMode } from '../../../shared/types'
+import { client } from '../api/client'
 
 interface Props {
   settings: AppSettings | null
@@ -11,16 +12,16 @@ export default function TopBar({ settings, onSettingsChange }: Props): JSX.Eleme
   if (!settings) return <div className="topbar">Loading…</div>
 
   const chooseDir = async (): Promise<void> => {
-    await window.api.chooseProjectDir()
-    onSettingsChange(await window.api.getSettings())
+    const updated = await client.chooseProjectDir()
+    if (updated) onSettingsChange(updated)
   }
 
   const setModel = async (model: string): Promise<void> => {
-    onSettingsChange(await window.api.setModel(model))
+    onSettingsChange(await client.setModel(model))
   }
 
   const setMode = async (mode: PermissionMode): Promise<void> => {
-    onSettingsChange(await window.api.setPermissionMode(mode))
+    onSettingsChange(await client.setPermissionMode(mode))
   }
 
   const shortPath = settings.projectPath

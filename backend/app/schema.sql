@@ -1,4 +1,4 @@
--- Schema for the desktop AI coding agent.
+-- Schema for the desktop AI coding agent (FastAPI backend).
 CREATE TABLE IF NOT EXISTS conversations (
   id           UUID PRIMARY KEY,
   title        TEXT NOT NULL DEFAULT 'New conversation',

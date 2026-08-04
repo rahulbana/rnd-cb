@@ -1,7 +1,7 @@
 {
   "name": "rnd-cb-agent",
   "version": "0.1.0",
-  "description": "Desktop AI coding agent (Electron + React + TypeScript) powered by OpenAI, with Postgres-backed history.",
+  "description": "Desktop AI coding agent (Electron + React + TypeScript frontend, FastAPI + Python backend) powered by OpenAI, with Postgres-backed history.",
   "main": "./out/main/index.js",
   "author": "",
   "license": "MIT",
@@ -12,17 +12,15 @@
     "typecheck:node": "tsc --noEmit -p tsconfig.node.json",
     "typecheck:web": "tsc --noEmit -p tsconfig.web.json",
     "typecheck": "npm run typecheck:node && npm run typecheck:web",
-    "db:init": "node scripts/init-db.mjs",
+    "backend:install": "pip install -r backend/requirements.txt",
+    "backend": "cd backend && python3 -m uvicorn app.main:app --reload --host 127.0.0.1 --port 8000",
     "package": "electron-vite build && electron-builder"
   },
   "dependencies": {
-    "dotenv": "^16.4.5",
-    "openai": "^4.67.3",
-    "pg": "^8.13.1"
+    "dotenv": "^16.4.5"
   },
   "devDependencies": {
     "@types/node": "^22.7.5",
-    "@types/pg": "^8.11.10",
     "@types/react": "^18.3.11",
     "@types/react-dom": "^18.3.0",
     "@vitejs/plugin-react": "^4.3.2",

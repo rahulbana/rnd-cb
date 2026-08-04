@@ -60,27 +60,8 @@ export interface AppSettings {
   dbConnected: boolean
 }
 
-export interface RunAgentRequest {
-  conversationId: string | null // null => create a new conversation
-  prompt: string
-}
-
-// The API exposed to the renderer via contextBridge (window.api).
-export interface RendererApi {
-  getSettings(): Promise<AppSettings>
-  setModel(model: string): Promise<AppSettings>
-  setPermissionMode(mode: PermissionMode): Promise<AppSettings>
-  chooseProjectDir(): Promise<string | null>
-
-  listConversations(): Promise<Conversation[]>
-  getMessages(conversationId: string): Promise<ChatMessage[]>
-  deleteConversation(conversationId: string): Promise<void>
-
-  runAgent(req: RunAgentRequest): Promise<{ conversationId: string }>
-  cancelAgent(conversationId: string): Promise<void>
-  respondApproval(res: ApprovalResponse): void
-
-  onAgentEvent(cb: (e: AgentEvent) => void): () => void
-  onApprovalRequest(cb: (r: ApprovalRequest) => void): () => void
-  onConversationCreated(cb: (c: Conversation) => void): () => void
+// Bridge exposed by the Electron preload (window.desktop).
+export interface DesktopBridge {
+  backendUrl: string
+  chooseDirectory(): Promise<string | null>
 }
