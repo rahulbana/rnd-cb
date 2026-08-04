@@ -5,11 +5,12 @@ import asyncio
 import os
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI, WebSocket, WebSocketDisconnect
+from fastapi import FastAPI, HTTPException, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 
 from . import db
 from . import repository as repo
+from . import tools
 from .agent import AgentRunner
 from .config import has_api_key, settings
 from .schemas import (
@@ -79,6 +80,27 @@ async def set_project_path(body: ProjectPathUpdate) -> AppSettings:
     if body.path and os.path.isdir(body.path):
         settings.project_path = body.path
     return _app_settings()
+
+
+@app.get("/api/files")
+async def list_files(path: str = ".") -> list:
+    """List the immediate children of a directory inside the project root."""
+    root = settings.project_path or "."
+    try:
+        return tools.list_dir(root, path)
+    except (ValueError, OSError) as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+
+
+@app.get("/api/file")
+async def read_file(path: str) -> dict:
+    """Read a file's content for the viewer."""
+    root = settings.project_path or "."
+    try:
+        content = tools.read_file(root, path)
+    except (ValueError, OSError) as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+    return {"path": path, "content": content}
 
 
 @app.get("/api/conversations")

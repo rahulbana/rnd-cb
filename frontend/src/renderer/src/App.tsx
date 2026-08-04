@@ -11,6 +11,7 @@ import TopBar from './components/TopBar'
 import ChatView from './components/ChatView'
 import Composer from './components/Composer'
 import ApprovalModal from './components/ApprovalModal'
+import FileViewer from './components/FileViewer'
 import { client } from './api/client'
 
 let localSeq = 0
@@ -23,6 +24,8 @@ export default function App(): JSX.Element {
   const [messages, setMessages] = useState<ChatMessage[]>([])
   const [running, setRunning] = useState(false)
   const [approval, setApproval] = useState<ApprovalRequest | null>(null)
+  const [openFilePath, setOpenFilePath] = useState<string | null>(null)
+  const [filesReloadToken, setFilesReloadToken] = useState('0')
 
   const activeIdRef = useRef<string | null>(null)
   activeIdRef.current = activeId
@@ -108,6 +111,8 @@ export default function App(): JSX.Element {
           void client.getMessages(activeIdRef.current).then(setMessages)
         }
         void refreshConversations()
+        // The agent may have created or edited files — refresh the tree.
+        setFilesReloadToken(String(Date.now()))
         break
     }
   }
@@ -162,7 +167,21 @@ export default function App(): JSX.Element {
     [approval]
   )
 
-  const updateSettings = useCallback((s: AppSettings) => setSettings(s), [])
+  const refreshFiles = useCallback(() => setFilesReloadToken(String(Date.now())), [])
+
+  const updateSettings = useCallback(
+    (s: AppSettings) => {
+      setSettings((prev) => {
+        // If the project directory changed, reset the file explorer/viewer.
+        if (prev && prev.projectPath !== s.projectPath) {
+          setOpenFilePath(null)
+          setFilesReloadToken(String(Date.now()))
+        }
+        return s
+      })
+    },
+    []
+  )
 
   return (
     <div className="app">
@@ -172,11 +191,21 @@ export default function App(): JSX.Element {
         onSelect={selectConversation}
         onNew={newConversation}
         onDelete={deleteConversation}
+        onOpenFile={setOpenFilePath}
+        selectedFilePath={openFilePath}
+        filesReloadToken={filesReloadToken}
+        onRefreshFiles={refreshFiles}
       />
       <div className="main">
         <TopBar settings={settings} onSettingsChange={updateSettings} />
-        <ChatView messages={messages} running={running} hasApiKey={settings?.hasApiKey ?? true} />
-        <Composer running={running} disabled={!settings?.hasApiKey} onSend={send} onCancel={cancel} />
+        {openFilePath ? (
+          <FileViewer path={openFilePath} onClose={() => setOpenFilePath(null)} />
+        ) : (
+          <>
+            <ChatView messages={messages} running={running} hasApiKey={settings?.hasApiKey ?? true} />
+            <Composer running={running} disabled={!settings?.hasApiKey} onSend={send} onCancel={cancel} />
+          </>
+        )}
       </div>
       {approval && <ApprovalModal request={approval} onRespond={respondApproval} />}
     </div>

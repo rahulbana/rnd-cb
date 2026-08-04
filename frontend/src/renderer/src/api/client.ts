@@ -5,6 +5,7 @@ import type {
   ApprovalResponse,
   ChatMessage,
   Conversation,
+  FileEntry,
   PermissionMode
 } from '../../../shared/types'
 
@@ -56,6 +57,14 @@ class BackendClient {
       method: 'POST',
       body: JSON.stringify({ path })
     })
+  }
+
+  listFiles(path = '.'): Promise<FileEntry[]> {
+    return req<FileEntry[]>(`/api/files?path=${encodeURIComponent(path)}`)
+  }
+
+  readFile(path: string): Promise<{ path: string; content: string }> {
+    return req<{ path: string; content: string }>(`/api/file?path=${encodeURIComponent(path)}`)
   }
 
   listConversations(): Promise<Conversation[]> {

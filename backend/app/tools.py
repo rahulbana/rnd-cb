@@ -55,6 +55,33 @@ def list_files(root: str, directory: str = ".", max_entries: int = 500) -> str:
     return header + "\n".join(sorted(results))
 
 
+def list_dir(root: str, directory: str = ".") -> list[dict]:
+    """List the immediate children of a directory (for a lazy file tree).
+
+    Returns dicts of {name, path, type} with directories first, then files,
+    each sorted alphabetically. Heavy/vendor dirs and .git are hidden.
+    """
+    base = _resolve_in_root(root, directory)
+    if not base.is_dir():
+        raise ValueError(f'"{directory}" is not a directory.')
+    root_path = Path(root).resolve()
+    items: list[dict] = []
+    for entry in sorted(base.iterdir(), key=lambda e: (e.is_file(), e.name.lower())):
+        if entry.name == ".git":
+            continue
+        is_dir = entry.is_dir()
+        if is_dir and entry.name in IGNORED_DIRS:
+            continue
+        items.append(
+            {
+                "name": entry.name,
+                "path": str(entry.relative_to(root_path)),
+                "type": "dir" if is_dir else "file",
+            }
+        )
+    return items
+
+
 def read_file(root: str, path: str) -> str:
     abs_path = _resolve_in_root(root, path)
     if abs_path.is_dir():

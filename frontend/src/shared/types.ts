@@ -60,6 +60,12 @@ export interface AppSettings {
   dbConnected: boolean
 }
 
+export interface FileEntry {
+  name: string
+  path: string
+  type: 'dir' | 'file'
+}
+
 // Bridge exposed by the Electron preload (window.desktop).
 export interface DesktopBridge {
   backendUrl: string
