@@ -1,0 +1,19 @@
+appId: com.rndcb.agent
+productName: RND CB Agent
+directories:
+  output: release
+  buildResources: build
+files:
+  - out/**/*
+  - package.json
+mac:
+  category: public.app-category.developer-tools
+  target:
+    - dmg
+win:
+  target:
+    - nsis
+linux:
+  target:
+    - AppImage
+  category: Development
