@@ -124,6 +124,20 @@ reply on completion.
 | `PATCH`  | `/api/conversations/{id}` | rename `{title}` |
 | `DELETE` | `/api/conversations/{id}` | delete a conversation and its messages |
 
+## 🪵 Logging
+
+Errors and activity are written to **date-wise log files** under `logs/`:
+
+```
+logs/agent-YYYY-MM-DD.log     all activity (tool calls, requests) at LOG_LEVEL
+logs/errors-YYYY-MM-DD.log    errors and exceptions only, with full tracebacks
+```
+
+A new file is started automatically each day, and files older than
+`LOG_RETENTION_DAYS` (default 30) are pruned on startup. Uncaught exceptions,
+tool failures, LLM errors and unhandled request errors are all captured.
+Configure via `LOG_LEVEL`, `LOG_DIR` and `LOG_RETENTION_DAYS` in `.env`.
+
 ## 🧪 Notes on the environment
 
 Data tools require outbound internet access. Behind a restrictive network

@@ -209,5 +209,7 @@ __marimo__/
 # AI Agent runtime artifacts
 /data/*
 /exports/*
+/logs/*
 !/data/.gitkeep
 !/exports/.gitkeep
+!/logs/.gitkeep

@@ -31,11 +31,17 @@ class Config:
     DATA_DIR: Path = BASE_DIR / "data"
     DB_PATH: Path = DATA_DIR / "agent.db"
     FRONTEND_DIR: Path = BASE_DIR / "app" / "frontend"
+    LOG_DIR: Path = BASE_DIR / os.getenv("LOG_DIR", "logs")
+
+    # Logging
+    LOG_LEVEL: str = os.getenv("LOG_LEVEL", "INFO").upper()
+    LOG_RETENTION_DAYS: int = int(os.getenv("LOG_RETENTION_DAYS", "30"))
 
     @classmethod
     def ensure_dirs(cls) -> None:
         cls.EXPORT_DIR.mkdir(parents=True, exist_ok=True)
         cls.DATA_DIR.mkdir(parents=True, exist_ok=True)
+        cls.LOG_DIR.mkdir(parents=True, exist_ok=True)
 
     @classmethod
     def has_openai(cls) -> bool:

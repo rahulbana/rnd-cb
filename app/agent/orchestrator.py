@@ -6,8 +6,11 @@ from datetime import date
 from typing import Iterator
 
 from ..config import config
+from ..logging_config import get_logger
 from ..tools import build_registry
 from .client import LLMUnavailable, get_client
+
+logger = get_logger("agent")
 
 SYSTEM_PROMPT = (
     "You are a helpful, multi-tool desktop assistant. You have access to a set "
@@ -43,14 +46,20 @@ class Agent:
         except json.JSONDecodeError:
             args = {}
         if tool is None:
+            logger.warning("Agent requested unknown tool '%s'", name)
             result = {"ok": False, "error": f"Unknown tool '{name}'."}
         else:
             try:
+                logger.info("Tool call: %s(%s)", name, args)
                 result = tool.run(**args)
             except Exception as exc:  # tools shouldn't raise, but be safe
+                logger.exception("Tool '%s' raised an exception (args=%s)", name, args)
                 result = {"ok": False, "error": f"Tool '{name}' failed: {exc}"}
-        trace = {"tool": name, "arguments": args,
-                 "ok": bool(isinstance(result, dict) and result.get("ok", True))}
+        ok_flag = bool(isinstance(result, dict) and result.get("ok", True))
+        if not ok_flag:
+            error_msg = result.get("error") if isinstance(result, dict) else result
+            logger.error("Tool '%s' returned an error: %s", name, error_msg)
+        trace = {"tool": name, "arguments": args, "ok": ok_flag}
         return result, trace
 
     def chat(self, messages: list[dict]) -> dict:
@@ -68,13 +77,18 @@ class Agent:
         trace: list[dict] = []
 
         for _ in range(MAX_ITERATIONS):
-            resp = client.chat.completions.create(
-                model=config.OPENAI_MODEL,
-                messages=convo,
-                tools=self.tool_schemas,
-                tool_choice="auto",
-                temperature=0.3,
-            )
+            try:
+                resp = client.chat.completions.create(
+                    model=config.OPENAI_MODEL,
+                    messages=convo,
+                    tools=self.tool_schemas,
+                    tool_choice="auto",
+                    temperature=0.3,
+                )
+            except Exception as exc:
+                logger.exception("LLM request failed")
+                return {"reply": f"LLM request failed: {exc}",
+                        "tools_used": trace, "ok": False}
             msg = resp.choices[0].message
 
             if not msg.tool_calls:
@@ -130,14 +144,19 @@ class Agent:
         trace: list[dict] = []
 
         for _ in range(MAX_ITERATIONS):
-            stream = client.chat.completions.create(
-                model=config.OPENAI_MODEL,
-                messages=convo,
-                tools=self.tool_schemas,
-                tool_choice="auto",
-                temperature=0.3,
-                stream=True,
-            )
+            try:
+                stream = client.chat.completions.create(
+                    model=config.OPENAI_MODEL,
+                    messages=convo,
+                    tools=self.tool_schemas,
+                    tool_choice="auto",
+                    temperature=0.3,
+                    stream=True,
+                )
+            except Exception as exc:
+                logger.exception("LLM streaming request failed")
+                yield {"type": "error", "message": f"LLM request failed: {exc}"}
+                return
 
             content_parts: list[str] = []
             tool_calls: dict[int, dict] = {}

@@ -16,14 +16,22 @@ import time
 import uvicorn
 
 from app.config import config
+from app.logging_config import get_logger, setup_logging
+
+setup_logging()
+logger = get_logger("run")
 
 
 def _run_server() -> None:
+    # log_config=None stops uvicorn from calling logging.config.dictConfig(),
+    # which would otherwise close/detach our application log handlers. We manage
+    # logging ourselves via app.logging_config.
     uvicorn.run(
         "app.server:app",
         host=config.HOST,
         port=config.PORT,
         log_level="info",
+        log_config=None,
     )
 
 
