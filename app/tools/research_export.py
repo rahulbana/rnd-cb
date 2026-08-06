@@ -22,6 +22,50 @@ def _safe_name(title: str) -> str:
     return f"{slug}_{stamp}"
 
 
+def _load_json(content: str):
+    """Return the parsed JSON value if content is valid JSON, else None."""
+    if not isinstance(content, str):
+        return content
+    stripped = content.strip()
+    if not stripped or stripped[0] not in "[{":
+        return None
+    try:
+        return json_module.loads(stripped)
+    except (json_module.JSONDecodeError, ValueError):
+        return None
+
+
+def _as_records(content: str):
+    """If content is a JSON array of objects (or a single object), return a list
+    of dicts suitable for a table; otherwise None."""
+    data = _load_json(content)
+    if isinstance(data, list) and data and all(isinstance(x, dict) for x in data):
+        return data
+    if isinstance(data, dict):
+        return [data]
+    return None
+
+
+def _headers(records: list[dict]) -> list[str]:
+    """Union of keys across records, preserving first-seen order."""
+    seen: dict[str, None] = {}
+    for rec in records:
+        for k in rec:
+            seen.setdefault(k, None)
+    return list(seen)
+
+
+def _cell(value) -> str:
+    """Render a value as a single cell (lists/dicts flattened readably)."""
+    if isinstance(value, list):
+        return "; ".join(_cell(v) for v in value)
+    if isinstance(value, dict):
+        return json_module.dumps(value, ensure_ascii=False)
+    if value is None:
+        return ""
+    return str(value)
+
+
 # --------------------------- format writers ---------------------------
 
 def _save_txt(title: str, content: str, path: Path) -> None:
@@ -33,9 +77,12 @@ def _save_md(title: str, content: str, path: Path) -> None:
 
 
 def _save_json(title: str, content: str, path: Path) -> None:
+    # If the content is itself JSON, embed the parsed structure so we don't
+    # double-encode it into a single string full of escaped newlines.
+    parsed = _load_json(content)
     payload = {
         "title": title,
-        "content": content,
+        "content": parsed if parsed is not None else content,
         "generated_at": datetime.now().isoformat(timespec="seconds"),
     }
     path.write_text(json_module.dumps(payload, indent=2, ensure_ascii=False),
@@ -59,13 +106,21 @@ def _save_xml(title: str, content: str, path: Path) -> None:
 
 
 def _save_csv(title: str, content: str, path: Path) -> None:
+    records = _as_records(content)
     with path.open("w", newline="", encoding="utf-8") as f:
         writer = csv_module.writer(f)
-        writer.writerow(["Title", title])
-        writer.writerow([])
-        writer.writerow(["Line", "Text"])
-        for i, line in enumerate(content.splitlines(), start=1):
-            writer.writerow([i, line])
+        if records:
+            # Tabular JSON content -> a real CSV table.
+            headers = _headers(records)
+            writer.writerow(headers)
+            for rec in records:
+                writer.writerow([_cell(rec.get(h)) for h in headers])
+        else:
+            writer.writerow(["Title", title])
+            writer.writerow([])
+            writer.writerow(["Line", "Text"])
+            for i, line in enumerate(content.splitlines(), start=1):
+                writer.writerow([i, line])
 
 
 def _save_xlsx(title: str, content: str, path: Path) -> None:
@@ -74,14 +129,29 @@ def _save_xlsx(title: str, content: str, path: Path) -> None:
 
     wb = Workbook()
     ws = wb.active
-    ws.title = "Research"
-    ws["A1"] = title
-    ws["A1"].font = Font(bold=True, size=14)
-    row = 3
-    for line in content.splitlines():
-        ws.cell(row=row, column=1, value=line)
-        row += 1
-    ws.column_dimensions["A"].width = 100
+    ws.title = "Data"
+    records = _as_records(content)
+
+    if records:
+        # Tabular JSON content -> a real Excel table with a bold header row.
+        headers = _headers(records)
+        ws.append(headers)
+        for cell in ws[1]:
+            cell.font = Font(bold=True)
+        for rec in records:
+            ws.append([_cell(rec.get(h)) for h in headers])
+        for i, h in enumerate(headers, start=1):
+            width = max(len(str(h)), *(len(_cell(r.get(h))) for r in records)) + 2
+            ws.column_dimensions[ws.cell(row=1, column=i).column_letter].width = \
+                min(width, 60)
+    else:
+        ws["A1"] = title
+        ws["A1"].font = Font(bold=True, size=14)
+        row = 3
+        for line in content.splitlines():
+            ws.cell(row=row, column=1, value=line)
+            row += 1
+        ws.column_dimensions["A"].width = 100
     wb.save(path)
 
 
