@@ -63,31 +63,62 @@ def _fetch_country_records(country: str, fields: str) -> list[dict]:
     """
     url = REST_COUNTRIES_URL.format(name=quote(country.strip()))
 
-    def _request(params: dict | None) -> list[dict]:
+    def _request(params: dict | None):
         return http_get(url, params=params, timeout=REST_TIMEOUT).json()
 
     try:
-        return _request({"fields": fields})
+        data = _request({"fields": fields})
     except httpx.HTTPStatusError as exc:
         status = exc.response.status_code
         if status == 400:  # some deployments reject the fields filter
             try:
-                return _request(None)
+                data = _request(None)
             except httpx.HTTPStatusError as exc2:
                 status = exc2.response.status_code
-        if status == 404:
+                if status == 404:
+                    raise CountryNotFound(country) from exc2
+                raise CountryServiceError(
+                    f"restcountries.com returned HTTP {status}") from exc2
+        elif status == 404:
             raise CountryNotFound(country) from exc
-        raise CountryServiceError(f"restcountries.com returned HTTP {status}") from exc
+        else:
+            raise CountryServiceError(
+                f"restcountries.com returned HTTP {status}") from exc
     except httpx.HTTPError as exc:
         raise CountryServiceError(
             f"restcountries.com unreachable ({type(exc).__name__})") from exc
+
+    return _validate_records(data, country)
+
+
+def _validate_records(data, country: str) -> list[dict]:
+    """Normalize a REST Countries response into a list of country dicts.
+
+    The service sometimes returns an error object such as
+    ``{"status": 404, "message": "Not Found"}`` with a 200 status code (so no
+    HTTPStatusError is raised). Detect that and other non-list shapes instead
+    of letting them flow through as if they were country records.
+    """
+    if isinstance(data, dict):
+        if data.get("status") == 404 or "Not Found" in str(data.get("message", "")):
+            raise CountryNotFound(country)
+        raise CountryServiceError(
+            f"restcountries.com error: {data.get('message') or data}")
+    if not isinstance(data, list):
+        raise CountryServiceError("unexpected response format from restcountries.com")
+    records = [r for r in data if isinstance(r, dict)]
+    if not records:
+        raise CountryNotFound(country)
+    return records
 
 
 def _best_match(results: list[dict], name: str) -> dict:
     """Prefer an exact common/official name match over a partial one."""
     name_l = name.strip().lower()
     for r in results:
-        names = r.get("name", {})
+        if not isinstance(r, dict):
+            continue
+        names = r.get("name", {}) or {}
         common = (names.get("common") or "").lower()
         official = (names.get("official") or "").lower()
         if name_l in (common, official):
