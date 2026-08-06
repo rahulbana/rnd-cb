@@ -110,15 +110,48 @@
     return el;
   }
 
-  function addTyping() {
+  function scrollBottom() {
+    const m = $("#messages");
+    m.scrollTop = m.scrollHeight;
+  }
+
+  // Build an empty assistant message that we fill in as the stream arrives.
+  function createStreamingAssistant() {
+    const empty = $("#messages .empty-state");
+    if (empty) empty.remove();
+
     const el = document.createElement("div");
-    el.className = "msg assistant typing-msg";
-    el.innerHTML = `<div class="avatar">✦</div>
-      <div class="bubble-wrap"><div class="role">Agent</div>
-      <div class="bubble"><span class="typing"><span></span><span></span><span></span></span></div></div>`;
+    el.className = "msg assistant";
+    el.innerHTML = `
+      <div class="avatar">✦</div>
+      <div class="bubble-wrap">
+        <div class="role">Agent</div>
+        <div class="tools-trace" style="display:none"></div>
+        <div class="bubble streaming"><span class="typing"><span></span><span></span><span></span></span></div>
+      </div>`;
     $("#messages").appendChild(el);
-    el.scrollIntoView({ behavior: "smooth", block: "end" });
-    return el;
+    scrollBottom();
+    return {
+      bubble: el.querySelector(".bubble"),
+      traceEl: el.querySelector(".tools-trace"),
+      stopCursor: () => el.querySelector(".bubble").classList.remove("streaming"),
+    };
+  }
+
+  function addTraceChip(traceEl, tool) {
+    traceEl.style.display = "flex";
+    const chip = document.createElement("span");
+    chip.className = "trace-chip pending";
+    chip.dataset.tool = tool;
+    chip.textContent = "⏳ " + tool;
+    traceEl.appendChild(chip);
+    return chip;
+  }
+
+  function setChipState(chip, ok) {
+    chip.classList.remove("pending");
+    chip.classList.add(ok ? "ok" : "err");
+    chip.textContent = (ok ? "🔧 " : "⚠️ ") + chip.dataset.tool;
   }
 
   async function sendMessage(text) {
@@ -128,24 +161,70 @@
 
     addMessage("user", text);
     state.messages.push({ role: "user", content: text });
-    const typing = addTyping();
+
+    const { bubble, traceEl, stopCursor } = createStreamingAssistant();
+    const pendingChips = [];
+    const trace = [];
+    let full = "";
+    let firstToken = true;
+
+    const render = () => {
+      if (firstToken) { bubble.innerHTML = ""; firstToken = false; }
+      bubble.innerHTML = renderMarkdown(full) +
+        '<span class="stream-caret">▍</span>';
+      scrollBottom();
+    };
 
     try {
-      const res = await api("/api/chat", {
+      const resp = await fetch("/api/chat/stream", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ messages: state.messages }),
       });
-      typing.remove();
-      const reply = res.reply || "(no response)";
-      addMessage("assistant", reply, res.tools_used);
-      state.messages.push({ role: "assistant", content: reply });
+      if (!resp.ok || !resp.body) throw new Error("HTTP " + resp.status);
+
+      const reader = resp.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = "";
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        buffer += decoder.decode(value, { stream: true });
+
+        let idx;
+        while ((idx = buffer.indexOf("\n\n")) >= 0) {
+          const line = buffer.slice(0, idx).trim();
+          buffer = buffer.slice(idx + 2);
+          if (!line.startsWith("data:")) continue;
+          let evt;
+          try { evt = JSON.parse(line.slice(5).trim()); } catch { continue; }
+
+          if (evt.type === "token") {
+            full += evt.text;
+            render();
+          } else if (evt.type === "tool_call") {
+            pendingChips.push(addTraceChip(traceEl, evt.tool));
+            scrollBottom();
+          } else if (evt.type === "tool_result") {
+            const chip = pendingChips.shift();
+            if (chip) setChipState(chip, evt.ok);
+            trace.push({ tool: evt.tool, ok: evt.ok });
+          } else if (evt.type === "error") {
+            full += (full ? "\n\n" : "") + "⚠️ " + evt.message;
+            render();
+          }
+        }
+      }
     } catch (e) {
-      typing.remove();
-      addMessage("assistant", "⚠️ Request failed: " + e.message);
+      full = full || ("⚠️ Streaming failed: " + e.message);
     } finally {
+      stopCursor();
+      bubble.innerHTML = full ? renderMarkdown(full) : "(no response)";
+      state.messages.push({ role: "assistant", content: full });
       state.sending = false;
       $("#send-btn").disabled = false;
+      scrollBottom();
     }
   }
 

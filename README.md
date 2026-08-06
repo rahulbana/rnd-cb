@@ -101,8 +101,13 @@ its input form is generated from the JSON schema you declare.
 |---|---|---|
 | `GET`  | `/api/status` | LLM configured? model, tool count |
 | `GET`  | `/api/tools` | tool metadata grouped by category |
-| `POST` | `/api/chat` | `{messages:[{role,content}]}` → agent reply + tool trace |
+| `POST` | `/api/chat` | `{messages:[{role,content}]}` → agent reply + tool trace (non-streaming) |
+| `POST` | `/api/chat/stream` | same body → **Server-Sent Events**: `token`, `tool_call`, `tool_result`, `done`, `error` |
 | `POST` | `/api/tool/{name}` | `{arguments:{…}}` → run one tool directly |
+
+The UI uses `/api/chat/stream` by default, so replies **stream in token-by-token**
+and tool chips appear live as the agent runs each tool. `/api/chat` remains for
+non-streaming clients.
 
 ## 🧪 Notes on the environment
 

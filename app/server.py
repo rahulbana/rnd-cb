@@ -1,8 +1,10 @@
 """FastAPI backend: serves the frontend and exposes chat + direct tool APIs."""
 from __future__ import annotations
 
+import json
+
 from fastapi import FastAPI
-from fastapi.responses import FileResponse, JSONResponse
+from fastapi.responses import FileResponse, JSONResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
@@ -66,6 +68,26 @@ def chat(req: ChatRequest) -> dict:
     agent = get_agent()
     result = agent.chat([m.model_dump() for m in req.messages])
     return result
+
+
+@app.post("/api/chat/stream")
+def chat_stream(req: ChatRequest) -> StreamingResponse:
+    """Stream the agent's turn as Server-Sent Events (one JSON object per event)."""
+    agent = get_agent()
+    messages = [m.model_dump() for m in req.messages]
+
+    def event_source():
+        try:
+            for event in agent.chat_stream(messages):
+                yield f"data: {json.dumps(event, default=str)}\n\n"
+        except Exception as exc:  # surface unexpected failures to the client
+            yield f"data: {json.dumps({'type': 'error', 'message': str(exc)})}\n\n"
+
+    return StreamingResponse(
+        event_source(),
+        media_type="text/event-stream",
+        headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
+    )
 
 
 @app.post("/api/tool/{name}")
