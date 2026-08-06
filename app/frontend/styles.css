@@ -208,6 +208,25 @@ html, body {
 }
 @keyframes caret { 0%,100%{opacity:1} 50%{opacity:0} }
 
+/* Saved-file action buttons (Open file / Open directory) */
+.file-actions-wrap { margin-top: 8px; }
+.file-actions {
+  display: flex; flex-wrap: wrap; align-items: center; gap: 8px;
+  padding: 10px 12px; margin-top: 8px;
+  background: var(--bg-elev); border: 1px solid var(--border); border-radius: 10px;
+}
+.file-name {
+  flex: 1; min-width: 120px; font-size: 13px; color: var(--text);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.file-btn {
+  padding: 6px 12px; border-radius: 8px; cursor: pointer; font-size: 13px;
+  background: var(--bg-elev-2); border: 1px solid var(--border); color: var(--text);
+  white-space: nowrap;
+}
+.file-btn:hover { border-color: var(--accent); color: var(--accent); }
+.file-btn:disabled { opacity: .6; cursor: default; }
+
 .typing { display: inline-flex; gap: 4px; align-items: center; }
 .typing span {
   width: 6px; height: 6px; border-radius: 50%; background: var(--text-dim);

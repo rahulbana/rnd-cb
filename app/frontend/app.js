@@ -243,14 +243,73 @@
         <div class="role">Agent</div>
         <div class="tools-trace" style="display:none"></div>
         <div class="bubble streaming"><span class="typing"><span></span><span></span><span></span></span></div>
+        <div class="file-actions-wrap"></div>
       </div>`;
     $("#messages").appendChild(el);
     scrollBottom();
     return {
       bubble: el.querySelector(".bubble"),
       traceEl: el.querySelector(".tools-trace"),
+      filesEl: el.querySelector(".file-actions-wrap"),
       stopCursor: () => el.querySelector(".bubble").classList.remove("streaming"),
     };
+  }
+
+  // ------------------------- File actions -------------------------
+  const fileName = (p) => (p || "").split(/[\\/]/).pop();
+
+  async function osOpen(path, reveal, btn) {
+    const original = btn.textContent;
+    btn.disabled = true;
+    btn.textContent = "Opening…";
+    try {
+      const res = await api("/api/open", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ path, reveal }),
+      });
+      btn.textContent = res.ok ? original : "Failed";
+      if (!res.ok) console.error("open failed:", res.error);
+    } catch (e) {
+      btn.textContent = "Failed";
+      console.error(e);
+    } finally {
+      setTimeout(() => { btn.textContent = original; btn.disabled = false; }, 1400);
+    }
+  }
+
+  function mkFileBtn(label, path, reveal) {
+    const b = document.createElement("button");
+    b.className = "file-btn";
+    b.textContent = label;
+    b.addEventListener("click", () => osOpen(path, reveal, b));
+    return b;
+  }
+
+  // Render a "saved file" row with Open file / Open directory buttons.
+  function addFileActions(container, path) {
+    if (!container || !path) return;
+    if (container.querySelector(`[data-path="${CSS.escape(path)}"]`)) return;
+    const row = document.createElement("div");
+    row.className = "file-actions";
+    row.dataset.path = path;
+    const name = document.createElement("span");
+    name.className = "file-name";
+    name.textContent = "📄 " + fileName(path);
+    name.title = path;
+    row.append(
+      name,
+      mkFileBtn("Open file", path, false),
+      mkFileBtn("Open directory", path, true),
+    );
+    container.appendChild(row);
+  }
+
+  // A tool result may carry a produced file path (save_research -> data.path,
+  // resize_image -> data.output).
+  function extractFilePath(result) {
+    const d = (result && result.data) || {};
+    return d.path || d.output || null;
   }
 
   function addTraceChip(traceEl, tool) {
@@ -282,7 +341,7 @@
       convId = await ensureConversation(text);
     } catch { /* persistence is best-effort; continue without it */ }
 
-    const { bubble, traceEl, stopCursor } = createStreamingAssistant();
+    const { bubble, traceEl, filesEl, stopCursor } = createStreamingAssistant();
     const pendingChips = [];
     const trace = [];
     let full = "";
@@ -330,6 +389,7 @@
             const chip = pendingChips.shift();
             if (chip) setChipState(chip, evt.ok);
             trace.push({ tool: evt.tool, ok: evt.ok });
+            if (evt.file) { addFileActions(filesEl, evt.file); scrollBottom(); }
           } else if (evt.type === "error") {
             full += (full ? "\n\n" : "") + "⚠️ " + evt.message;
             render();
@@ -395,6 +455,7 @@
       form.innerHTML = '<p class="muted">This tool takes no parameters.</p>';
     }
     $("#tool-result").hidden = true;
+    $("#tool-file-actions").innerHTML = "";
     showView("tool");
     closeSidebar();
   }
@@ -411,6 +472,8 @@
     });
 
     const out = $("#tool-result");
+    const actions = $("#tool-file-actions");
+    actions.innerHTML = "";
     out.hidden = false;
     out.textContent = "Running…";
     try {
@@ -420,6 +483,8 @@
         body: JSON.stringify({ arguments: args }),
       });
       out.textContent = JSON.stringify(res, null, 2);
+      const path = extractFilePath(res);
+      if (path) addFileActions(actions, path);
     } catch (e) {
       out.textContent = "Error: " + e.message;
     }

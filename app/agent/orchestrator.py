@@ -31,6 +31,17 @@ SYSTEM_PROMPT = (
 MAX_ITERATIONS = 8
 
 
+def _result_file_path(result) -> str | None:
+    """Return a filesystem path a tool produced, if any (for UI file actions)."""
+    if not isinstance(result, dict) or not result.get("ok", False):
+        return None
+    data = result.get("data")
+    if not isinstance(data, dict):
+        return None
+    # save_research -> "path"; resize_image -> "output".
+    return data.get("path") or data.get("output")
+
+
 class Agent:
     """Stateless-per-call agent that runs the tool-calling loop."""
 
@@ -60,6 +71,9 @@ class Agent:
             error_msg = result.get("error") if isinstance(result, dict) else result
             logger.error("Tool '%s' returned an error: %s", name, error_msg)
         trace = {"tool": name, "arguments": args, "ok": ok_flag}
+        file_path = _result_file_path(result)
+        if file_path:
+            trace["file"] = file_path
         return result, trace
 
     def chat(self, messages: list[dict]) -> dict:
@@ -204,7 +218,8 @@ class Agent:
                 yield {"type": "tool_call", "tool": s["name"], "arguments": args}
                 result, entry = self._execute_tool(s["name"], s["arguments"])
                 trace.append(entry)
-                yield {"type": "tool_result", "tool": s["name"], "ok": entry["ok"]}
+                yield {"type": "tool_result", "tool": s["name"],
+                       "ok": entry["ok"], "file": entry.get("file")}
                 convo.append({
                     "role": "tool",
                     "tool_call_id": s["id"],

@@ -104,6 +104,13 @@ its input form is generated from the JSON schema you declare.
 | `POST` | `/api/chat` | `{messages:[{role,content}]}` → agent reply + tool trace (non-streaming) |
 | `POST` | `/api/chat/stream` | same body → **Server-Sent Events**: `token`, `tool_call`, `tool_result`, `done`, `error` |
 | `POST` | `/api/tool/{name}` | `{arguments:{…}}` → run one tool directly |
+| `POST` | `/api/open` | `{path, reveal}` → open a file with its default app, or reveal it in the OS file manager |
+
+When a tool produces a file (e.g. `save_research`, `resize_image`), the UI
+shows **Open file** and **Open directory** buttons — in both the chat and the
+direct tool panel — that call `/api/open` to launch the file or reveal it in
+the system file manager (Windows Explorer `/select`, macOS `open -R`, Linux
+`xdg-open`).
 
 The UI uses `/api/chat/stream` by default, so replies **stream in token-by-token**
 and tool chips appear live as the agent runs each tool. `/api/chat` remains for

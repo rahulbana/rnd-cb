@@ -55,6 +55,11 @@ class ToolRequest(BaseModel):
     arguments: dict = {}
 
 
+class OpenRequest(BaseModel):
+    path: str
+    reveal: bool = False
+
+
 class NewConversation(BaseModel):
     title: str | None = None
 
@@ -187,6 +192,26 @@ def run_tool(name: str, req: ToolRequest) -> JSONResponse:
     if isinstance(result, dict) and not result.get("ok", True):
         logger.error("Direct tool '%s' returned an error: %s", name, result.get("error"))
     return JSONResponse(content=result)
+
+
+@app.post("/api/open")
+def open_path(req: OpenRequest) -> JSONResponse:
+    """Open a file with its default app, or reveal it in the OS file manager."""
+    from .desktop import OpenError, open_target
+    try:
+        target = open_target(req.path, req.reveal)
+        return JSONResponse(content={"ok": True, "path": str(target)})
+    except FileNotFoundError:
+        return JSONResponse(status_code=404,
+                            content={"ok": False, "error": f"Path not found: {req.path}"})
+    except OpenError as exc:
+        logger.error("Could not open %s: %s", req.path, exc)
+        return JSONResponse(status_code=500,
+                            content={"ok": False, "error": str(exc)})
+    except Exception as exc:
+        logger.exception("Failed to open path: %s", req.path)
+        return JSONResponse(status_code=500,
+                            content={"ok": False, "error": f"Could not open: {exc}"})
 
 
 # ------------------------------ static frontend -------------------------
