@@ -2,8 +2,11 @@
 from __future__ import annotations
 
 import json
+import re
+import shutil
+from datetime import datetime
 
-from fastapi import FastAPI, Request
+from fastapi import FastAPI, File, Request, UploadFile
 from fastapi.responses import FileResponse, JSONResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
@@ -192,6 +195,34 @@ def run_tool(name: str, req: ToolRequest) -> JSONResponse:
     if isinstance(result, dict) and not result.get("ok", True):
         logger.error("Direct tool '%s' returned an error: %s", name, result.get("error"))
     return JSONResponse(content=result)
+
+
+@app.post("/api/upload")
+def upload_file(file: UploadFile = File(...)) -> JSONResponse:
+    """Accept an uploaded file, store it under UPLOAD_DIR, and return its path."""
+    original = file.filename or "upload"
+    safe = re.sub(r"[^\w.\-]", "_", original)[-80:] or "upload"
+    stamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    dest = config.UPLOAD_DIR / f"{stamp}_{safe}"
+    try:
+        with dest.open("wb") as out:
+            shutil.copyfileobj(file.file, out)
+    except Exception as exc:
+        logger.exception("Upload failed for %s", original)
+        return JSONResponse(status_code=500,
+                            content={"ok": False, "error": f"Upload failed: {exc}"})
+    finally:
+        file.file.close()
+
+    size = dest.stat().st_size
+    logger.info("Uploaded %s (%d bytes) -> %s", original, size, dest)
+    return JSONResponse(content={
+        "ok": True,
+        "path": str(dest),
+        "filename": original,
+        "content_type": file.content_type,
+        "bytes": size,
+    })
 
 
 @app.post("/api/open")

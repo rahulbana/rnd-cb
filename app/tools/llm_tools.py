@@ -5,6 +5,7 @@ import json
 
 from ..agent.client import LLMUnavailable, complete
 from .base import Tool, err, ok
+from .textextract import UnsupportedFile, read_text_from_file
 from .web_search import deep_web_search
 
 
@@ -30,8 +31,25 @@ def translate_text(text: str, target_language: str, source_language: str = "auto
     })
 
 
-def summarize_text(text: str, style: str = "concise") -> dict:
-    """Summarize a block of text. Style can be 'concise', 'bullets', or 'detailed'."""
+def summarize_text(text: str | None = None, style: str = "concise",
+                   file_path: str | None = None) -> dict:
+    """Summarize a block of text or the contents of a file (txt, md, csv, json,
+    xml, docx, pdf, …). Style can be 'concise', 'bullets', or 'detailed'."""
+    source = None
+    if file_path:
+        try:
+            text = read_text_from_file(file_path)
+            source = file_path
+        except FileNotFoundError:
+            return err(f"File not found: {file_path}")
+        except UnsupportedFile as exc:
+            return err(str(exc))
+        except Exception as exc:  # noqa: BLE001
+            return err(f"Could not read file: {exc}")
+
+    if not text or not text.strip():
+        return err("Nothing to summarize: provide 'text' or a readable 'file_path'.")
+
     style_map = {
         "concise": "Write a concise summary of 2-4 sentences.",
         "bullets": "Summarize as 3-7 short bullet points.",
@@ -46,7 +64,10 @@ def summarize_text(text: str, style: str = "concise") -> dict:
         )
     except LLMUnavailable as exc:
         return err(str(exc))
-    return ok({"style": style, "summary": result})
+    out = {"style": style, "summary": result}
+    if source:
+        out["source_file"] = source
+    return ok(out)
 
 
 def verify_claim(claim: str) -> dict:
@@ -97,19 +118,23 @@ def get_tools() -> list[Tool]:
         ),
         Tool(
             name="summarize_text",
-            description="Summarize a block of text (concise, bullets, or detailed).",
+            description="Summarize a block of text, OR the contents of a file "
+                        "(txt, md, csv, json, xml, docx, pdf) via file_path. "
+                        "Provide either 'text' or 'file_path'.",
             category="Language",
             parameters={
                 "type": "object",
                 "properties": {
                     "text": {"type": "string", "description": "Text to summarize."},
+                    "file_path": {"type": "string",
+                                  "description": "Path to a text/document file to summarize."},
                     "style": {
                         "type": "string",
                         "enum": ["concise", "bullets", "detailed"],
                         "description": "Summary style. Default 'concise'.",
                     },
                 },
-                "required": ["text"],
+                "required": [],
             },
             func=summarize_text,
         ),

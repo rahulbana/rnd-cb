@@ -312,6 +312,59 @@
     return d.path || d.output || null;
   }
 
+  // ------------------------- File upload -------------------------
+  async function uploadFile(file) {
+    const fd = new FormData();
+    fd.append("file", file);
+    const resp = await fetch("/api/upload", { method: "POST", body: fd });
+    return resp.json();
+  }
+
+  function isFilePathParam(key) {
+    const k = key.toLowerCase();
+    return k === "path" || k === "file_path" || k.endsWith("_path") ||
+           k.includes("image") || k === "filepath";
+  }
+
+  // An Upload button that uploads a chosen file and fills `input` with its path.
+  function makeUploadButton(input) {
+    const wrap = document.createElement("span");
+    wrap.className = "upload-wrap";
+    const fileInput = document.createElement("input");
+    fileInput.type = "file";
+    fileInput.style.display = "none";
+    const btn = document.createElement("button");
+    btn.type = "button";
+    btn.className = "upload-btn";
+    btn.textContent = "⤴ Upload";
+    btn.addEventListener("click", () => fileInput.click());
+    fileInput.addEventListener("change", async () => {
+      const f = fileInput.files[0];
+      if (!f) return;
+      const original = btn.textContent;
+      btn.textContent = "Uploading…";
+      btn.disabled = true;
+      try {
+        const res = await uploadFile(f);
+        if (res.ok) {
+          input.value = res.path;
+          btn.textContent = "✓ " + res.filename.slice(0, 18);
+        } else {
+          btn.textContent = "Failed";
+          console.error(res.error);
+        }
+      } catch (e) {
+        btn.textContent = "Failed";
+        console.error(e);
+      } finally {
+        fileInput.value = "";
+        setTimeout(() => { btn.textContent = original; btn.disabled = false; }, 2200);
+      }
+    });
+    wrap.append(btn, fileInput);
+    return wrap;
+  }
+
   function addTraceChip(traceEl, tool) {
     traceEl.style.display = "flex";
     const chip = document.createElement("span");
@@ -448,7 +501,18 @@
       }
       input.dataset.key = key;
       input.dataset.type = schema.type || "string";
-      field.appendChild(input);
+
+      // For file-path parameters, add an Upload button that fills the field
+      // with the uploaded file's server-side path.
+      if (isFilePathParam(key)) {
+        const row = document.createElement("div");
+        row.className = "input-with-upload";
+        row.appendChild(input);
+        row.appendChild(makeUploadButton(input, key));
+        field.appendChild(row);
+      } else {
+        field.appendChild(input);
+      }
       form.appendChild(field);
     });
     if (!Object.keys(props).length) {
@@ -550,6 +614,32 @@
 
     $("#menu-btn").addEventListener("click", toggleSidebar);
     $("#sidebar-toggle").addEventListener("click", toggleSidebar);
+
+    // Chat composer file attachment: upload, then reference the path so the
+    // agent can act on it (summarize a doc, resize an image, …).
+    $("#attach-btn").addEventListener("click", () => $("#attach-input").click());
+    $("#attach-input").addEventListener("change", async (e) => {
+      const f = e.target.files[0];
+      if (!f) return;
+      const btn = $("#attach-btn");
+      btn.textContent = "⏳";
+      try {
+        const res = await uploadFile(f);
+        if (res.ok) {
+          const hint = `[Uploaded file: ${res.path}]`;
+          input.value = (input.value ? input.value + "\n\n" : "") + hint + "\n";
+          autoGrow(input);
+          input.focus();
+        } else {
+          console.error(res.error);
+        }
+      } catch (err) {
+        console.error(err);
+      } finally {
+        btn.textContent = "📎";
+        e.target.value = "";
+      }
+    });
 
     bindSuggestions();
   }

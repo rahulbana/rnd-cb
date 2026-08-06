@@ -210,6 +210,8 @@ __marimo__/
 /data/*
 /exports/*
 /logs/*
+/uploads/*
 !/data/.gitkeep
 !/exports/.gitkeep
 !/logs/.gitkeep
+!/uploads/.gitkeep

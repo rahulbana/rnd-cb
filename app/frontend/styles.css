@@ -266,6 +266,12 @@ html, body {
   color: white; font-size: 18px; flex-shrink: 0;
 }
 .send-btn:disabled { opacity: .5; cursor: not-allowed; }
+.attach-btn {
+  width: 44px; height: 44px; border-radius: 12px; cursor: pointer; flex-shrink: 0;
+  background: var(--bg-elev); border: 1px solid var(--border);
+  color: var(--text-dim); font-size: 18px;
+}
+.attach-btn:hover { border-color: var(--accent); color: var(--accent); }
 
 /* ------------------------- Tool panel ------------------------- */
 .tool-panel { max-width: 640px; width: 100%; margin: 0 auto; padding: 28px 24px; overflow-y: auto; }
@@ -279,6 +285,16 @@ html, body {
   color: var(--text); outline: none; font-family: inherit; font-size: 14px;
 }
 .field input:focus, .field select:focus, .field textarea:focus { border-color: var(--accent); }
+.input-with-upload { display: flex; gap: 8px; align-items: stretch; }
+.input-with-upload input { flex: 1; }
+.upload-btn {
+  padding: 8px 12px; border-radius: 10px; cursor: pointer; white-space: nowrap;
+  background: var(--bg-elev-2); border: 1px solid var(--border); color: var(--text);
+  font-size: 13px;
+}
+.upload-btn:hover { border-color: var(--accent); color: var(--accent); }
+.upload-btn:disabled { opacity: .6; cursor: default; }
+
 .tool-actions { display: flex; gap: 10px; }
 .tool-actions .ghost-btn { width: auto; }
 .tool-result {

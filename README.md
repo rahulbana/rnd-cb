@@ -15,7 +15,7 @@ unit conversion, notes, fact-checking, translation, and more. Built with
 
 | Category | Tools |
 |---|---|
-| **Research** | `web_search`, `deep_web_search` (reads pages + cites), `verify_claim` (fact-checker), `get_news_headlines`, `save_research` (md/docx/pdf) |
+| **Research** | `web_search`, `deep_web_search` (reads pages + cites), `verify_claim` (fact-checker), `get_news_headlines`, `save_research` (txt/md/json/xml/csv/xlsx/docx/pptx/pdf) |
 | **Reference** | `get_country_summary` (capital, population, leaders…), `get_time_in_country` |
 | **Weather & Environment** | `get_current_temperature`, `get_air_quality` |
 | **Converters** | `convert_currency` (USD→INR…), `convert_measurement` (100cm→m…) |
@@ -105,6 +105,16 @@ its input form is generated from the JSON schema you declare.
 | `POST` | `/api/chat/stream` | same body → **Server-Sent Events**: `token`, `tool_call`, `tool_result`, `done`, `error` |
 | `POST` | `/api/tool/{name}` | `{arguments:{…}}` → run one tool directly |
 | `POST` | `/api/open` | `{path, reveal}` → open a file with its default app, or reveal it in the OS file manager |
+| `POST` | `/api/upload` | multipart file → saves to `uploads/`, returns its path |
+
+### File upload
+
+Click the 📎 in the chat composer to attach a file — its uploaded path is
+referenced in your message so the agent can act on it (e.g. summarize a PDF/Word
+doc, resize an image). In the direct tool panel, any file-path field (like
+`resize_image`'s `path` or `summarize_text`'s `file_path`) shows an **Upload**
+button that fills the field with the uploaded file's path. `summarize_text`
+accepts a `file_path` and reads txt, md, csv, json, xml, docx and pdf.
 
 When a tool produces a file (e.g. `save_research`, `resize_image`), the UI
 shows **Open file** and **Open directory** buttons — in both the chat and the
