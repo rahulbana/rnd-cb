@@ -85,9 +85,13 @@ def main() -> None:
                         help="Run the server only (no window/browser).")
     args = parser.parse_args()
 
-    if not config.has_openai():
-        print("⚠️  OPENAI_API_KEY is not set. Chat needs it; direct tools still work.\n"
-              "    Copy .env.example to .env and add your key.\n", file=sys.stderr)
+    if not config.llm_configured():
+        print("⚠️  OpenAI is selected but OPENAI_API_KEY is not set. Add it to .env,\n"
+              "    or set LLM_PROVIDER=ollama to run a local model. Direct tools still work.\n",
+              file=sys.stderr)
+    else:
+        print(f"LLM provider: {config.active_provider()} (model: {config.active_model()})",
+              file=sys.stderr)
 
     if args.server:
         _run_server()

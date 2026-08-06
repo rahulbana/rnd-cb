@@ -63,6 +63,11 @@ class OpenRequest(BaseModel):
     reveal: bool = False
 
 
+class SettingsRequest(BaseModel):
+    provider: str | None = None
+    model: str | None = None
+
+
 class NewConversation(BaseModel):
     title: str | None = None
 
@@ -77,9 +82,39 @@ class RenameConversation(BaseModel):
 def status() -> dict:
     return {
         "ok": True,
-        "llm_configured": config.has_openai(),
-        "model": config.OPENAI_MODEL if config.has_openai() else None,
+        "llm_configured": config.llm_configured(),
+        "provider": config.active_provider(),
+        "model": config.active_model() if config.llm_configured() else None,
         "tool_count": len(build_registry()),
+    }
+
+
+@app.get("/api/settings")
+def get_settings() -> dict:
+    return {
+        "ok": True,
+        "provider": config.active_provider(),
+        "model": config.active_model(),
+        "providers": ["openai", "ollama"],
+        "openai_key_set": bool(config.OPENAI_API_KEY),
+        "models": {"openai": config._models["openai"], "ollama": config._models["ollama"]},
+        "ollama_base_url": config.OLLAMA_BASE_URL,
+    }
+
+
+@app.post("/api/settings")
+def update_settings(req: SettingsRequest) -> dict:
+    from .agent.client import reset_client_cache
+
+    config.set_llm(req.provider, req.model)
+    reset_client_cache()
+    logger.info("LLM provider set to %s (model=%s)",
+                config.active_provider(), config.active_model())
+    return {
+        "ok": True,
+        "provider": config.active_provider(),
+        "model": config.active_model(),
+        "configured": config.llm_configured(),
     }
 
 

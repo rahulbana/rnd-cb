@@ -27,12 +27,29 @@
         <div id="conv-list" class="conv-list"><!-- populated by JS --></div>
       </div>
 
-      <div class="sidebar-section">
-        <div class="section-head"><span>Tools</span></div>
-        <input id="tool-search" type="text" placeholder="Search tools…" autocomplete="off" />
+      <div class="sidebar-section tools-section">
+        <button id="tools-toggle" class="section-head clickable" aria-expanded="false">
+          <span>Tools <span id="tools-count" class="count-badge"></span></span>
+          <span class="chevron">▸</span>
+        </button>
       </div>
 
-      <nav id="tool-list" class="tool-list"><!-- populated by JS --></nav>
+      <div id="tools-body" class="tools-body collapsed">
+        <div class="sidebar-section">
+          <input id="tool-search" type="text" placeholder="Search tools…" autocomplete="off" />
+        </div>
+        <nav id="tool-list" class="tool-list"><!-- populated by JS --></nav>
+      </div>
+
+      <div class="sidebar-footer">
+        <div class="section-head"><span>Model</span></div>
+        <select id="provider-select" title="LLM provider">
+          <option value="openai">OpenAI</option>
+          <option value="ollama">Ollama (local)</option>
+        </select>
+        <input id="model-input" class="model-input" type="text"
+               placeholder="model name" autocomplete="off" title="Model name" />
+      </div>
     </aside>
 
     <!-- Main -->

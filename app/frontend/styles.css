@@ -118,6 +118,21 @@ html, body {
 }
 #tool-search:focus { border-color: var(--accent); }
 
+/* Collapsible tools section */
+.tools-section { padding-bottom: 4px; }
+button.section-head {
+  width: 100%; background: transparent; border: none; color: var(--text-dim);
+  cursor: pointer; font-family: inherit;
+}
+button.section-head:hover { color: var(--text); }
+.section-head.clickable { padding: 4px 2px; }
+.chevron { transition: transform .15s ease; font-size: 12px; }
+#tools-toggle[aria-expanded="true"] .chevron { transform: rotate(90deg); }
+.count-badge { color: var(--text-dim); font-size: 10px; }
+
+.tools-body { display: flex; flex-direction: column; flex: 1; min-height: 0; }
+.tools-body.collapsed { display: none; }
+
 .tool-list { flex: 1; overflow-y: auto; padding: 8px 8px 16px; min-height: 0; }
 .tool-category { margin-top: 10px; }
 .tool-category h3 {
@@ -137,7 +152,16 @@ html, body {
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 }
 
-.sidebar-footer { padding: 12px; border-top: 1px solid var(--border); }
+.sidebar-footer {
+  margin-top: auto; padding: 12px; border-top: 1px solid var(--border);
+  display: flex; flex-direction: column; gap: 8px;
+}
+#provider-select, .model-input {
+  width: 100%; padding: 8px 10px; border-radius: 9px;
+  background: var(--bg-elev-2); border: 1px solid var(--border); color: var(--text);
+  outline: none; font-family: inherit; font-size: 13px;
+}
+#provider-select:focus, .model-input:focus { border-color: var(--accent); }
 
 /* ------------------------- Buttons ------------------------- */
 .icon-btn {

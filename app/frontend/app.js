@@ -10,6 +10,7 @@
     tools: {},              // name -> tool meta
     sending: false,
     conversationId: null,   // active conversation (null until first message)
+    models: {},             // provider -> remembered model name
   };
 
   const EMPTY_STATE_HTML = `
@@ -32,7 +33,7 @@
       const s = await api("/api/status");
       const pill = $("#status-pill");
       if (s.llm_configured) {
-        pill.textContent = `${s.model} · ${s.tool_count} tools`;
+        pill.textContent = `${s.provider} · ${s.model}`;
         pill.className = "pill pill-ok";
       } else {
         pill.textContent = "no API key — tools only";
@@ -43,10 +44,49 @@
     }
   }
 
+  // ------------------------- LLM settings -------------------------
+  async function loadSettings() {
+    try {
+      const s = await api("/api/settings");
+      state.models = s.models || {};
+      $("#provider-select").value = s.provider;
+      $("#model-input").value = s.model || "";
+    } catch { /* non-fatal */ }
+  }
+
+  async function applySettings(body) {
+    try {
+      await api("/api/settings", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
+      loadStatus();
+    } catch (e) { console.error("settings update failed", e); }
+  }
+
+  function onProviderChange() {
+    const provider = $("#provider-select").value;
+    // Prefill the model box with that provider's remembered model.
+    const model = (state.models && state.models[provider]) || "";
+    $("#model-input").value = model;
+    applySettings({ provider, model: model || undefined });
+  }
+
+  function onModelChange() {
+    const provider = $("#provider-select").value;
+    const model = $("#model-input").value.trim();
+    if (!model) return;
+    if (state.models) state.models[provider] = model;
+    applySettings({ provider, model });
+  }
+
   async function loadTools() {
     const data = await api("/api/tools");
     const list = $("#tool-list");
     list.innerHTML = "";
+    const badge = $("#tools-count");
+    if (badge) badge.textContent = data.count ? `(${data.count})` : "";
     Object.entries(data.categories).forEach(([category, tools]) => {
       const wrap = document.createElement("div");
       wrap.className = "tool-category";
@@ -584,6 +624,20 @@
     loadStatus();
     loadTools();
     loadConversations();
+    loadSettings();
+
+    // Collapsible tools list (starts collapsed).
+    const toolsToggle = $("#tools-toggle");
+    toolsToggle.addEventListener("click", () => {
+      const body = $("#tools-body");
+      const open = body.classList.toggle("collapsed") === false;
+      toolsToggle.setAttribute("aria-expanded", String(open));
+      if (open) $("#tool-search").focus();
+    });
+
+    // LLM provider / model controls.
+    $("#provider-select").addEventListener("change", onProviderChange);
+    $("#model-input").addEventListener("change", onModelChange);
 
     const input = $("#composer-input");
     input.addEventListener("input", () => autoGrow(input));

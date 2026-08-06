@@ -30,10 +30,22 @@ Every tool is callable two ways:
 2. **Directly** — click any tool in the sidebar to run it with a form (works
    even without an OpenAI key).
 
+## 🤖 LLM provider (OpenAI or Ollama)
+
+The agent works with **OpenAI** or a **local Ollama** model. Pick one in the
+sidebar **Model** selector (or set `LLM_PROVIDER` in `.env`), and type the model
+name below it. Switching is live — no restart needed.
+
+- **OpenAI** — set `OPENAI_API_KEY` and a model (e.g. `gpt-4o-mini`).
+- **Ollama** — run `ollama serve` locally, no key needed. Use a **tool-capable**
+  model (e.g. `llama3.1`, `qwen2.5`, `mistral-nemo`) for tool calling to work.
+  Configure `OLLAMA_BASE_URL` / `OLLAMA_MODEL` in `.env` if needed.
+
 ## 🗝️ API keys
 
-Only **`OPENAI_API_KEY`** is required (for chat, translation, summarizing,
-fact-checking). Every data tool uses a **free, key-less public API**:
+Only an **LLM provider** is required (OpenAI key, or a local Ollama server) for
+chat, translation, summarizing and fact-checking. Every data tool uses a
+**free, key-less public API**:
 
 | Data | Provider |
 |---|---|
@@ -106,6 +118,8 @@ its input form is generated from the JSON schema you declare.
 | `POST` | `/api/tool/{name}` | `{arguments:{…}}` → run one tool directly |
 | `POST` | `/api/open` | `{path, reveal}` → open a file with its default app, or reveal it in the OS file manager |
 | `POST` | `/api/upload` | multipart file → saves to `uploads/`, returns its path |
+| `GET`  | `/api/settings` | current LLM provider, model, and available providers |
+| `POST` | `/api/settings` | `{provider, model}` → switch provider/model at runtime |
 
 ### File upload
 

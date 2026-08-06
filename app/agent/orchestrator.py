@@ -93,7 +93,7 @@ class Agent:
         for _ in range(MAX_ITERATIONS):
             try:
                 resp = client.chat.completions.create(
-                    model=config.OPENAI_MODEL,
+                    model=config.active_model(),
                     messages=convo,
                     tools=self.tool_schemas,
                     tool_choice="auto",
@@ -160,7 +160,7 @@ class Agent:
         for _ in range(MAX_ITERATIONS):
             try:
                 stream = client.chat.completions.create(
-                    model=config.OPENAI_MODEL,
+                    model=config.active_model(),
                     messages=convo,
                     tools=self.tool_schemas,
                     tool_choice="auto",
