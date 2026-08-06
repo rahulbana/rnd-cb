@@ -1,25 +1,74 @@
 """Country summary + current time in a country.
 
-Structured facts come from REST Countries (free, no key). A short prose
-summary (which typically mentions the head of state/government) comes from
-the Wikipedia REST summary endpoint (free, no key).
+Structured facts come from REST Countries (free, no key). Because that service
+is community-run and intermittently unavailable, failures are surfaced with the
+real HTTP status and the summary falls back to a Wikipedia extract (which also
+usually names the head of state/government) so the tool still returns useful
+information instead of a bare error.
 """
 from __future__ import annotations
 
 from datetime import datetime, timedelta, timezone
+from urllib.parse import quote
 
-from .base import Tool, err, http_get_json, ok
+import httpx
+
+from .base import Tool, err, http_get, http_get_json, ok
 
 REST_COUNTRIES_URL = "https://restcountries.com/v3.1/name/{name}"
 WIKI_SUMMARY_URL = "https://en.wikipedia.org/api/rest_v1/page/summary/{title}"
 
+# Only request the fields we use: smaller/faster responses and it sidesteps
+# deployments that reject unfiltered queries.
+SUMMARY_FIELDS = ("name,capital,region,subregion,population,area,currencies,"
+                  "languages,timezones,idd,flag,maps")
+TIME_FIELDS = "name,timezones"
+
+
+class CountryNotFound(Exception):
+    """No country matched the given name (HTTP 404)."""
+
+
+class CountryServiceError(Exception):
+    """The country data service could not be reached or returned an error."""
+
 
 def _wiki_summary(title: str) -> str | None:
     try:
-        data = http_get_json(WIKI_SUMMARY_URL.format(title=title.replace(" ", "_")))
+        data = http_get_json(WIKI_SUMMARY_URL.format(title=quote(title.strip().replace(" ", "_"))))
         return data.get("extract")
     except Exception:
         return None
+
+
+def _fetch_country_records(country: str, fields: str) -> list[dict]:
+    """Fetch matching country records, raising typed errors on failure.
+
+    Retries once without the ``fields`` filter if the service rejects it (some
+    deployments respond 400 to filtered queries).
+    """
+    url = REST_COUNTRIES_URL.format(name=quote(country.strip()))
+
+    def _request(params: dict | None) -> list[dict]:
+        return http_get(url, params=params).json()
+
+    try:
+        return _request({"fields": fields})
+    except httpx.HTTPStatusError as exc:
+        status = exc.response.status_code
+        if status == 400:
+            # The fields filter may be unsupported; retry unfiltered.
+            try:
+                return _request(None)
+            except httpx.HTTPStatusError as exc2:
+                status = exc2.response.status_code
+        if status == 404:
+            raise CountryNotFound(country) from exc
+        raise CountryServiceError(f"country data service returned HTTP {status}") from exc
+    except httpx.HTTPError as exc:
+        raise CountryServiceError(
+            f"could not reach country data service ({type(exc).__name__})"
+        ) from exc
 
 
 def _best_match(results: list[dict], name: str) -> dict:
@@ -37,21 +86,35 @@ def _best_match(results: list[dict], name: str) -> dict:
 def get_country_summary(country: str) -> dict:
     """Return a rich summary of a country: capital, population, currency, etc."""
     try:
-        results = http_get_json(REST_COUNTRIES_URL.format(name=country))
-    except Exception:
-        return err(f"Could not find country '{country}'.")
-    if not results:
-        return err(f"Could not find country '{country}'.")
+        records = _fetch_country_records(country, SUMMARY_FIELDS)
+    except CountryNotFound:
+        return err(f"No country matched '{country}'. Check the spelling.")
+    except CountryServiceError as exc:
+        # Structured source is down — fall back to an encyclopedic summary so the
+        # user still gets the capital, leaders, etc. from the prose extract.
+        overview = _wiki_summary(country)
+        if overview:
+            return ok({
+                "name": country.strip().title(),
+                "overview": overview,
+                "note": f"Structured country data was unavailable ({exc}); "
+                        "showing an encyclopedic summary instead.",
+            }, partial=True)
+        return err(f"Country lookup failed: {exc}. Please try again shortly.")
 
-    c = _best_match(results, country)
+    if not records:
+        return err(f"No country matched '{country}'.")
+
+    c = _best_match(records, country)
     names = c.get("name", {})
     common = names.get("common", country)
-    currencies = c.get("currencies", {})
+    currencies = c.get("currencies", {}) or {}
     currency_list = [
         f"{v.get('name')} ({k}, {v.get('symbol', '')})".strip()
         for k, v in currencies.items()
     ]
     languages = list((c.get("languages") or {}).values())
+    idd = c.get("idd", {}) or {}
 
     summary = {
         "name": common,
@@ -65,8 +128,8 @@ def get_country_summary(country: str) -> dict:
         "languages": languages,
         "timezones": c.get("timezones", []),
         "calling_code": "".join([
-            (c.get("idd", {}).get("root") or ""),
-            *(c.get("idd", {}).get("suffixes") or [])[:1],
+            (idd.get("root") or ""),
+            *(idd.get("suffixes") or [])[:1],
         ]),
         "flag": c.get("flag"),
         "maps": (c.get("maps") or {}).get("googleMaps"),
@@ -96,13 +159,16 @@ def _parse_utc_offset(tz: str) -> timedelta:
 def get_time_in_country(country: str) -> dict:
     """Return the current local time(s) for a country based on its timezone(s)."""
     try:
-        results = http_get_json(REST_COUNTRIES_URL.format(name=country))
-    except Exception:
-        return err(f"Could not find country '{country}'.")
-    if not results:
-        return err(f"Could not find country '{country}'.")
+        records = _fetch_country_records(country, TIME_FIELDS)
+    except CountryNotFound:
+        return err(f"No country matched '{country}'. Check the spelling.")
+    except CountryServiceError as exc:
+        return err(f"Could not look up '{country}': {exc}. Please try again shortly.")
 
-    c = _best_match(results, country)
+    if not records:
+        return err(f"No country matched '{country}'.")
+
+    c = _best_match(records, country)
     tzs = c.get("timezones", []) or []
     if not tzs:
         return err(f"No timezone information for '{country}'.")
