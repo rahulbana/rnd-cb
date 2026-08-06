@@ -109,6 +109,21 @@ The UI uses `/api/chat/stream` by default, so replies **stream in token-by-token
 and tool chips appear live as the agent runs each tool. `/api/chat` remains for
 non-streaming clients.
 
+### Conversation persistence
+
+Conversations are saved to SQLite and listed in the sidebar, so you can revisit
+past chats after restarting the app. A conversation is created lazily on your
+first message; the user turn is persisted before streaming and the assistant
+reply on completion.
+
+| Method | Path | Purpose |
+|---|---|---|
+| `GET`    | `/api/conversations` | list saved conversations (most recent first) |
+| `POST`   | `/api/conversations` | create a conversation `{title?}` |
+| `GET`    | `/api/conversations/{id}` | conversation + its messages |
+| `PATCH`  | `/api/conversations/{id}` | rename `{title}` |
+| `DELETE` | `/api/conversations/{id}` | delete a conversation and its messages |
+
 ## 🧪 Notes on the environment
 
 Data tools require outbound internet access. Behind a restrictive network

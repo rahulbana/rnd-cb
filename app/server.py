@@ -10,6 +10,7 @@ from pydantic import BaseModel
 
 from .agent.orchestrator import get_agent
 from .config import config
+from .storage import db
 from .storage.db import init_db
 from .tools import build_registry
 
@@ -31,10 +32,19 @@ class Message(BaseModel):
 
 class ChatRequest(BaseModel):
     messages: list[Message]
+    conversation_id: int | None = None
 
 
 class ToolRequest(BaseModel):
     arguments: dict = {}
+
+
+class NewConversation(BaseModel):
+    title: str | None = None
+
+
+class RenameConversation(BaseModel):
+    title: str
 
 
 # ------------------------------- API routes -----------------------------
@@ -72,22 +82,74 @@ def chat(req: ChatRequest) -> dict:
 
 @app.post("/api/chat/stream")
 def chat_stream(req: ChatRequest) -> StreamingResponse:
-    """Stream the agent's turn as Server-Sent Events (one JSON object per event)."""
+    """Stream the agent's turn as Server-Sent Events (one JSON object per event).
+
+    When a `conversation_id` is supplied, the latest user message is persisted
+    before streaming and the assembled assistant reply is persisted on
+    completion, so the conversation survives restarts.
+    """
     agent = get_agent()
     messages = [m.model_dump() for m in req.messages]
+    conv_id = req.conversation_id
+
+    # Persist the newest user turn up-front (the client sends full history).
+    if conv_id and messages and messages[-1]["role"] == "user":
+        db.add_message(conv_id, "user", messages[-1]["content"])
 
     def event_source():
+        assistant_parts: list[str] = []
         try:
             for event in agent.chat_stream(messages):
+                if event.get("type") == "token":
+                    assistant_parts.append(event["text"])
                 yield f"data: {json.dumps(event, default=str)}\n\n"
         except Exception as exc:  # surface unexpected failures to the client
             yield f"data: {json.dumps({'type': 'error', 'message': str(exc)})}\n\n"
+        finally:
+            if conv_id and assistant_parts:
+                db.add_message(conv_id, "assistant", "".join(assistant_parts))
 
     return StreamingResponse(
         event_source(),
         media_type="text/event-stream",
         headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
     )
+
+
+# ---------------------------- conversations -----------------------------
+
+@app.get("/api/conversations")
+def list_conversations() -> dict:
+    return {"ok": True, "conversations": db.list_conversations()}
+
+
+@app.post("/api/conversations")
+def create_conversation(req: NewConversation) -> dict:
+    conv = db.create_conversation(req.title or "New chat")
+    return {"ok": True, "conversation": conv}
+
+
+@app.get("/api/conversations/{conv_id}")
+def get_conversation(conv_id: int) -> JSONResponse:
+    conv = db.get_conversation(conv_id)
+    if conv is None:
+        return JSONResponse(status_code=404, content={"ok": False, "error": "Not found."})
+    return JSONResponse(content={"ok": True, "conversation": conv,
+                                 "messages": db.get_messages(conv_id)})
+
+
+@app.patch("/api/conversations/{conv_id}")
+def rename_conversation(conv_id: int, req: RenameConversation) -> JSONResponse:
+    if not db.rename_conversation(conv_id, req.title):
+        return JSONResponse(status_code=404, content={"ok": False, "error": "Not found."})
+    return JSONResponse(content={"ok": True})
+
+
+@app.delete("/api/conversations/{conv_id}")
+def delete_conversation(conv_id: int) -> JSONResponse:
+    if not db.delete_conversation(conv_id):
+        return JSONResponse(status_code=404, content={"ok": False, "error": "Not found."})
+    return JSONResponse(content={"ok": True})
 
 
 @app.post("/api/tool/{name}")

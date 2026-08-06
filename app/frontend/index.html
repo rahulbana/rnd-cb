@@ -19,21 +19,26 @@
         <button id="sidebar-toggle" class="icon-btn" title="Toggle sidebar">☰</button>
       </div>
 
+      <div class="sidebar-section conv-section">
+        <div class="section-head">
+          <span>Chats</span>
+          <button id="new-chat" class="mini-btn" title="New chat">＋ New</button>
+        </div>
+        <div id="conv-list" class="conv-list"><!-- populated by JS --></div>
+      </div>
+
       <div class="sidebar-section">
+        <div class="section-head"><span>Tools</span></div>
         <input id="tool-search" type="text" placeholder="Search tools…" autocomplete="off" />
       </div>
 
       <nav id="tool-list" class="tool-list"><!-- populated by JS --></nav>
-
-      <div class="sidebar-footer">
-        <button id="new-chat" class="ghost-btn">＋ New chat</button>
-      </div>
     </aside>
 
     <!-- Main -->
     <main id="main">
       <header id="main-header">
-        <button id="menu-btn" class="icon-btn mobile-only" title="Menu">☰</button>
+        <button id="menu-btn" class="icon-btn" title="Toggle sidebar">☰</button>
         <div class="header-title">
           <span id="active-title">Chat</span>
           <small id="active-sub">Ask anything, or run a tool directly</small>

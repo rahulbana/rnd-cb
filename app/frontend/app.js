@@ -6,10 +6,25 @@
   const api = (path, opts) => fetch(path, opts).then((r) => r.json());
 
   const state = {
-    messages: [],      // {role, content}
-    tools: {},         // name -> tool meta
+    messages: [],           // {role, content}
+    tools: {},              // name -> tool meta
     sending: false,
+    conversationId: null,   // active conversation (null until first message)
   };
+
+  const EMPTY_STATE_HTML = `
+    <div class="empty-state">
+      <div class="empty-emoji">💬</div>
+      <h2>How can I help?</h2>
+      <p>I can search the web, check weather &amp; air quality, convert units and
+         currencies, manage notes, fact-check claims, summarize, translate and more.</p>
+      <div class="suggestions">
+        <button class="chip">What's the weather in Tokyo?</button>
+        <button class="chip">Convert 100 USD to INR</button>
+        <button class="chip">What happened on 21 July 1969?</button>
+        <button class="chip">Summarize the latest AI news</button>
+      </div>
+    </div>`;
 
   // ------------------------- Status + tools -------------------------
   async function loadStatus() {
@@ -64,6 +79,106 @@
         .some((el) => el.style.display !== "none");
       cat.style.display = anyVisible ? "" : "none";
     });
+  }
+
+  // ------------------------- Conversations -------------------------
+  async function loadConversations() {
+    try {
+      const data = await api("/api/conversations");
+      renderConversations(data.conversations || []);
+    } catch { /* non-fatal */ }
+  }
+
+  function renderConversations(convs) {
+    const list = $("#conv-list");
+    list.innerHTML = "";
+    if (!convs.length) {
+      list.innerHTML = '<div class="conv-empty">No saved chats yet.</div>';
+      return;
+    }
+    convs.forEach((c) => {
+      const item = document.createElement("div");
+      item.className = "conv-item" + (c.id === state.conversationId ? " active" : "");
+      item.dataset.id = c.id;
+      const title = document.createElement("span");
+      title.className = "c-title";
+      title.textContent = c.title || "New chat";
+      const del = document.createElement("button");
+      del.className = "c-del";
+      del.title = "Delete chat";
+      del.textContent = "✕";
+      item.appendChild(title);
+      item.appendChild(del);
+      item.addEventListener("click", (e) => {
+        if (e.target === del) return;
+        openConversation(c.id);
+      });
+      del.addEventListener("click", (e) => {
+        e.stopPropagation();
+        deleteConversation(c.id);
+      });
+      list.appendChild(item);
+    });
+  }
+
+  async function openConversation(id) {
+    try {
+      const data = await api("/api/conversations/" + id);
+      if (!data.ok) return;
+      state.conversationId = id;
+      state.messages = (data.messages || []).map((m) => ({ role: m.role, content: m.content }));
+      renderLoadedMessages(state.messages);
+      showView("chat");
+      $("#active-title").textContent = "Chat";
+      $("#active-sub").textContent = data.conversation.title || "";
+      markActiveConversation();
+      closeSidebar();
+    } catch { /* ignore */ }
+  }
+
+  function renderLoadedMessages(messages) {
+    const box = $("#messages");
+    box.innerHTML = "";
+    if (!messages.length) { box.innerHTML = EMPTY_STATE_HTML; bindSuggestions(); return; }
+    messages.forEach((m) => addMessage(m.role, m.content));
+  }
+
+  function markActiveConversation() {
+    document.querySelectorAll(".conv-item").forEach((el) => {
+      el.classList.toggle("active", Number(el.dataset.id) === state.conversationId);
+    });
+  }
+
+  async function deleteConversation(id) {
+    try {
+      await fetch("/api/conversations/" + id, { method: "DELETE" });
+    } catch { /* ignore */ }
+    if (id === state.conversationId) newChat();
+    loadConversations();
+  }
+
+  function newChat() {
+    state.conversationId = null;
+    state.messages = [];
+    $("#messages").innerHTML = EMPTY_STATE_HTML;
+    bindSuggestions();
+    showView("chat");
+    $("#active-title").textContent = "Chat";
+    $("#active-sub").textContent = "Ask anything, or run a tool directly";
+    markActiveConversation();
+    closeSidebar();
+  }
+
+  // Lazily create a conversation the first time the user sends a message.
+  async function ensureConversation(firstText) {
+    if (state.conversationId) return state.conversationId;
+    const data = await api("/api/conversations", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ title: firstText.slice(0, 60) }),
+    });
+    state.conversationId = data.conversation.id;
+    return state.conversationId;
   }
 
   // ------------------------- Chat -------------------------
@@ -162,6 +277,11 @@
     addMessage("user", text);
     state.messages.push({ role: "user", content: text });
 
+    let convId = null;
+    try {
+      convId = await ensureConversation(text);
+    } catch { /* persistence is best-effort; continue without it */ }
+
     const { bubble, traceEl, stopCursor } = createStreamingAssistant();
     const pendingChips = [];
     const trace = [];
@@ -179,7 +299,7 @@
       const resp = await fetch("/api/chat/stream", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ messages: state.messages }),
+        body: JSON.stringify({ messages: state.messages, conversation_id: convId }),
       });
       if (!resp.ok || !resp.body) throw new Error("HTTP " + resp.status);
 
@@ -225,6 +345,7 @@
       state.sending = false;
       $("#send-btn").disabled = false;
       scrollBottom();
+      loadConversations();  // refresh titles/ordering in the sidebar
     }
   }
 
@@ -304,9 +425,25 @@
     }
   }
 
-  // ------------------------- Sidebar (mobile) -------------------------
-  function toggleSidebar() { $("#sidebar").classList.toggle("open"); }
-  function closeSidebar() { $("#sidebar").classList.remove("open"); }
+  // ------------------------- Sidebar -------------------------
+  // On desktop the sidebar is a grid column, so we collapse the column.
+  // On mobile it is an overlay, so we slide it in/out.
+  const isMobile = () => window.matchMedia("(max-width: 820px)").matches;
+
+  function toggleSidebar() {
+    if (isMobile()) $("#sidebar").classList.toggle("open");
+    else $("#app").classList.toggle("collapsed");
+  }
+  function closeSidebar() {
+    $("#sidebar").classList.remove("open");
+    // Leave desktop collapse state alone; only the overlay auto-closes.
+  }
+
+  function bindSuggestions() {
+    document.querySelectorAll(".suggestions .chip").forEach((chip) => {
+      chip.addEventListener("click", () => sendMessage(chip.textContent));
+    });
+  }
 
   // ------------------------- Wiring -------------------------
   function autoGrow(el) {
@@ -317,6 +454,7 @@
   function init() {
     loadStatus();
     loadTools();
+    loadConversations();
 
     const input = $("#composer-input");
     input.addEventListener("input", () => autoGrow(input));
@@ -343,18 +481,12 @@
       $("#active-title").textContent = "Chat";
       $("#active-sub").textContent = "Ask anything, or run a tool directly";
     });
-    $("#new-chat").addEventListener("click", () => {
-      state.messages = [];
-      $("#messages").innerHTML = "";
-      location.reload();
-    });
+    $("#new-chat").addEventListener("click", newChat);
 
     $("#menu-btn").addEventListener("click", toggleSidebar);
     $("#sidebar-toggle").addEventListener("click", toggleSidebar);
 
-    document.querySelectorAll(".suggestions .chip").forEach((chip) => {
-      chip.addEventListener("click", () => sendMessage(chip.textContent));
-    });
+    bindSuggestions();
   }
 
   document.addEventListener("DOMContentLoaded", init);

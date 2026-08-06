@@ -30,7 +30,10 @@ html, body {
   grid-template-columns: var(--sidebar-w) 1fr;
   height: 100vh;
   overflow: hidden;
+  transition: grid-template-columns .2s ease;
 }
+/* Desktop: collapsing the sidebar shrinks its grid column to zero. */
+#app.collapsed { grid-template-columns: 0 1fr; }
 
 /* ------------------------- Sidebar ------------------------- */
 #sidebar {
@@ -39,6 +42,7 @@ html, body {
   display: flex;
   flex-direction: column;
   min-height: 0;
+  overflow: hidden;
   transition: transform .2s ease;
 }
 
@@ -70,6 +74,39 @@ html, body {
 .pill-muted { background: var(--bg-elev-2); color: var(--text-dim); }
 
 .sidebar-section { padding: 12px 12px 4px; }
+.section-head {
+  display: flex; align-items: center; justify-content: space-between;
+  font-size: 11px; text-transform: uppercase; letter-spacing: .06em;
+  color: var(--text-dim); margin: 2px 2px 8px;
+}
+.mini-btn {
+  font-size: 11px; padding: 3px 8px; border-radius: 7px; cursor: pointer;
+  background: var(--bg-elev-2); border: 1px solid var(--border); color: var(--text);
+  text-transform: none; letter-spacing: 0;
+}
+.mini-btn:hover { border-color: var(--accent); }
+
+/* Conversations list */
+.conv-section { border-bottom: 1px solid var(--border); padding-bottom: 10px; }
+.conv-list { max-height: 26vh; overflow-y: auto; display: flex; flex-direction: column; gap: 2px; }
+.conv-item {
+  display: flex; align-items: center; gap: 6px;
+  padding: 7px 8px; border-radius: 8px; cursor: pointer; color: var(--text);
+}
+.conv-item:hover { background: var(--bg-elev-2); }
+.conv-item.active { background: var(--bg-elev-2); box-shadow: inset 2px 0 0 var(--accent); }
+.conv-item .c-title {
+  flex: 1; min-width: 0; font-size: 13.5px;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.conv-item .c-del {
+  opacity: 0; border: none; background: transparent; color: var(--text-dim);
+  cursor: pointer; font-size: 15px; padding: 0 4px; border-radius: 6px;
+}
+.conv-item:hover .c-del { opacity: 1; }
+.conv-item .c-del:hover { color: var(--err); }
+.conv-empty { color: var(--text-dim); font-size: 12.5px; padding: 6px 8px; }
+
 #tool-search {
   width: 100%;
   padding: 9px 12px;
@@ -233,14 +270,13 @@ html, body {
 }
 
 /* ------------------------- Responsive ------------------------- */
-.mobile-only { display: none; }
 @media (max-width: 820px) {
-  #app { grid-template-columns: 1fr; }
+  #app, #app.collapsed { grid-template-columns: 1fr; }
   #sidebar {
     position: fixed; z-index: 50; width: var(--sidebar-w); height: 100vh;
     transform: translateX(-100%);
+    box-shadow: 2px 0 16px rgba(0,0,0,.4);
   }
   #sidebar.open { transform: translateX(0); }
-  .mobile-only { display: inline-block; }
-  #sidebar-toggle { display: none; }
+  #sidebar-toggle { display: none; }  /* on mobile, use the header button */
 }
