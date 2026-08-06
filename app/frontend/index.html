@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>AI Agent</title>
+  <link rel="stylesheet" href="/static/styles.css" />
+</head>
+<body>
+  <div id="app">
+    <!-- Sidebar -->
+    <aside id="sidebar">
+      <div class="brand">
+        <div class="brand-logo">✦</div>
+        <div class="brand-text">
+          <h1>AI Agent</h1>
+          <span id="status-pill" class="pill pill-muted">connecting…</span>
+        </div>
+        <button id="sidebar-toggle" class="icon-btn" title="Toggle sidebar">☰</button>
+      </div>
+
+      <div class="sidebar-section">
+        <input id="tool-search" type="text" placeholder="Search tools…" autocomplete="off" />
+      </div>
+
+      <nav id="tool-list" class="tool-list"><!-- populated by JS --></nav>
+
+      <div class="sidebar-footer">
+        <button id="new-chat" class="ghost-btn">＋ New chat</button>
+      </div>
+    </aside>
+
+    <!-- Main -->
+    <main id="main">
+      <header id="main-header">
+        <button id="menu-btn" class="icon-btn mobile-only" title="Menu">☰</button>
+        <div class="header-title">
+          <span id="active-title">Chat</span>
+          <small id="active-sub">Ask anything, or run a tool directly</small>
+        </div>
+      </header>
+
+      <!-- Chat view -->
+      <section id="chat-view" class="view active">
+        <div id="messages" class="messages">
+          <div class="empty-state">
+            <div class="empty-emoji">💬</div>
+            <h2>How can I help?</h2>
+            <p>I can search the web, check weather &amp; air quality, convert units and
+               currencies, manage notes, fact-check claims, summarize, translate and more.</p>
+            <div class="suggestions">
+              <button class="chip">What's the weather in Tokyo?</button>
+              <button class="chip">Convert 100 USD to INR</button>
+              <button class="chip">What happened on 21 July 1969?</button>
+              <button class="chip">Summarize the latest AI news</button>
+            </div>
+          </div>
+        </div>
+        <div class="composer">
+          <textarea id="composer-input" rows="1"
+                    placeholder="Message the agent…  (Enter to send, Shift+Enter for newline)"></textarea>
+          <button id="send-btn" class="send-btn" title="Send">➤</button>
+        </div>
+      </section>
+
+      <!-- Tool view -->
+      <section id="tool-view" class="view">
+        <div class="tool-panel">
+          <h2 id="tool-panel-title">Tool</h2>
+          <p id="tool-panel-desc" class="muted"></p>
+          <form id="tool-form"><!-- populated by JS --></form>
+          <div class="tool-actions">
+            <button id="tool-run" class="primary-btn">Run tool</button>
+            <button id="tool-back" class="ghost-btn">Back to chat</button>
+          </div>
+          <pre id="tool-result" class="tool-result" hidden></pre>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <script src="/static/app.js"></script>
+</body>
+</html>
