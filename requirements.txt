@@ -1,0 +1,11 @@
+# Core GUI stack (required)
+PyQt6>=6.5
+PyQt6-QScintilla>=2.14
+
+# Google Drive support (optional)
+google-api-python-client>=2.100
+google-auth-oauthlib>=1.2
+
+# OneDrive support (optional)
+msal>=1.28
+requests>=2.31

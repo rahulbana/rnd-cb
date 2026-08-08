@@ -1,0 +1,37 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "pytextedit"
+version = "0.1.0"
+description = "A Notepad++-style text editor with Google Drive and OneDrive save"
+readme = "README.md"
+requires-python = ">=3.9"
+license = { text = "MIT" }
+dependencies = [
+    "PyQt6>=6.5",
+    "PyQt6-QScintilla>=2.14",
+]
+
+[project.optional-dependencies]
+gdrive = [
+    "google-api-python-client>=2.100",
+    "google-auth-oauthlib>=1.2",
+]
+onedrive = [
+    "msal>=1.28",
+    "requests>=2.31",
+]
+cloud = [
+    "google-api-python-client>=2.100",
+    "google-auth-oauthlib>=1.2",
+    "msal>=1.28",
+    "requests>=2.31",
+]
+
+[project.scripts]
+pytextedit = "pytextedit.__main__:main"
+
+[tool.setuptools.packages.find]
+include = ["pytextedit*"]
