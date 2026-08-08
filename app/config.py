@@ -42,13 +42,17 @@ class Config:
     # --- File system ---
     workspace_dir: str
 
-    # --- Email ---
+    # --- Email (SMTP send / IMAP read) ---
     smtp_host: str | None
     smtp_port: int
     smtp_user: str | None
     smtp_password: str | None
     email_from: str | None
     email_dry_run: bool
+    imap_host: str | None
+    imap_port: int
+    imap_user: str | None
+    imap_password: str | None
 
     # --- Agent ---
     max_steps: int
@@ -69,6 +73,11 @@ class Config:
             smtp_password=os.getenv("SMTP_PASSWORD"),
             email_from=os.getenv("EMAIL_FROM") or os.getenv("SMTP_USER"),
             email_dry_run=_bool(os.getenv("EMAIL_DRY_RUN"), True),
+            imap_host=os.getenv("IMAP_HOST"),
+            imap_port=int(os.getenv("IMAP_PORT", "993")),
+            # Default IMAP credentials to the SMTP ones (same mailbox).
+            imap_user=os.getenv("IMAP_USER") or os.getenv("SMTP_USER"),
+            imap_password=os.getenv("IMAP_PASSWORD") or os.getenv("SMTP_PASSWORD"),
             max_steps=int(os.getenv("AGENT_MAX_STEPS", "12")),
         )
 

@@ -11,7 +11,8 @@ tools:
 | **Web search** (`web_search`) | Quick web lookups via Tavily. |
 | **Deep web search** (`deep_web_search`) | In-depth multi-source research with full-page extraction via Tavily. |
 | **File system** (`fs_*`) | Read/write/list/delete files inside a sandboxed workspace. |
-| **Email** (`send_email`) | Send email over SMTP (send-only, with a dry-run mode). |
+| **Email — send** (`send_email`) | Send email over SMTP, with a dry-run mode. |
+| **Email — read** (`search_emails`, `read_email`) | Search and read a mailbox over IMAP (read-only; never marks messages seen). |
 | **Calculator** (`calculator`) | Safe, exact arithmetic (AST-based, no `eval`). |
 
 Everything is plain Python — the whole agent loop is ~60 readable lines in
@@ -30,7 +31,7 @@ app/
     database.py   SQLite tool (swappable to Postgres)
     web_search.py / deep_search.py   Tavily quick + deep research
     filesystem.py Sandboxed file access
-    email_tool.py SMTP send-only
+    email_tool.py SMTP send + IMAP read
     calculator.py AST-based safe evaluator
 data/
   schema.sql      Ecommerce schema (Postgres-friendly DDL)
@@ -68,8 +69,10 @@ python -m app
 - `OPENAI_API_KEY` — **required**.
 - `TAVILY_API_KEY` — optional; without it the two search tools return a clear
   "not configured" message instead of failing.
-- SMTP settings — optional; email defaults to `EMAIL_DRY_RUN=true`, so composed
-  messages are shown for review rather than actually sent.
+- SMTP settings — optional; sending defaults to `EMAIL_DRY_RUN=true`, so
+  composed messages are shown for review rather than actually sent.
+- IMAP settings — optional; enable `search_emails` / `read_email`. Credentials
+  default to the SMTP ones. Reading is always read-only.
 
 ## Seed data (ecommerce domain)
 
