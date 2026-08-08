@@ -96,6 +96,40 @@ reproducible testing.
 - "Research current market prices for wireless earbuds and compare to my Aurora Earbuds Pro."
 - "Draft a restock reminder email to myself and save it to a file."
 
+### Shell tool prompts
+
+The shell tool is **off by default** — set `SHELL_TOOL_ENABLED=true` in `.env`
+first (see the safety note below). Then just describe the task in plain
+English; the agent decides when to call `run_shell` and reads back the exit
+code, stdout, and stderr.
+
+System / file inspection:
+
+- "Show me the disk usage of the current directory, biggest folders first."
+- "How many Python files are in this project and how many lines total?"
+- "Check whether `sqlite3` and `python3` are installed and print their versions."
+
+Git / project:
+
+- "Run git status and the last 5 commits, then summarize what changed recently."
+- "Create a .venv, install requirements.txt into it, and tell me if anything failed."
+- "Run the tests with `pytest -q`; if they fail, show me only the failing test names."
+
+Combining shell with the other tools (where it shines):
+
+- "Export my top 10 products by revenue to workspace/top_products.csv, then run
+  `wc -l` on the file to confirm the row count."
+- "Back up the database by copying data/ecommerce.db to
+  workspace/backup_$(date +%F).db, then list the workspace to confirm."
+
+Keeping it constrained — say so and the agent will comply:
+
+- "Using the shell, show me what `find . -name \"*.db\"` returns — don't delete anything."
+- "Run this exact command and just report the output: `uname -a && whoami`"
+
+Commands run in a fixed working directory (the workspace sandbox unless
+`SHELL_WORKDIR` is set) with a timeout (`SHELL_TIMEOUT`, default 30s).
+
 ## CLI commands
 
 `/reset` clear history · `/tools` list tools · `/help` help · `/exit` quit.
