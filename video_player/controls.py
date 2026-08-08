@@ -7,20 +7,19 @@ playback logic of its own.
 
 from __future__ import annotations
 
-from PySide6.QtCore import Qt, Signal
+from PySide6.QtCore import Qt, QSize, Signal
 from PySide6.QtWidgets import (
     QComboBox,
     QHBoxLayout,
     QLabel,
-    QPushButton,
     QSizePolicy,
     QSlider,
-    QStyle,
     QToolButton,
     QVBoxLayout,
     QWidget,
 )
 
+from . import icons
 from .utils import format_time
 
 # Playback rates offered in the speed selector.
@@ -58,30 +57,34 @@ class ControlBar(QWidget):
 
     def __init__(self, parent=None) -> None:
         super().__init__(parent)
+        self.setObjectName("controlBar")
         self._length_ms = 0
         self._seeking = False
         self._build_ui()
 
     # ------------------------------------------------------------------ build
     def _build_ui(self) -> None:
-        style = self.style()
         outer = QVBoxLayout(self)
-        outer.setContentsMargins(8, 4, 8, 8)
-        outer.setSpacing(4)
+        outer.setContentsMargins(16, 8, 16, 12)
+        outer.setSpacing(8)
 
         # --- seek row: elapsed / slider / total -----------------------------
         seek_row = QHBoxLayout()
+        seek_row.setSpacing(10)
         self.time_label = QLabel("0:00")
-        self.time_label.setMinimumWidth(48)
+        self.time_label.setObjectName("timeLabel")
+        self.time_label.setMinimumWidth(46)
         self.time_label.setAlignment(Qt.AlignCenter)
 
         self.seek_slider = SeekSlider()
+        self.seek_slider.setObjectName("seekSlider")
         self.seek_slider.sliderPressed.connect(self._on_seek_pressed)
         self.seek_slider.sliderReleased.connect(self._on_seek_released)
         self.seek_slider.sliderMoved.connect(self._on_seek_moved)
 
         self.duration_label = QLabel("0:00")
-        self.duration_label.setMinimumWidth(48)
+        self.duration_label.setObjectName("timeLabel")
+        self.duration_label.setMinimumWidth(46)
         self.duration_label.setAlignment(Qt.AlignCenter)
 
         seek_row.addWidget(self.time_label)
@@ -93,52 +96,35 @@ class ControlBar(QWidget):
         buttons = QHBoxLayout()
         buttons.setSpacing(6)
 
-        self.play_button = self._tool_button(
-            style.standardIcon(QStyle.SP_MediaPlay), "Play/Pause (Space)"
-        )
-        self.play_button.clicked.connect(self.play_pause_clicked)
-
-        self.stop_button = self._tool_button(
-            style.standardIcon(QStyle.SP_MediaStop), "Stop"
-        )
-        self.stop_button.clicked.connect(self.stop_clicked)
-
-        self.prev_button = self._tool_button(
-            style.standardIcon(QStyle.SP_MediaSkipBackward), "Previous (P)"
-        )
+        self.prev_button = self._icon_button("prev", "Previous (P)")
         self.prev_button.clicked.connect(self.previous_clicked)
 
-        self.next_button = self._tool_button(
-            style.standardIcon(QStyle.SP_MediaSkipForward), "Next (N)"
-        )
+        self.play_button = self._icon_button("play", "Play/Pause (Space)", size=28)
+        self.play_button.setObjectName("playButton")
+        self.play_button.setIconSize(QSize(28, 28))
+        self.play_button.clicked.connect(self.play_pause_clicked)
+
+        self.stop_button = self._icon_button("stop", "Stop (S)")
+        self.stop_button.clicked.connect(self.stop_clicked)
+
+        self.next_button = self._icon_button("next", "Next (N)")
         self.next_button.clicked.connect(self.next_clicked)
 
         buttons.addWidget(self.prev_button)
         buttons.addWidget(self.play_button)
-        buttons.addWidget(self.stop_button)
         buttons.addWidget(self.next_button)
+        buttons.addSpacing(6)
+        buttons.addWidget(self.stop_button)
 
         buttons.addStretch(1)
 
-        # speed selector
-        buttons.addWidget(QLabel("Speed"))
-        self.speed_combo = QComboBox()
-        for rate in SPEED_OPTIONS:
-            self.speed_combo.addItem(f"{rate:g}x", rate)
-        self.speed_combo.setCurrentIndex(SPEED_OPTIONS.index(1.0))
-        self.speed_combo.currentIndexChanged.connect(self._on_speed_changed)
-        buttons.addWidget(self.speed_combo)
-
-        buttons.addSpacing(12)
-
         # mute + volume
-        self.mute_button = self._tool_button(
-            style.standardIcon(QStyle.SP_MediaVolume), "Mute (M)"
-        )
+        self.mute_button = self._icon_button("volume", "Mute (M)")
         self.mute_button.clicked.connect(self.mute_toggled)
         buttons.addWidget(self.mute_button)
 
         self.volume_slider = QSlider(Qt.Horizontal)
+        self.volume_slider.setObjectName("volumeSlider")
         self.volume_slider.setRange(0, 100)
         self.volume_slider.setValue(80)
         self.volume_slider.setFixedWidth(110)
@@ -146,34 +132,44 @@ class ControlBar(QWidget):
         self.volume_slider.valueChanged.connect(self.volume_changed)
         buttons.addWidget(self.volume_slider)
 
-        buttons.addSpacing(12)
+        buttons.addSpacing(16)
 
-        self.fullscreen_button = self._tool_button(
-            style.standardIcon(QStyle.SP_TitleBarMaxButton), "Fullscreen (F)"
-        )
+        # speed selector
+        speed_label = QLabel("Speed")
+        speed_label.setObjectName("timeLabel")
+        buttons.addWidget(speed_label)
+        self.speed_combo = QComboBox()
+        for rate in SPEED_OPTIONS:
+            self.speed_combo.addItem(f"{rate:g}x", rate)
+        self.speed_combo.setCurrentIndex(SPEED_OPTIONS.index(1.0))
+        self.speed_combo.currentIndexChanged.connect(self._on_speed_changed)
+        buttons.addWidget(self.speed_combo)
+
+        buttons.addSpacing(16)
+
+        self.fullscreen_button = self._icon_button("fullscreen", "Fullscreen (F)")
         self.fullscreen_button.clicked.connect(self.fullscreen_clicked)
         buttons.addWidget(self.fullscreen_button)
 
         outer.addLayout(buttons)
 
-    def _tool_button(self, icon, tooltip: str) -> QToolButton:
+    def _icon_button(self, name: str, tooltip: str, size: int = 22) -> QToolButton:
         button = QToolButton()
-        button.setIcon(icon)
+        button.setIcon(icons.icon(name))
+        button.setIconSize(QSize(size, size))
         button.setToolTip(tooltip)
-        button.setAutoRaise(True)
+        button.setCursor(Qt.PointingHandCursor)
         button.setSizePolicy(QSizePolicy.Fixed, QSizePolicy.Fixed)
         return button
 
     # ------------------------------------------------------- state from engine
     def set_playing(self, playing: bool) -> None:
-        style = self.style()
-        icon = QStyle.SP_MediaPause if playing else QStyle.SP_MediaPlay
-        self.play_button.setIcon(style.standardIcon(icon))
+        # The play button sits on the accent color, so its icon stays white.
+        name = "pause" if playing else "play"
+        self.play_button.setIcon(icons.icon(name, color="#ffffff", hover="#ffffff"))
 
     def set_muted(self, muted: bool) -> None:
-        style = self.style()
-        icon = QStyle.SP_MediaVolumeMuted if muted else QStyle.SP_MediaVolume
-        self.mute_button.setIcon(style.standardIcon(icon))
+        self.mute_button.setIcon(icons.icon("muted" if muted else "volume"))
 
     def set_volume_display(self, volume: int) -> None:
         blocked = self.volume_slider.blockSignals(True)
@@ -185,6 +181,10 @@ class ControlBar(QWidget):
             blocked = self.speed_combo.blockSignals(True)
             self.speed_combo.setCurrentIndex(SPEED_OPTIONS.index(rate))
             self.speed_combo.blockSignals(blocked)
+
+    def set_fullscreen_display(self, fullscreen: bool) -> None:
+        name = "fullscreen_exit" if fullscreen else "fullscreen"
+        self.fullscreen_button.setIcon(icons.icon(name))
 
     def update_position(self, position_ms: int, length_ms: int) -> None:
         """Sync slider and labels; ignored while the user is dragging."""

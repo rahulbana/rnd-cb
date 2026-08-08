@@ -32,6 +32,15 @@ def main(argv: Optional[List[str]] = None) -> int:
     app.setApplicationName(__app_name__)
     app.setApplicationDisplayName(__app_name__)
 
+    # Fusion is a consistent base for our custom dark stylesheet across OSes.
+    from PySide6.QtWidgets import QStyleFactory
+
+    from .theme import stylesheet
+
+    if "Fusion" in QStyleFactory.keys():
+        app.setStyle("Fusion")
+    app.setStyleSheet(stylesheet())
+
     vlc_error = _check_vlc()
     if vlc_error:
         QMessageBox.critical(None, __app_name__, vlc_error)

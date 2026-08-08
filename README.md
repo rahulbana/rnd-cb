@@ -11,6 +11,9 @@ Built with **PySide6** (Qt) for the interface and **libvlc** (via
 
 ## Features
 
+- **Modern dark UI** — flat, accent-colored theme with crisp SVG icons, a
+  circular play button, click-to-seek progress bar, and a styled playlist.
+  Controls and cursor auto-hide in fullscreen after a few idle seconds.
 - **Plays everything** — MP4, MKV, AVI, MOV, WebM, MP3, FLAC, WAV, and more,
   courtesy of the VLC engine.
 - **Online & streaming** — paste a YouTube URL or a direct HTTP/HLS/RTSP
@@ -95,13 +98,15 @@ or just drag files and links onto the window.
 
 ```
 video_player/
-├── app.py          # entry point; creates the Qt app, checks for libvlc
-├── main_window.py  # main window: menus, shortcuts, wiring
+├── app.py          # entry point; creates the Qt app, applies theme, checks libvlc
+├── main_window.py  # main window: menus, shortcuts, fullscreen auto-hide, wiring
 ├── player.py       # libvlc wrapper (PlayerEngine) with Qt signals
 ├── controls.py     # transport control bar (seek/volume/speed)
 ├── playlist.py     # playlist model + list widget
-├── video_frame.py  # black video output surface
+├── video_frame.py  # video output surface + idle placeholder
 ├── resolver.py     # yt-dlp URL resolution on a worker thread
+├── theme.py        # dark theme palette + global Qt stylesheet
+├── icons.py        # crisp SVG icons, tinted to the theme
 └── utils.py        # time formatting, URL/media helpers
 ```
 

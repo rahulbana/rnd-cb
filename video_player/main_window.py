@@ -10,7 +10,7 @@ import os
 from typing import Optional
 
 from PySide6.QtCore import Qt, QTimer
-from PySide6.QtGui import QAction, QActionGroup, QKeySequence
+from PySide6.QtGui import QAction, QActionGroup, QCursor, QKeySequence
 from PySide6.QtWidgets import (
     QDockWidget,
     QFileDialog,
@@ -52,7 +52,14 @@ class MainWindow(QMainWindow):
         self.engine = PlayerEngine(self)
         self.playlist = Playlist()
         self.resolver = UrlResolver(self)
-        self._was_fullscreen_playing = False
+
+        # Fullscreen auto-hide: poll the global cursor and hide the chrome and
+        # cursor after a few seconds of no movement while playing fullscreen.
+        self._last_cursor_pos = QCursor.pos()
+        self._idle_ms = 0
+        self._idle_timer = QTimer(self)
+        self._idle_timer.setInterval(500)
+        self._idle_timer.timeout.connect(self._check_cursor_idle)
 
         self._build_ui()
         self._build_menus()
@@ -260,6 +267,7 @@ class MainWindow(QMainWindow):
 
     def _play_item(self, item: PlaylistItem) -> None:
         self.engine.open(item.mrl, play=True)
+        self.video_frame.set_placeholder_visible(False)
         self.setWindowTitle(f"{item.title} — {__app_name__}")
         self._set_status(f"Playing: {item.title}")
 
@@ -271,6 +279,7 @@ class MainWindow(QMainWindow):
 
     def stop(self) -> None:
         self.engine.stop()
+        self.video_frame.set_placeholder_visible(True)
         self._set_status("Stopped")
 
     def play_next(self) -> None:
@@ -372,15 +381,45 @@ class MainWindow(QMainWindow):
         self.menuBar().hide()
         self.status.hide()
         self.playlist_dock.hide()
+        self.controls.set_fullscreen_display(True)
         self.showFullScreen()
+        # Begin watching for an idle cursor so the chrome can fade away.
+        self._idle_ms = 0
+        self._last_cursor_pos = QCursor.pos()
+        self._idle_timer.start()
 
     def _exit_fullscreen(self) -> None:
         if not self.isFullScreen():
             return
+        self._idle_timer.stop()
+        self._reveal_chrome()
         self.menuBar().show()
         self.status.show()
         self.playlist_dock.show()
+        self.controls.set_fullscreen_display(False)
         self.showNormal()
+
+    def _check_cursor_idle(self) -> None:
+        """Hide controls and cursor after a few idle seconds in fullscreen."""
+        if not self.isFullScreen():
+            return
+        pos = QCursor.pos()
+        if pos != self._last_cursor_pos:
+            self._last_cursor_pos = pos
+            self._idle_ms = 0
+            self._reveal_chrome()
+            return
+        self._idle_ms += self._idle_timer.interval()
+        if self._idle_ms >= 2500 and self.engine.is_playing():
+            self._hide_chrome()
+
+    def _hide_chrome(self) -> None:
+        self.controls.hide()
+        self.setCursor(Qt.BlankCursor)
+
+    def _reveal_chrome(self) -> None:
+        self.controls.show()
+        self.unsetCursor()
 
     def toggle_playlist(self) -> None:
         self.playlist_dock.setVisible(not self.playlist_dock.isVisible())

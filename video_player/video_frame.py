@@ -9,7 +9,7 @@ from __future__ import annotations
 
 from PySide6.QtCore import Qt, Signal
 from PySide6.QtGui import QColor, QPalette
-from PySide6.QtWidgets import QFrame
+from PySide6.QtWidgets import QFrame, QLabel, QVBoxLayout
 
 
 class VideoFrame(QFrame):
@@ -28,6 +28,23 @@ class VideoFrame(QFrame):
         self.setPalette(palette)
         self.setMouseTracking(True)
         self.setFocusPolicy(Qt.StrongFocus)
+
+        # A centered hint shown before anything is playing. It is hidden once
+        # video output takes over the surface.
+        layout = QVBoxLayout(self)
+        layout.setAlignment(Qt.AlignCenter)
+        self.placeholder = QLabel(
+            "▶  Open a file or drag media here\n\n"
+            "Media → Open File…  ·  Open URL / YouTube…"
+        )
+        self.placeholder.setAlignment(Qt.AlignCenter)
+        self.placeholder.setStyleSheet(
+            "color: #6b7280; font-size: 15px; background: transparent;"
+        )
+        layout.addWidget(self.placeholder)
+
+    def set_placeholder_visible(self, visible: bool) -> None:
+        self.placeholder.setVisible(visible)
 
     def video_handle(self) -> int:
         """Native window id to hand to ``PlayerEngine.set_output_window``."""
