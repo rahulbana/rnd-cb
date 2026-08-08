@@ -14,6 +14,7 @@ tools:
 | **Email — send** (`send_email`) | Send email over SMTP, with a dry-run mode. |
 | **Email — read** (`search_emails`, `read_email`) | Search and read a mailbox over IMAP (read-only; never marks messages seen). |
 | **Calculator** (`calculator`) | Safe, exact arithmetic (AST-based, no `eval`). |
+| **Shell** (`run_shell`) | Run shell commands. **Disabled by default** — opt in with `SHELL_TOOL_ENABLED=true`. Timeout + bounded output. |
 
 Everything is plain Python — the whole agent loop is ~60 readable lines in
 [`app/agent.py`](app/agent.py).
@@ -33,6 +34,7 @@ app/
     filesystem.py Sandboxed file access
     email_tool.py SMTP send + IMAP read
     calculator.py AST-based safe evaluator
+    shell.py      Shell command runner (opt-in, off by default)
 data/
   schema.sql      Ecommerce schema (Postgres-friendly DDL)
 scripts/
@@ -105,6 +107,10 @@ reproducible testing.
 - The file system tool is **sandboxed** to `WORKSPACE_DIR` — path traversal is
   blocked.
 - Email is **dry-run by default**; set `EMAIL_DRY_RUN=false` to send for real.
+- The shell tool is **disabled by default**; it only appears when
+  `SHELL_TOOL_ENABLED=true`. It runs arbitrary commands with your privileges —
+  enable it only in an environment you trust. Commands run in a fixed working
+  directory with a timeout and bounded output.
 
 ## Moving to Postgres later
 

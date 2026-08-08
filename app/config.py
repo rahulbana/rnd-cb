@@ -54,6 +54,11 @@ class Config:
     imap_user: str | None
     imap_password: str | None
 
+    # --- Shell tool ---
+    shell_enabled: bool
+    shell_timeout: int
+    shell_workdir: str | None
+
     # --- Agent ---
     max_steps: int
 
@@ -78,6 +83,9 @@ class Config:
             # Default IMAP credentials to the SMTP ones (same mailbox).
             imap_user=os.getenv("IMAP_USER") or os.getenv("SMTP_USER"),
             imap_password=os.getenv("IMAP_PASSWORD") or os.getenv("SMTP_PASSWORD"),
+            shell_enabled=_bool(os.getenv("SHELL_TOOL_ENABLED"), False),
+            shell_timeout=int(os.getenv("SHELL_TIMEOUT", "30")),
+            shell_workdir=os.getenv("SHELL_WORKDIR"),
             max_steps=int(os.getenv("AGENT_MAX_STEPS", "12")),
         )
 

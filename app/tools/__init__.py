@@ -8,6 +8,7 @@ from . import (
     deep_search,
     email_tool,
     filesystem,
+    shell,
     web_search,
 )
 from .base import Tool, ToolRegistry
@@ -20,6 +21,7 @@ _MODULES = [
     filesystem,
     email_tool,
     calculator,
+    shell,
 ]
 
 
