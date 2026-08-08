@@ -1,0 +1,6 @@
+# Core runtime dependencies for PyPlayer.
+# NOTE: python-vlc also requires the VLC media player (libvlc) to be installed
+# on the system. Get it from https://www.videolan.org/vlc/
+PySide6>=6.5
+python-vlc>=3.0.18
+yt-dlp>=2024.1.0
