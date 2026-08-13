@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>AutoDev — Autonomous AI Code Generator</title>
+  <link rel="stylesheet" href="/static/style.css" />
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand">
+      <span class="logo">◆</span>
+      <span>AutoDev</span>
+      <span class="tag">autonomous code generator</span>
+    </div>
+    <div class="status-pill" id="providerStatus" title="LLM provider">…</div>
+  </header>
+
+  <main class="layout">
+    <aside class="sidebar">
+      <div class="new-project">
+        <textarea id="goalInput" rows="3"
+          placeholder="Describe what to build, e.g. 'a CLI todo app in Python' or 'a REST API for a bookstore in Go'"></textarea>
+        <button id="createBtn" class="primary">Build it</button>
+      </div>
+      <div class="project-list" id="projectList"></div>
+    </aside>
+
+    <section class="content" id="content">
+      <div class="empty" id="emptyState">
+        <h2>Nothing selected</h2>
+        <p>Describe a project on the left and AutoDev will plan, generate,
+           set up an isolated sandbox, write tests, run them, and fix failures
+           — all on its own. Close the app any time; work continues and progress
+           is saved.</p>
+      </div>
+
+      <div class="project-view hidden" id="projectView">
+        <div class="project-header">
+          <div>
+            <h2 id="pName">—</h2>
+            <div class="sub" id="pDesc"></div>
+          </div>
+          <div class="header-actions">
+            <span class="badge" id="pStatus">—</span>
+            <button id="runBtn" class="ghost">Run</button>
+            <button id="stopBtn" class="ghost">Stop</button>
+            <button id="deleteBtn" class="ghost danger">Delete</button>
+          </div>
+        </div>
+
+        <div class="tabs">
+          <button class="tab active" data-tab="stream">Live stream</button>
+          <button class="tab" data-tab="files">Files</button>
+          <button class="tab" data-tab="plan">Plan</button>
+        </div>
+
+        <div class="tab-panel" id="tab-stream">
+          <div class="stream" id="stream"></div>
+        </div>
+
+        <div class="tab-panel hidden" id="tab-files">
+          <div class="files-layout">
+            <ul class="file-list" id="fileList"></ul>
+            <pre class="file-view" id="fileView">Select a file…</pre>
+          </div>
+        </div>
+
+        <div class="tab-panel hidden" id="tab-plan">
+          <pre class="plan-view" id="planView">No plan yet.</pre>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <script src="/static/app.js"></script>
+</body>
+</html>

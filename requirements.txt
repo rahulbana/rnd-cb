@@ -1,0 +1,15 @@
+# ---- Core (required) ----
+fastapi>=0.110
+uvicorn[standard]>=0.29
+pydantic>=2.6
+pydantic-settings>=2.2
+sqlalchemy>=2.0
+httpx>=0.27
+python-dotenv>=1.0
+jinja2>=3.1
+websockets>=12.0
+
+# ---- Optional: long-term vector memory ----
+# Installed only if you enable AUTODEV_MEMORY_ENABLED=true.
+# These are heavy; keep them out of the core install if you don't need memory.
+#   pip install -r requirements-memory.txt

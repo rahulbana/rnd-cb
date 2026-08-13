@@ -1,0 +1,5 @@
+# Optional long-term memory stack. Install with:
+#   pip install -r requirements-memory.txt
+# Then set AUTODEV_MEMORY_ENABLED=true in your .env
+chromadb>=0.5
+sentence-transformers>=2.7
