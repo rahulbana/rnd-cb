@@ -1,0 +1,24 @@
+[build-system]
+requires = ["setuptools>=64"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "testgen-agent"
+version = "0.1.0"
+description = "LLM-powered CLI agent that writes test cases for a file or a whole project (OpenAI / Ollama)."
+readme = "README.md"
+requires-python = ">=3.10"
+license = { text = "MIT" }
+dependencies = [
+    "requests>=2.28",
+]
+
+[project.optional-dependencies]
+openai = ["openai>=1.0"]
+dev = ["pytest>=7.0"]
+
+[project.scripts]
+testgen = "testgen.cli:main"
+
+[tool.setuptools]
+packages = ["testgen", "testgen.llm"]

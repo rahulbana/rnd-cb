@@ -1,0 +1,5 @@
+# Core (always needed for the Ollama backend and HTTP)
+requests>=2.28
+
+# Needed only for the OpenAI backend
+openai>=1.0
