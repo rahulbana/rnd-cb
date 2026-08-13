@@ -160,6 +160,59 @@ already written above."""
     ]
 
 
+CHAT_SYSTEM = """You are AutoDev, an autonomous senior software engineer
+iterating on an EXISTING project in response to the user's feedback. Apply the
+requested change by returning corrected/added FULL file contents. Keep the
+project runnable and its tests passing. Respond with a SINGLE valid JSON object
+and nothing else."""
+
+
+def chat_messages(
+    goal: str,
+    plan: dict,
+    files: dict[str, str],
+    feedback: str,
+    history: list[dict] | None = None,
+) -> list[dict]:
+    files_block = "\n\n".join(
+        f"=== FILE: {path} ===\n{content}" for path, content in files.items()
+    )
+    if len(files_block) > 60000:
+        files_block = files_block[:60000] + "\n... [truncated] ..."
+
+    history_block = ""
+    if history:
+        lines = [f"{m['role']}: {m['content']}" for m in history[-6:]]
+        history_block = "Recent conversation:\n" + "\n".join(lines) + "\n\n"
+
+    user = f"""Original request:
+\"\"\"{goal}\"\"\"
+
+Build plan:
+{json.dumps(plan, indent=2)}
+
+Current project files:
+{files_block}
+
+{history_block}The user's new feedback:
+\"\"\"{feedback}\"\"\"
+
+Apply it. Return JSON:
+{{
+  "reply": "a short, friendly chat reply describing what you changed",
+  "files": [
+    {{"path": "relative/path.ext", "content": "FULL new content"}}
+  ],
+  "delete": ["relative/path/to/remove.ext"]
+}}
+Include full content for every file you add or change. Use "delete" only for
+files that should be removed (usually leave it empty). Keep tests working."""
+    return [
+        {"role": "system", "content": CHAT_SYSTEM},
+        {"role": "user", "content": user},
+    ]
+
+
 def fix_messages(
     goal: str, plan: dict, files: dict[str, str], failing_output: str
 ) -> list[dict]:

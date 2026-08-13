@@ -65,6 +65,14 @@ def get_artifacts(project_id: str) -> list[dict]:
         return [a.to_dict() for a in rows]
 
 
+def add_message(project_id: str, role: str, content: str) -> dict:
+    with session_scope() as session:
+        msg = Message(project_id=project_id, role=role, content=content)
+        session.add(msg)
+        session.flush()
+        return msg.to_dict()
+
+
 def get_messages(project_id: str) -> list[dict]:
     with session_scope() as session:
         rows = (

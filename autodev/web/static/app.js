@@ -109,6 +109,7 @@ async function selectProject(id) {
   renderHeader(p);
   renderFiles(p.artifacts || []);
   renderPlan(p.plan);
+  renderMessages(p.messages || []);
   await loadProjects();
 
   // Replay persisted events, then open the live socket.
@@ -130,6 +131,53 @@ function renderHeader(p) {
   $("#stopBtn").disabled = !p.running;
   $("#approvalBar").classList.toggle("hidden", !awaiting);
 }
+
+function renderMessages(messages) {
+  const box = $("#chatMessages");
+  box.innerHTML = "";
+  if (!messages.length) {
+    box.appendChild(el("div", "chat-empty",
+      "No messages yet. Send feedback and AutoDev will update the project."));
+    return;
+  }
+  for (const m of messages) {
+    box.appendChild(el("div", "bubble " + m.role, m.content));
+  }
+  box.scrollTop = box.scrollHeight;
+}
+
+async function sendChat() {
+  const input = $("#chatInput");
+  const text = input.value.trim();
+  if (!text || !state.projectId) return;
+  input.value = "";
+  // Optimistic bubble.
+  const box = $("#chatMessages");
+  const emptyHint = box.querySelector(".chat-empty");
+  if (emptyHint) emptyHint.remove();
+  box.appendChild(el("div", "bubble user", text));
+  box.scrollTop = box.scrollHeight;
+
+  try {
+    const res = await api(`/api/projects/${state.projectId}/chat`, {
+      method: "POST",
+      body: JSON.stringify({ message: text }),
+    });
+    if (!res.ok) {
+      box.appendChild(el("div", "bubble system", res.detail || "Cannot chat right now."));
+    } else {
+      connectSocket(state.projectId);
+    }
+    refreshSidePanels();
+  } catch (e) {
+    box.appendChild(el("div", "bubble system", "Failed to send: " + e.message));
+  }
+}
+
+$("#chatSend").onclick = sendChat;
+$("#chatInput").addEventListener("keydown", (e) => {
+  if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) sendChat();
+});
 
 function renderPlan(plan) {
   $("#planView").textContent = plan
@@ -254,6 +302,7 @@ function refreshSidePanels() {
       renderHeader(p);
       renderFiles(p.artifacts || []);
       renderPlan(p.plan);
+      renderMessages(p.messages || []);
       loadProjects();
     } catch (e) {}
   }, 400);

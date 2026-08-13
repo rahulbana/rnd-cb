@@ -48,6 +48,13 @@ class SandboxManager:
     def read_file(self, relative: str) -> str:
         return self.resolve(relative).read_text(encoding="utf-8", errors="replace")
 
+    def delete_file(self, relative: str) -> bool:
+        target = self.resolve(relative)
+        if target.exists() and target.is_file():
+            target.unlink()
+            return True
+        return False
+
     def list_files(self) -> list[str]:
         out: list[str] = []
         skip = {".git", "__pycache__", ".venv", "node_modules", ".pytest_cache"}

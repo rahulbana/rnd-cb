@@ -18,6 +18,10 @@ class ReviseRequest(BaseModel):
     feedback: str = Field(..., min_length=1, description="How to change the plan")
 
 
+class ChatRequest(BaseModel):
+    message: str = Field(..., min_length=1, description="Feedback for the project")
+
+
 class SimpleOk(BaseModel):
     ok: bool = True
     detail: str = ""

@@ -44,6 +44,7 @@ class RunManager:
         project_id: str,
         resume: bool = False,
         revision_feedback: str | None = None,
+        chat_feedback: str | None = None,
     ) -> bool:
         """Launch a background run. Returns False if one is already active."""
         if self.is_running(project_id):
@@ -55,7 +56,10 @@ class RunManager:
 
         stop_event = asyncio.Event()
         agent = AutoDevAgent(
-            project_id, stop_event=stop_event, revision_feedback=revision_feedback
+            project_id,
+            stop_event=stop_event,
+            revision_feedback=revision_feedback,
+            chat_feedback=chat_feedback,
         )
         task = asyncio.create_task(agent.run(resume=resume), name=f"run-{project_id}")
         self._runs[project_id] = RunHandle(task=task, stop_event=stop_event)
@@ -85,6 +89,19 @@ class RunManager:
             if not project or project.status != ProjectStatus.awaiting_approval:
                 return False
         return self.start(project_id, resume=False, revision_feedback=feedback)
+
+    def chat(self, project_id: str, feedback: str) -> bool:
+        """Iterate on an existing project from a user's chat feedback."""
+        if self.is_running(project_id):
+            return False
+        with session_scope() as session:
+            project = session.get(Project, project_id)
+            if not project:
+                return False
+            # Chatting only makes sense once there's something built to iterate on.
+            if project.status == ProjectStatus.awaiting_approval:
+                return False
+        return self.start(project_id, chat_feedback=feedback)
 
     async def stop(self, project_id: str) -> bool:
         handle = self._runs.get(project_id)

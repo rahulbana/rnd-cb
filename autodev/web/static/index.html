@@ -69,12 +69,24 @@
 
         <div class="tabs">
           <button class="tab active" data-tab="stream">Live stream</button>
+          <button class="tab" data-tab="chat">Chat</button>
           <button class="tab" data-tab="files">Files</button>
           <button class="tab" data-tab="plan">Plan</button>
         </div>
 
         <div class="tab-panel" id="tab-stream">
           <div class="stream" id="stream"></div>
+        </div>
+
+        <div class="tab-panel hidden" id="tab-chat">
+          <div class="chat">
+            <div class="chat-messages" id="chatMessages"></div>
+            <div class="chat-input">
+              <textarea id="chatInput" rows="2"
+                placeholder="Give feedback — e.g. 'add a subtract function', 'switch to Flask', 'write more tests'"></textarea>
+              <button id="chatSend" class="primary small">Send</button>
+            </div>
+          </div>
         </div>
 
         <div class="tab-panel hidden" id="tab-files">

@@ -37,6 +37,7 @@ class AutoDevAgent:
         stop_event: Optional[asyncio.Event] = None,
         provider: Optional[LLMProvider] = None,
         revision_feedback: Optional[str] = None,
+        chat_feedback: Optional[str] = None,
     ):
         self.project_id = project_id
         self.settings = get_settings()
@@ -49,6 +50,7 @@ class AutoDevAgent:
         self.plan: dict = {}
         self.require_approval = False
         self.revision_feedback = revision_feedback
+        self.chat_feedback = chat_feedback
 
     # ------------------------------------------------------------------
     # persistence helpers
@@ -125,6 +127,8 @@ class AutoDevAgent:
     # ------------------------------------------------------------------
 
     async def run(self, resume: bool = False) -> None:
+        if self.chat_feedback:
+            return await self._run_chat()
         try:
             project = self._load_project()
             self.goal = project.goal
@@ -196,6 +200,104 @@ class AutoDevAgent:
             phase="awaiting_approval",
             data={"plan": self.plan},
         )
+
+    # ------------------------------------------------------------------
+    # chat: iterate on an existing project from user feedback
+    # ------------------------------------------------------------------
+
+    def _load_existing_files(self) -> None:
+        assert self.sandbox is not None
+        for rel in self.sandbox.list_files():
+            try:
+                self.files[rel] = self.sandbox.read_file(rel)
+            except Exception:
+                continue
+
+    def _history(self) -> list[dict]:
+        with session_scope() as session:
+            rows = (
+                session.query(Message)
+                .filter(Message.project_id == self.project_id)
+                .order_by(Message.id.asc())
+                .all()
+            )
+            return [{"role": m.role, "content": m.content} for m in rows]
+
+    def _delete_artifact(self, rel_path: str) -> None:
+        with session_scope() as session:
+            row = (
+                session.query(Artifact)
+                .filter_by(project_id=self.project_id, path=rel_path)
+                .one_or_none()
+            )
+            if row:
+                session.delete(row)
+
+    async def _run_chat(self) -> None:
+        try:
+            project = self._load_project()
+            self.goal = project.goal
+            self.plan = project.plan or {}
+            self.sandbox = SandboxManager(self.project_id, project.name or "project")
+            self.sandbox.create()
+            self._load_existing_files()
+
+            self._update_project(status=ProjectStatus.generating, phase="chat")
+            await emit(self.project_id, "phase", "Applying your feedback",
+                       phase="chat")
+
+            messages = prompts.chat_messages(
+                self.goal, self.plan, self.files, self.chat_feedback or "",
+                history=self._history(),
+            )
+            raw = await self.provider.chat(
+                messages,
+                temperature=self.settings.temperature,
+                on_token=self._token_streamer("chat"),
+            )
+            data = extract_json(raw)
+
+            reply = str(data.get("reply", "")).strip() or "Applied your changes."
+            changed = 0
+            for entry in data.get("files", []) or []:
+                path = str(entry.get("path", "")).strip()
+                content = entry.get("content")
+                if not path or content is None:
+                    continue
+                await self._write_generated(path, content, "chat")
+                changed += 1
+            for path in data.get("delete", []) or []:
+                path = str(path).strip()
+                if not path:
+                    continue
+                if self.sandbox.delete_file(path):
+                    self.files.pop(path, None)
+                    self._delete_artifact(path)
+                    await emit(self.project_id, "file", f"Deleted {path}",
+                               phase="chat", data={"path": path})
+
+            self._add_message("assistant", reply)
+            await emit(self.project_id, "result", reply, phase="chat")
+
+            if changed == 0 and not (data.get("delete")):
+                # Nothing to rebuild/test; just finish.
+                self._update_project(status=ProjectStatus.completed, phase="done")
+                return await emit(self.project_id, "done", "Feedback answered",
+                                  phase="done", data={"success": True})
+
+            # Re-establish env and re-run the test/fix loop with the changes.
+            await self._phase_setup()
+            if self._check_stop():
+                return await self._finish_stopped()
+            await self._phase_test_and_fix()
+
+        except Exception as exc:  # noqa: BLE001
+            logger.exception("Chat iteration failed")
+            self._update_project(status=ProjectStatus.failed, error=str(exc))
+            await emit(self.project_id, "error", f"Chat failed: {exc}",
+                       level="error", phase="error")
+            await emit(self.project_id, "done", "Run ended (failed)",
+                       phase="done", data={"success": False})
 
     # ------------------------------------------------------------------
     # phase: PLAN

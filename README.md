@@ -19,6 +19,9 @@ replayed from the database.
 - 🧠 **Fully autonomous loop:** `plan → generate → setup env → test → fix → repeat`
 - 🧑‍⚖️ **Optional human-in-the-loop:** a toggle to pause after planning so you can
   approve or revise the plan before any code is written.
+- 💬 **Per-project chat:** send feedback to a built project ("add a subtract
+  function", "switch to Flask", "write more tests") and the agent edits the
+  files and re-runs the tests in response.
 - 🧩 **Incremental generation:** large projects are built file-by-file (each
   file sees the ones before it) instead of one giant call, for coherence and to
   stay within model output limits.
@@ -147,6 +150,17 @@ In file-by-file mode each file is generated with the already-written files as
 context, which keeps a large codebase self-consistent and avoids hitting the
 model's single-response output limit.
 
+## Chat / iterative feedback
+
+Every project has a **Chat** tab. Once a build exists, type feedback and the
+agent loads the current plan and files, applies your change (adding, editing, or
+deleting files), then re-installs dependencies and re-runs the test/fix loop —
+replying in the chat with a summary of what it changed. The whole conversation
+is persisted, so it's there when you reopen the app.
+
+Examples: *"add a subtract function"*, *"switch the web layer to Flask"*,
+*"add input validation and more tests"*, *"rename the CLI command to `todo`"*.
+
 ---
 
 ## Configuration
@@ -185,6 +199,7 @@ Postgres is a drop-in later: point `AUTODEV_DATABASE_URL` at a Postgres DSN
 | `POST` | `/api/projects/{id}/run` | (re)start a background run |
 | `POST` | `/api/projects/{id}/approve` | approve a pending plan and build |
 | `POST` | `/api/projects/{id}/revise` | re-plan with `{"feedback": …}` |
+| `POST` | `/api/projects/{id}/chat` | iterate on the project with `{"message": …}` |
 | `POST` | `/api/projects/{id}/stop` | stop a run |
 | `DELETE` | `/api/projects/{id}` | delete project + sandbox |
 | `WS` | `/ws/projects/{id}` | live event stream (send `{"after": seq}` to resume) |

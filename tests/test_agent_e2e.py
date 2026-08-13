@@ -93,6 +93,33 @@ def test_incremental_generation_writes_each_file():
     assert {"adder.py", "test_adder.py"} <= artifacts
 
 
+def test_chat_iterates_on_existing_project():
+    project = svc.create_project("A tiny adder in Python")
+    pid = project["id"]
+    _run(pid, StubProvider())
+    assert svc.get_project(pid)["status"] == ProjectStatus.completed.value
+
+    # User gives feedback via chat.
+    svc.add_message(pid, "user", "add a subtract function")
+    agent = AutoDevAgent(pid, provider=StubProvider(),
+                         chat_feedback="add a subtract function")
+    asyncio.run(agent.run())
+
+    p = svc.get_project(pid)
+    assert p["status"] == ProjectStatus.completed.value, p
+
+    # The change landed on disk and tests still pass.
+    adder = Path(p["workspace_path"]) / "adder.py"
+    assert "subtract" in adder.read_text()
+
+    # An assistant reply was recorded for the chat.
+    roles = [(m["role"], m["content"]) for m in svc.get_messages(pid)]
+    assert any(r == "assistant" and "subtract" in c.lower() for r, c in roles)
+
+    events = svc.get_events(pid)
+    assert any(e["phase"] == "chat" for e in events)
+
+
 def test_fix_loop_recovers_from_failure():
     project = svc.create_project("Adder that first fails then gets fixed")
     pid = project["id"]

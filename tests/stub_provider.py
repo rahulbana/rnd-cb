@@ -59,6 +59,20 @@ class StubProvider(LLMProvider):
         system = messages[0]["content"] if messages else ""
         if "design and build complete" in system:
             payload = _PLAN
+        elif "iterating on an EXISTING project" in system:
+            payload = {
+                "reply": "Added a subtract() function.",
+                "files": [
+                    {
+                        "path": "adder.py",
+                        "content": (
+                            "def add(a, b):\n    return a + b\n\n"
+                            "def subtract(a, b):\n    return a - b\n"
+                        ),
+                    }
+                ],
+                "delete": [],
+            }
         elif "debugging your own project" in system:
             payload = _FILES  # correct code on fix
         else:

@@ -7,7 +7,7 @@ from fastapi import APIRouter, HTTPException, Query, WebSocket, WebSocketDisconn
 
 from ..config import get_settings
 from ..llm import build_provider
-from ..schemas import CreateProjectRequest, ReviseRequest, SimpleOk
+from ..schemas import ChatRequest, CreateProjectRequest, ReviseRequest, SimpleOk
 from ..services import bus, run_manager
 from ..services import project_service as svc
 
@@ -109,6 +109,18 @@ async def revise_plan(project_id: str, req: ReviseRequest) -> SimpleOk:
         raise HTTPException(404, "Project not found")
     ok = run_manager.revise(project_id, req.feedback)
     return SimpleOk(ok=ok, detail="re-planning" if ok else "not awaiting approval")
+
+
+@router.post("/api/projects/{project_id}/chat")
+async def chat_project(project_id: str, req: ChatRequest) -> SimpleOk:
+    if not svc.get_project(project_id):
+        raise HTTPException(404, "Project not found")
+    if run_manager.is_running(project_id):
+        return SimpleOk(ok=False, detail="busy — wait for the current run")
+    # Record the user's message so it shows immediately, then iterate.
+    svc.add_message(project_id, "user", req.message)
+    started = run_manager.chat(project_id, req.message)
+    return SimpleOk(ok=started, detail="working" if started else "cannot chat now")
 
 
 @router.post("/api/projects/{project_id}/stop")
