@@ -10,12 +10,17 @@ from ..models import Artifact, Event, Message, Project, ProjectStatus
 from ..sandbox import SandboxManager
 
 
-def create_project(goal: str, name: Optional[str] = None) -> dict[str, Any]:
+def create_project(
+    goal: str,
+    name: Optional[str] = None,
+    require_approval: bool = False,
+) -> dict[str, Any]:
     with session_scope() as session:
         project = Project(
             goal=goal.strip(),
             name=(name or "New project").strip(),
             status=ProjectStatus.pending,
+            require_approval=require_approval,
         )
         session.add(project)
         session.flush()

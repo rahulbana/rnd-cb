@@ -36,6 +36,7 @@ class AutoDevAgent:
         project_id: str,
         stop_event: Optional[asyncio.Event] = None,
         provider: Optional[LLMProvider] = None,
+        revision_feedback: Optional[str] = None,
     ):
         self.project_id = project_id
         self.settings = get_settings()
@@ -46,6 +47,8 @@ class AutoDevAgent:
         self.files: dict[str, str] = {}
         self.goal = ""
         self.plan: dict = {}
+        self.require_approval = False
+        self.revision_feedback = revision_feedback
 
     # ------------------------------------------------------------------
     # persistence helpers
@@ -121,18 +124,31 @@ class AutoDevAgent:
     # main entry
     # ------------------------------------------------------------------
 
-    async def run(self) -> None:
+    async def run(self, resume: bool = False) -> None:
         try:
             project = self._load_project()
             self.goal = project.goal
-            await emit(self.project_id, "status", "Run started", phase="start")
+            self.require_approval = bool(getattr(project, "require_approval", False))
 
-            if self._check_stop():
-                return await self._finish_stopped()
+            if resume:
+                # Plan was already produced and approved; rebuild context and
+                # continue straight to code generation.
+                self.plan = project.plan or {}
+                self.sandbox = SandboxManager(self.project_id, project.name or "project")
+                self.sandbox.create()
+                await emit(self.project_id, "status",
+                           "Plan approved — resuming build", phase="generating")
+            else:
+                await emit(self.project_id, "status", "Run started", phase="start")
+                if self._check_stop():
+                    return await self._finish_stopped()
 
-            await self._phase_plan()
-            if self._check_stop():
-                return await self._finish_stopped()
+                await self._phase_plan()
+                if self._check_stop():
+                    return await self._finish_stopped()
+
+                if self.require_approval:
+                    return await self._gate_for_approval()
 
             await self._phase_generate()
             if self._check_stop():
@@ -164,6 +180,23 @@ class AutoDevAgent:
         await emit(self.project_id, "done", "Run ended (stopped)",
                    phase="done", data={"success": False, "stopped": True})
 
+    async def _gate_for_approval(self) -> None:
+        """Pause after planning until the user approves or revises the plan.
+
+        The run task ends here (no 'done' event). The plan is persisted, so the
+        gate survives an app restart — the user can approve later.
+        """
+        self._update_project(
+            status=ProjectStatus.awaiting_approval, phase="awaiting_approval"
+        )
+        await emit(
+            self.project_id,
+            "approval",
+            "Plan ready — review and approve to start building.",
+            phase="awaiting_approval",
+            data={"plan": self.plan},
+        )
+
     # ------------------------------------------------------------------
     # phase: PLAN
     # ------------------------------------------------------------------
@@ -173,7 +206,9 @@ class AutoDevAgent:
         await emit(self.project_id, "phase", "Planning the project", phase="planning")
 
         memory_hits = self.memory.query(self.goal) if self.memory.enabled else []
-        messages = prompts.plan_messages(self.goal, memory_hits)
+        messages = prompts.plan_messages(
+            self.goal, memory_hits, revision_feedback=self.revision_feedback
+        )
         raw = await self.provider.chat(
             messages,
             temperature=self.settings.temperature,
@@ -213,39 +248,37 @@ class AutoDevAgent:
     # phase: GENERATE
     # ------------------------------------------------------------------
 
+    def _use_incremental(self) -> bool:
+        mode = (self.settings.incremental_generation or "auto").lower()
+        planned = self.plan.get("files", []) or []
+        if mode == "always":
+            return True
+        if mode == "never":
+            return False
+        return len(planned) > self.settings.incremental_file_threshold
+
+    async def _write_generated(self, path: str, content: str, phase: str) -> None:
+        assert self.sandbox is not None
+        language = self.plan.get("language", "")
+        self.sandbox.write_file(path, content)
+        self.files[path] = content
+        self._index_artifact(path, content, self._lang_for(path, language))
+        await emit(
+            self.project_id, "file", f"Wrote {path}", phase=phase,
+            data={"path": path, "size": len(content)},
+        )
+
     async def _phase_generate(self) -> None:
         assert self.sandbox is not None
         self._update_project(status=ProjectStatus.generating, phase="generating")
-        await emit(self.project_id, "phase", "Generating source files",
-                   phase="generating")
 
-        messages = prompts.generate_messages(self.goal, self.plan)
-        raw = await self.provider.chat(
-            messages,
-            temperature=self.settings.temperature,
-            on_token=self._token_streamer("generating"),
-        )
-        data = extract_json(raw)
-        files = data.get("files", [])
-        if not files:
-            raise RuntimeError("Generator returned no files")
+        if self._use_incremental():
+            await self._generate_incremental()
+        else:
+            await self._generate_single_shot()
 
-        language = self.plan.get("language", "")
-        for entry in files:
-            path = str(entry.get("path", "")).strip()
-            content = entry.get("content", "")
-            if not path or content is None:
-                continue
-            self.sandbox.write_file(path, content)
-            self.files[path] = content
-            self._index_artifact(path, content, self._lang_for(path, language))
-            await emit(
-                self.project_id,
-                "file",
-                f"Wrote {path}",
-                phase="generating",
-                data={"path": path, "size": len(content)},
-            )
+        if not self.files:
+            raise RuntimeError("Generator produced no files")
 
         await emit(
             self.project_id,
@@ -254,6 +287,73 @@ class AutoDevAgent:
             phase="generating",
             data={"files": list(self.files.keys())},
         )
+
+    async def _generate_single_shot(self) -> None:
+        await emit(self.project_id, "phase", "Generating source files",
+                   phase="generating")
+        messages = prompts.generate_messages(self.goal, self.plan)
+        raw = await self.provider.chat(
+            messages,
+            temperature=self.settings.temperature,
+            on_token=self._token_streamer("generating"),
+        )
+        data = extract_json(raw)
+        for entry in data.get("files", []) or []:
+            path = str(entry.get("path", "")).strip()
+            content = entry.get("content", "")
+            if not path or content is None:
+                continue
+            await self._write_generated(path, content, "generating")
+
+    async def _generate_incremental(self) -> None:
+        planned = [
+            f for f in (self.plan.get("files", []) or [])
+            if str(f.get("path", "")).strip()
+        ]
+        await emit(
+            self.project_id, "phase",
+            f"Generating {len(planned)} files incrementally",
+            phase="generating",
+        )
+        for entry in planned:
+            if self._check_stop():
+                return
+            path = str(entry.get("path", "")).strip()
+            purpose = str(entry.get("purpose", ""))
+            await emit(self.project_id, "log", f"Generating {path}",
+                       phase="generating")
+            messages = prompts.generate_one_file_messages(
+                self.goal, self.plan, path, purpose, self.files
+            )
+            raw = await self.provider.chat(
+                messages,
+                temperature=self.settings.temperature,
+                on_token=self._token_streamer("generating"),
+            )
+            content = self._extract_file_content(raw, path)
+            if content is None:
+                await emit(self.project_id, "log",
+                           f"No content produced for {path}", level="warn",
+                           phase="generating")
+                continue
+            await self._write_generated(path, content, "generating")
+
+    @staticmethod
+    def _extract_file_content(raw: str, path: str) -> Optional[str]:
+        """Pull one file's content from an incremental response.
+
+        Accepts either {"content": "..."} or {"files": [{"path","content"}]}.
+        """
+        data = extract_json(raw)
+        if isinstance(data.get("content"), str):
+            return data["content"]
+        for entry in data.get("files", []) or []:
+            if str(entry.get("path", "")).strip() == path:
+                return entry.get("content")
+        files = data.get("files", []) or []
+        if files:  # fall back to the first file if paths don't line up
+            return files[0].get("content")
+        return None
 
     @staticmethod
     def _lang_for(path: str, default: str) -> str:

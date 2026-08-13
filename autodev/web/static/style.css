@@ -69,6 +69,30 @@ button.danger { color: var(--red); }
 button.danger:hover { border-color: var(--red); }
 button:disabled { opacity: .5; cursor: not-allowed; }
 
+.check { display: flex; align-items: center; gap: 8px; font-size: 12px;
+  color: var(--muted); margin-bottom: 10px; cursor: pointer; user-select: none; }
+.check input { accent-color: var(--accent); }
+
+button.small { padding: 6px 12px; }
+
+.approval-bar {
+  display: flex; align-items: center; justify-content: space-between; gap: 14px;
+  padding: 12px 20px; margin: 0; flex-wrap: wrap;
+  background: linear-gradient(90deg, rgba(124,92,255,.14), rgba(79,140,255,.08));
+  border-bottom: 1px solid var(--border);
+}
+.approval-msg { font-size: 13px; color: var(--text); }
+.approval-msg em { color: var(--accent); font-style: normal; }
+.approval-actions { display: flex; align-items: center; gap: 8px; }
+#reviseInput {
+  background: var(--panel-2); border: 1px solid var(--border); border-radius: 8px;
+  color: var(--text); padding: 8px 10px; font-size: 12px; width: 260px;
+}
+#reviseInput:focus { outline: none; border-color: var(--accent); }
+
+.badge.awaiting_approval { color: var(--accent-2); border-color: var(--accent-2); }
+.dot.awaiting_approval { background: var(--accent-2); animation: pulse 1.6s infinite; }
+
 .project-list { overflow-y: auto; flex: 1; }
 .project-item {
   padding: 12px 14px; border-bottom: 1px solid var(--border); cursor: pointer;

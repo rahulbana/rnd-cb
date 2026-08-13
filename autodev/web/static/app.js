@@ -30,15 +30,24 @@ async function api(path, opts) {
 async function loadConfig() {
   try {
     const cfg = await api("/api/config");
-    const dot = cfg.healthy === false ? "●" : "●";
     const color = cfg.healthy === false ? "var(--red)" : "var(--green)";
     $("#providerStatus").innerHTML =
-      `<span style="color:${color}">${dot}</span> ${cfg.provider} · ${cfg.model}` +
+      `<span style="color:${color}">●</span> ${cfg.provider} · ${cfg.model}` +
       (cfg.memory_enabled ? " · memory" : "");
+
+    // Approval checkbox: sticky user preference, defaulting to server config.
+    const stored = localStorage.getItem("autodev.requireApproval");
+    const initial =
+      stored === null ? !!cfg.require_plan_approval : stored === "true";
+    $("#approvalToggle").checked = initial;
   } catch (e) {
     $("#providerStatus").textContent = "offline";
   }
 }
+
+$("#approvalToggle").onchange = (e) => {
+  localStorage.setItem("autodev.requireApproval", e.target.checked);
+};
 
 // ---------------- project list ----------------
 async function loadProjects() {
@@ -69,7 +78,11 @@ $("#createBtn").onclick = async () => {
   try {
     const project = await api("/api/projects", {
       method: "POST",
-      body: JSON.stringify({ goal, auto_start: true }),
+      body: JSON.stringify({
+        goal,
+        auto_start: true,
+        require_approval: $("#approvalToggle").checked,
+      }),
     });
     $("#goalInput").value = "";
     await loadProjects();
@@ -108,12 +121,14 @@ async function selectProject(id) {
 function renderHeader(p) {
   $("#pName").textContent = p.name || "Untitled";
   $("#pDesc").textContent = p.description || p.goal || "";
+  const awaiting = p.status === "awaiting_approval";
   const status = p.running ? "running" : p.status;
   const badge = $("#pStatus");
-  badge.textContent = status;
+  badge.textContent = status.replace("_", " ");
   badge.className = "badge " + status;
-  $("#runBtn").disabled = !!p.running;
+  $("#runBtn").disabled = !!p.running || awaiting;
   $("#stopBtn").disabled = !p.running;
+  $("#approvalBar").classList.toggle("hidden", !awaiting);
 }
 
 function renderPlan(plan) {
@@ -193,7 +208,7 @@ function handleEvent(ev, live) {
   }
 
   // Refresh side panels on meaningful transitions.
-  if (["file", "result", "done", "status", "phase"].includes(ev.type)) {
+  if (["file", "result", "done", "status", "phase", "approval"].includes(ev.type)) {
     refreshSidePanels();
   }
 }
@@ -266,6 +281,24 @@ $("#runBtn").onclick = async () => {
 };
 $("#stopBtn").onclick = async () => {
   await api(`/api/projects/${state.projectId}/stop`, { method: "POST" });
+  refreshSidePanels();
+};
+$("#approveBtn").onclick = async () => {
+  $("#approvalBar").classList.add("hidden");
+  await api(`/api/projects/${state.projectId}/approve`, { method: "POST" });
+  connectSocket(state.projectId);
+  refreshSidePanels();
+};
+$("#reviseBtn").onclick = async () => {
+  const feedback = $("#reviseInput").value.trim();
+  if (!feedback) return;
+  $("#reviseInput").value = "";
+  $("#approvalBar").classList.add("hidden");
+  await api(`/api/projects/${state.projectId}/revise`, {
+    method: "POST",
+    body: JSON.stringify({ feedback }),
+  });
+  connectSocket(state.projectId);
   refreshSidePanels();
 };
 $("#deleteBtn").onclick = async () => {

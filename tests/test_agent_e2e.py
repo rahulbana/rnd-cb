@@ -44,6 +44,55 @@ def test_full_build_passes_tests():
     assert {"adder.py", "test_adder.py"} <= artifacts
 
 
+def test_plan_approval_gate_and_resume():
+    project = svc.create_project(
+        "Build a tiny adder library in Python", require_approval=True
+    )
+    pid = project["id"]
+
+    # First run should stop at the approval gate after planning.
+    _run(pid, StubProvider())
+    p = svc.get_project(pid)
+    assert p["status"] == ProjectStatus.awaiting_approval.value, p
+    assert p["plan"], "plan should be persisted for review"
+    assert svc.get_artifacts(pid) == [], "no code generated before approval"
+
+    events = svc.get_events(pid)
+    assert any(e["type"] == "approval" for e in events)
+
+    # Approve by resuming — build should now complete.
+    agent = AutoDevAgent(pid, provider=StubProvider())
+    asyncio.run(agent.run(resume=True))
+    p = svc.get_project(pid)
+    assert p["status"] == ProjectStatus.completed.value, p
+    artifacts = {a["path"] for a in svc.get_artifacts(pid)}
+    assert {"adder.py", "test_adder.py"} <= artifacts
+
+
+def test_incremental_generation_writes_each_file():
+    project = svc.create_project("Adder built incrementally")
+    pid = project["id"]
+
+    agent = AutoDevAgent(pid, provider=StubProvider())
+    original = agent.settings.incremental_generation
+    agent.settings.incremental_generation = "always"
+    try:
+        asyncio.run(agent.run())
+    finally:
+        agent.settings.incremental_generation = original
+
+    p = svc.get_project(pid)
+    assert p["status"] == ProjectStatus.completed.value, p
+
+    events = svc.get_events(pid)
+    msgs = [e["message"] for e in events]
+    assert any("incrementally" in m for m in msgs), msgs
+    assert any(m == "Generating adder.py" for m in msgs), msgs
+
+    artifacts = {a["path"] for a in svc.get_artifacts(pid)}
+    assert {"adder.py", "test_adder.py"} <= artifacts
+
+
 def test_fix_loop_recovers_from_failure():
     project = svc.create_project("Adder that first fails then gets fixed")
     pid = project["id"]

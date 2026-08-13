@@ -29,12 +29,23 @@ contents for every file you need to change. Respond with a SINGLE valid JSON
 object and nothing else."""
 
 
-def plan_messages(goal: str, memory: list[str] | None = None) -> list[dict]:
+def plan_messages(
+    goal: str,
+    memory: list[str] | None = None,
+    revision_feedback: str | None = None,
+) -> list[dict]:
     memory_block = ""
     if memory:
         joined = "\n- ".join(memory)
         memory_block = (
             "\nRelevant lessons from your past projects:\n- " + joined + "\n"
+        )
+
+    revision_block = ""
+    if revision_feedback:
+        revision_block = (
+            "\nThe user reviewed your previous plan and asked for these "
+            f"changes — incorporate them:\n\"\"\"{revision_feedback}\"\"\"\n"
         )
 
     schema = {
@@ -54,7 +65,7 @@ def plan_messages(goal: str, memory: list[str] | None = None) -> list[dict]:
     user = f"""Build this project autonomously:
 
 \"\"\"{goal}\"\"\"
-{memory_block}
+{memory_block}{revision_block}
 Produce a concrete build plan as JSON with EXACTLY this shape:
 {json.dumps(schema, indent=2)}
 
@@ -91,6 +102,58 @@ Requirements:
   needs to run (e.g. requirements.txt, package.json, go.mod, README.md).
 - Code must be complete and self-consistent across files.
 - Include real, meaningful automated tests that exercise the core behavior."""
+    return [
+        {"role": "system", "content": GENERATOR_SYSTEM},
+        {"role": "user", "content": user},
+    ]
+
+
+def generate_one_file_messages(
+    goal: str,
+    plan: dict,
+    target_path: str,
+    purpose: str,
+    existing: dict[str, str],
+    budget: int = 40000,
+) -> list[dict]:
+    """Prompt to write a single file, given the files already written.
+
+    Used for incremental generation of larger projects so each file is
+    coherent with the ones before it without blowing the model's output limit.
+    """
+    # Include already-written files as context, bounded by ``budget`` chars.
+    blocks: list[str] = []
+    used = 0
+    for path, content in existing.items():
+        snippet = content
+        header = f"=== ALREADY WRITTEN: {path} ===\n"
+        if used + len(header) + len(snippet) > budget:
+            remaining = max(0, budget - used - len(header))
+            snippet = snippet[:remaining] + "\n... [truncated] ..."
+        blocks.append(header + snippet)
+        used += len(header) + len(snippet)
+        if used >= budget:
+            break
+    existing_block = "\n\n".join(blocks) if blocks else "(none yet)"
+
+    user = f"""Original request:
+\"\"\"{goal}\"\"\"
+
+Build plan:
+{json.dumps(plan, indent=2)}
+
+Files already written in this project:
+{existing_block}
+
+Now write the COMPLETE contents of exactly ONE file:
+  path: {target_path}
+  purpose: {purpose or "(see plan)"}
+
+Return JSON of exactly this shape:
+{{"content": "FULL content of {target_path}"}}
+
+The file must be complete (no placeholders) and consistent with the files
+already written above."""
     return [
         {"role": "system", "content": GENERATOR_SYSTEM},
         {"role": "user", "content": user},

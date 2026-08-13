@@ -36,6 +36,19 @@ class Settings(BaseSettings):
     max_fix_iterations: int = 4
     request_timeout: int = 600
 
+    # --- Human-in-the-loop ---
+    # Default for new projects: pause after planning for user approval before
+    # generating code. Per-project overridable from the UI.
+    require_plan_approval: bool = False
+
+    # --- Incremental generation ---
+    # "auto"  -> generate file-by-file when a project has more than
+    #            incremental_file_threshold files, else single-shot.
+    # "always"-> always generate file-by-file.
+    # "never" -> always single-shot.
+    incremental_generation: str = "auto"
+    incremental_file_threshold: int = 6
+
     # --- Sandbox ---
     workspace_root: str = "./workspaces"
     command_timeout: int = 300

@@ -32,6 +32,7 @@ def _now() -> datetime:
 class ProjectStatus(str, enum.Enum):
     pending = "pending"
     planning = "planning"
+    awaiting_approval = "awaiting_approval"
     generating = "generating"
     setup = "setup"
     testing = "testing"
@@ -53,6 +54,7 @@ class Project(Base):
         Enum(ProjectStatus), default=ProjectStatus.pending
     )
     phase: Mapped[str] = mapped_column(String(64), default="")
+    require_approval: Mapped[bool] = mapped_column(default=False)
     workspace_path: Mapped[str] = mapped_column(Text, default="")
     plan: Mapped[Optional[dict[str, Any]]] = mapped_column(JSON, nullable=True)
     error: Mapped[str] = mapped_column(Text, default="")
@@ -82,6 +84,7 @@ class Project(Base):
             "language": self.language,
             "status": self.status.value,
             "phase": self.phase,
+            "require_approval": self.require_approval,
             "workspace_path": self.workspace_path,
             "plan": self.plan,
             "error": self.error,

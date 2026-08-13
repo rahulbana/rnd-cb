@@ -7,7 +7,7 @@ from fastapi import APIRouter, HTTPException, Query, WebSocket, WebSocketDisconn
 
 from ..config import get_settings
 from ..llm import build_provider
-from ..schemas import CreateProjectRequest, SimpleOk
+from ..schemas import CreateProjectRequest, ReviseRequest, SimpleOk
 from ..services import bus, run_manager
 from ..services import project_service as svc
 
@@ -33,13 +33,21 @@ async def get_config() -> dict:
         "model": model,
         "memory_enabled": settings.memory_enabled,
         "workspace_root": str(settings.workspace_root_path),
+        "require_plan_approval": settings.require_plan_approval,
+        "incremental_generation": settings.incremental_generation,
         "healthy": healthy,
     }
 
 
 @router.post("/api/projects")
 async def create_project(req: CreateProjectRequest) -> dict:
-    project = svc.create_project(req.goal, req.name)
+    settings = get_settings()
+    require_approval = (
+        settings.require_plan_approval
+        if req.require_approval is None
+        else req.require_approval
+    )
+    project = svc.create_project(req.goal, req.name, require_approval)
     if req.auto_start:
         run_manager.start(project["id"])
     return project
@@ -85,6 +93,22 @@ async def run_project(project_id: str) -> SimpleOk:
         raise HTTPException(404, "Project not found")
     started = run_manager.start(project_id)
     return SimpleOk(ok=started, detail="started" if started else "already running")
+
+
+@router.post("/api/projects/{project_id}/approve")
+async def approve_plan(project_id: str) -> SimpleOk:
+    if not svc.get_project(project_id):
+        raise HTTPException(404, "Project not found")
+    ok = run_manager.approve(project_id)
+    return SimpleOk(ok=ok, detail="building" if ok else "not awaiting approval")
+
+
+@router.post("/api/projects/{project_id}/revise")
+async def revise_plan(project_id: str, req: ReviseRequest) -> SimpleOk:
+    if not svc.get_project(project_id):
+        raise HTTPException(404, "Project not found")
+    ok = run_manager.revise(project_id, req.feedback)
+    return SimpleOk(ok=ok, detail="re-planning" if ok else "not awaiting approval")
 
 
 @router.post("/api/projects/{project_id}/stop")

@@ -39,7 +39,12 @@ class RunManager:
         handle = self._runs.get(project_id)
         return handle is not None and not handle.task.done()
 
-    def start(self, project_id: str) -> bool:
+    def start(
+        self,
+        project_id: str,
+        resume: bool = False,
+        revision_feedback: str | None = None,
+    ) -> bool:
         """Launch a background run. Returns False if one is already active."""
         if self.is_running(project_id):
             return False
@@ -49,8 +54,10 @@ class RunManager:
         from ..agent import AutoDevAgent
 
         stop_event = asyncio.Event()
-        agent = AutoDevAgent(project_id, stop_event=stop_event)
-        task = asyncio.create_task(agent.run(), name=f"run-{project_id}")
+        agent = AutoDevAgent(
+            project_id, stop_event=stop_event, revision_feedback=revision_feedback
+        )
+        task = asyncio.create_task(agent.run(resume=resume), name=f"run-{project_id}")
         self._runs[project_id] = RunHandle(task=task, stop_event=stop_event)
 
         def _cleanup(_: asyncio.Task) -> None:
@@ -58,6 +65,26 @@ class RunManager:
 
         task.add_done_callback(_cleanup)
         return True
+
+    def approve(self, project_id: str) -> bool:
+        """Approve a plan that's waiting, and resume the build."""
+        if self.is_running(project_id):
+            return False
+        with session_scope() as session:
+            project = session.get(Project, project_id)
+            if not project or project.status != ProjectStatus.awaiting_approval:
+                return False
+        return self.start(project_id, resume=True)
+
+    def revise(self, project_id: str, feedback: str) -> bool:
+        """Reject the current plan and re-plan with the user's feedback."""
+        if self.is_running(project_id):
+            return False
+        with session_scope() as session:
+            project = session.get(Project, project_id)
+            if not project or project.status != ProjectStatus.awaiting_approval:
+                return False
+        return self.start(project_id, resume=False, revision_feedback=feedback)
 
     async def stop(self, project_id: str) -> bool:
         handle = self._runs.get(project_id)

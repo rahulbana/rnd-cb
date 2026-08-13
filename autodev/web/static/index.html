@@ -21,6 +21,10 @@
       <div class="new-project">
         <textarea id="goalInput" rows="3"
           placeholder="Describe what to build, e.g. 'a CLI todo app in Python' or 'a REST API for a bookstore in Go'"></textarea>
+        <label class="check">
+          <input type="checkbox" id="approvalToggle" />
+          <span>Review plan before building</span>
+        </label>
         <button id="createBtn" class="primary">Build it</button>
       </div>
       <div class="project-list" id="projectList"></div>
@@ -46,6 +50,20 @@
             <button id="runBtn" class="ghost">Run</button>
             <button id="stopBtn" class="ghost">Stop</button>
             <button id="deleteBtn" class="ghost danger">Delete</button>
+          </div>
+        </div>
+
+        <div class="approval-bar hidden" id="approvalBar">
+          <div class="approval-msg">
+            <strong>Plan ready for review.</strong>
+            Check the <em>Plan</em> tab, then approve to start building — or
+            send revisions.
+          </div>
+          <div class="approval-actions">
+            <input type="text" id="reviseInput"
+              placeholder="Optional: how should the plan change?" />
+            <button id="reviseBtn" class="ghost">Revise</button>
+            <button id="approveBtn" class="primary small">Approve &amp; build</button>
           </div>
         </div>
 
