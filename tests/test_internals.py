@@ -5,12 +5,14 @@ These run without any network or LLM by injecting a fake provider.
 
 from __future__ import annotations
 
+import os
 from pathlib import Path
 
 import pytest
 
 from testgen import languages
 from testgen.collector import collect
+from testgen.env import load_dotenv
 from testgen.generator import _strip_code_fences, generate_for_file
 from testgen.llm.base import LLMProvider
 
@@ -81,6 +83,30 @@ def test_generate_respects_existing(tmp_path: Path):
     result = generate_for_file(src, FakeProvider(), root=tmp_path)
     assert not result.written
     assert result.skipped_reason and "exists" in result.skipped_reason
+
+
+def test_load_dotenv_sets_and_respects_precedence(tmp_path, monkeypatch):
+    env = tmp_path / ".env"
+    env.write_text(
+        "# a comment\n"
+        'OPENAI_API_KEY="sk-from-file"\n'
+        "export OLLAMA_HOST=http://box:11434\n"
+        "ALREADY_SET=from-file\n"
+        "malformed line without equals\n"
+    )
+    monkeypatch.delenv("OPENAI_API_KEY", raising=False)
+    monkeypatch.setenv("ALREADY_SET", "from-shell")
+
+    assert load_dotenv(env) is True
+    # File value applied where the var was unset...
+    assert os.environ["OPENAI_API_KEY"] == "sk-from-file"
+    assert os.environ["OLLAMA_HOST"] == "http://box:11434"
+    # ...but the existing shell value wins.
+    assert os.environ["ALREADY_SET"] == "from-shell"
+
+
+def test_load_dotenv_missing_file_returns_false(tmp_path):
+    assert load_dotenv(tmp_path / "nope.env") is False
 
 
 def test_generate_output_dir_mirrors_tree(tmp_path: Path):

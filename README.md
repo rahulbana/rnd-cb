@@ -24,12 +24,19 @@ pip install -r requirements.txt      # requests (+ openai for the OpenAI backend
 pip install -e .                     # provides the `testgen` command
 ```
 
-Set credentials (see `.env.example`):
+Set credentials. The easiest way is a `.env` file — `testgen` loads it
+automatically (searching the current directory upward), so no `export` needed:
 
 ```bash
-export OPENAI_API_KEY=sk-...         # for the OpenAI backend
-# Ollama needs nothing — just `ollama serve` and a pulled model.
+cp .env.example .env                 # then edit in your key
+# .env contains:  OPENAI_API_KEY=sk-...
+testgen examples/calculator.py       # picks up the key from .env
 ```
+
+You can also point at a specific file with `--env-file path/to/.env`, or just
+`export OPENAI_API_KEY=sk-...` the usual way. Shell variables always take
+precedence over the file. Ollama needs no key — just `ollama serve` and a
+pulled model.
 
 ## Usage
 
@@ -62,6 +69,7 @@ python -m testgen examples/calculator.py
 | `--provider` | `openai` (default) or `ollama`. |
 | `--model` | Model name (default `gpt-4o-mini` / `llama3`). |
 | `--api-key` / `--base-url` | OpenAI key / OpenAI-compatible endpoint. |
+| `--env-file` | Load env vars from a specific `.env` file. |
 | `--ollama-host` | Ollama server URL (default `http://localhost:11434`). |
 | `-o, --output-dir` | Write tests under a mirrored directory tree. |
 | `--include` / `--exclude` | Glob filters (repeatable). |
@@ -92,6 +100,7 @@ provider is just one new class in `testgen/llm/`.
 ```
 testgen/
   cli.py            # argument parsing + run loop
+  env.py            # zero-dependency .env loader
   collector.py      # find source files (respects ignores & globs)
   languages.py      # extension -> language, framework, test-file naming
   prompts.py        # system + per-file user prompts

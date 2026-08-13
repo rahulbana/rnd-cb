@@ -8,6 +8,7 @@ from pathlib import Path
 
 from . import __version__
 from .collector import collect
+from .env import load_dotenv
 from .generator import generate_for_file
 from .llm import LLMError, build_provider
 
@@ -47,6 +48,11 @@ def _build_parser() -> argparse.ArgumentParser:
     prov.add_argument("--api-key", help="OpenAI API key (else uses OPENAI_API_KEY).")
     prov.add_argument("--base-url", help="OpenAI-compatible base URL.")
     prov.add_argument("--ollama-host", help="Ollama host (default: http://localhost:11434).")
+    prov.add_argument(
+        "--env-file",
+        help="Path to a .env file with keys like OPENAI_API_KEY "
+        "(default: nearest .env found from the current directory upward).",
+    )
 
     out = parser.add_argument_group("output / selection")
     out.add_argument(
@@ -70,6 +76,15 @@ def _root_for(path: Path) -> Path:
 
 def main(argv: list[str] | None = None) -> int:
     args = _build_parser().parse_args(argv)
+
+    # Populate os.environ from a .env file (shell env still takes precedence).
+    # If --env-file is given explicitly, fail loudly when it's missing.
+    if args.env_file:
+        if not load_dotenv(args.env_file):
+            print(f"error: env file not found: {args.env_file}", file=sys.stderr)
+            return 2
+    else:
+        load_dotenv()
 
     target = args.path.expanduser().resolve()
     if not target.exists():
