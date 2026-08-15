@@ -25,7 +25,12 @@ pandas>=2.2            # CSV / Excel dataframes
 tiktoken>=0.7          # accurate token counting
 
 # --- Embeddings & reranking ---
-sentence-transformers>=2.7
+# transformers/sentence-transformers are capped so they stay compatible with
+# torch 2.2.2 — the last PyTorch release that supports Intel (x86) macOS.
+# Newer transformers require torch>=2.5 and would disable PyTorch on those
+# machines. On Apple Silicon / Linux you can raise these and use torch>=2.5.
+sentence-transformers>=3.0,<3.3
+transformers>=4.41,<4.46
 
 # --- Vector store ---
 chromadb>=0.5

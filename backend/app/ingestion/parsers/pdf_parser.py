@@ -19,6 +19,15 @@ from ...core.logging import get_logger
 log = get_logger(__name__)
 
 
+def _import_pymupdf():
+    """Prefer the modern ``pymupdf`` module name; fall back to the legacy
+    ``fitz`` alias for older PyMuPDF installs (avoids the deprecation warning)."""
+    try:
+        return require("pymupdf", "pymupdf")
+    except ParserError:
+        return require("fitz", "pymupdf")
+
+
 class PDFParser(BaseParser):
     name = "pdf"
 
