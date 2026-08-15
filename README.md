@@ -134,6 +134,7 @@ All settings are environment variables prefixed `RAG_` (see
 | `RAG_PDF_BACKEND` | `pymupdf` | `pymupdf` \| `pdfplumber` \| `unstructured` \| `docling` |
 | `RAG_CHUNK_STRATEGY` | `recursive` | `recursive` \| `by_element` \| `semantic` |
 | `RAG_EMBEDDING_MODEL` | all-MiniLM-L6-v2 | any SentenceTransformers model |
+| `RAG_DATABASE_URL` | `sqlite:///./data/app.db` | chat history store; set `postgresql+psycopg://…` for Postgres |
 
 > `unstructured` and `docling` are heavy; they're commented out in
 > `requirements.txt`. Uncomment to enable those PDF backends.
@@ -150,6 +151,11 @@ All settings are environment variables prefixed `RAG_` (see
 | `POST` | `/api/text` | index pasted text → `{ job_id }` |
 | `GET` | `/api/sources` | list indexed documents |
 | `DELETE` | `/api/sources/{source}` | remove a document |
+| `GET` | `/api/conversations` | list chat history (summaries, newest first) |
+| `GET` | `/api/conversations/{id}` | full conversation with messages |
+| `PUT` | `/api/conversations/{id}` | create/replace a conversation |
+| `PATCH` | `/api/conversations/{id}` | rename |
+| `DELETE` | `/api/conversations/{id}` | delete |
 | `WS` | `/ws/ingest/{job_id}` | stream ingestion step events |
 | `WS` | `/ws/chat` | send `{query, options}`, stream step/token/source events |
 

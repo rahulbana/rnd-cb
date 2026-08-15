@@ -45,6 +45,12 @@ transformers>=4.41,<4.46
 # --- Vector store ---
 chromadb>=0.5
 
+# --- Database (chat history) ---
+SQLAlchemy>=2.0
+# For PostgreSQL (production), also install the driver and set
+# RAG_DATABASE_URL=postgresql+psycopg://user:pass@host:5432/db
+# psycopg[binary]>=3.1
+
 # --- Retrieval ---
 rank-bm25>=0.2.2       # sparse keyword retrieval for hybrid search
 

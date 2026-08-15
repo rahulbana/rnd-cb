@@ -71,11 +71,14 @@ export default function Chat({ settings, disabled, onIngested, initialMessages, 
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Persist conversation to history (debounced so streaming isn't a write storm).
-  // Skip the initial mount so merely opening a chat doesn't bump its timestamp.
+  // Persist conversation to history after each turn settles. Skipping the
+  // initial mount avoids re-saving on open; skipping the running state avoids
+  // storing half-streamed turns and needless writes.
   const firstPersist = useRef(true);
   useEffect(() => {
     if (firstPersist.current) { firstPersist.current = false; return; }
+    const last = messages[messages.length - 1];
+    if (last && last.status === "running") return;
     const t = setTimeout(() => persistRef.current && persistRef.current(messages), 400);
     return () => clearTimeout(t);
   }, [messages]);

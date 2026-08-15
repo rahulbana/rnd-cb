@@ -6,7 +6,7 @@ export default function History({ conversations, activeId, onSelect, onDelete, o
   const [draft, setDraft] = useState("");
 
   const convs = conversations
-    .filter((c) => c.messages && c.messages.length)
+    .filter((c) => (c.messageCount || 0) > 0)
     .sort((a, b) => b.updatedAt - a.updatedAt);
   const groups = groupByDate(convs);
 

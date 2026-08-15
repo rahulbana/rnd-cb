@@ -33,6 +33,11 @@ class Settings(BaseSettings):
     upload_dir: str = "./data/uploads"
     cors_origins: CsvList = Field(default_factory=lambda: ["http://localhost:5173"])
 
+    # --- Database (chat history) ---
+    # SQLite by default; switch to Postgres later with e.g.
+    #   RAG_DATABASE_URL=postgresql+psycopg://user:pass@host:5432/dbname
+    database_url: str = "sqlite:///./data/app.db"
+
     # --- Embeddings ---
     embedding_provider: Literal["sentence_transformer"] = "sentence_transformer"
     embedding_model: str = "sentence-transformers/all-MiniLM-L6-v2"

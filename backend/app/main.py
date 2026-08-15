@@ -9,10 +9,11 @@ import os
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from .api import routes_documents, routes_health, routes_ws
+from .api import routes_conversations, routes_documents, routes_health, routes_ws
 from .config import get_settings
 from .core.logging import configure_logging, get_logger
 from .core.preflight import run_preflight
+from .db.session import init_db
 
 configure_logging()
 log = get_logger(__name__)
@@ -32,8 +33,11 @@ def create_app() -> FastAPI:
         allow_headers=["*"],
     )
 
+    init_db()
+
     app.include_router(routes_health.router)
     app.include_router(routes_documents.router)
+    app.include_router(routes_conversations.router)
     app.include_router(routes_ws.router)
 
     @app.on_event("startup")

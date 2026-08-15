@@ -1,7 +1,9 @@
-import React, { useCallback, useEffect, useState } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import { getConfig, listSources } from "./api";
 import {
-  loadConversations, saveConversations, newConversation, titleFrom,
+  newConversation, titleFrom, sanitizeMessages,
+  apiListConversations, apiGetConversation, apiUpsertConversation,
+  apiRenameConversation, apiDeleteConversation,
 } from "./history";
 import Settings from "./components/Settings.jsx";
 import Sources from "./components/Sources.jsx";
@@ -16,8 +18,11 @@ export default function App() {
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [showSettings, setShowSettings] = useState(false);
 
-  const [conversations, setConversations] = useState([]);
+  const [conversations, setConversations] = useState([]); // summaries
   const [activeId, setActiveId] = useState(null);
+  const [activeMessages, setActiveMessages] = useState(null); // null = loading
+  const convsRef = useRef([]);
+  convsRef.current = conversations;
 
   const refreshSources = useCallback(async () => {
     try {
@@ -29,7 +34,7 @@ export default function App() {
     }
   }, []);
 
-  // Load config + conversation history on mount.
+  // Config + sources.
   useEffect(() => {
     getConfig()
       .then((cfg) => {
@@ -51,53 +56,77 @@ export default function App() {
         });
       });
     refreshSources();
-
-    const loaded = loadConversations();
-    if (loaded.length) {
-      const newest = [...loaded].sort((a, b) => b.updatedAt - a.updatedAt)[0];
-      setConversations(loaded);
-      setActiveId(newest.id);
-    } else {
-      const conv = newConversation();
-      setConversations([conv]);
-      setActiveId(conv.id);
-    }
   }, [refreshSources]);
 
-  // Persist history whenever it changes.
+  // Conversation list.
   useEffect(() => {
-    if (conversations.length) saveConversations(conversations);
-  }, [conversations]);
+    apiListConversations()
+      .then((list) => {
+        if (list.length) {
+          setConversations(list);
+          setActiveId(list[0].id); // server returns newest-first
+        } else {
+          const conv = newConversation();
+          setConversations([conv]);
+          setActiveId(conv.id);
+        }
+      })
+      .catch(() => {
+        const conv = newConversation();
+        setConversations([conv]);
+        setActiveId(conv.id);
+      });
+  }, []);
 
-  const persist = useCallback((id, messages) => {
-    setConversations((prev) => {
-      const i = prev.findIndex((c) => c.id === id);
-      if (i < 0) return prev;
-      const conv = { ...prev[i], messages, updatedAt: Date.now() };
-      if (conv.title === "New chat" || !conv.title) {
-        const firstUser = messages.find((m) => m.role === "user");
-        if (firstUser) conv.title = titleFrom(firstUser.text);
-      }
-      const list = prev.slice();
-      list[i] = conv;
-      return list;
-    });
+  // Load messages for the active conversation when it changes.
+  useEffect(() => {
+    if (!activeId) return;
+    const summary = convsRef.current.find((c) => c.id === activeId);
+    if (summary && (summary.messageCount || 0) === 0) {
+      setActiveMessages([]); // brand-new / empty — no fetch needed
+      return;
+    }
+    let cancelled = false;
+    setActiveMessages(null);
+    apiGetConversation(activeId)
+      .then((full) => { if (!cancelled) setActiveMessages(sanitizeMessages(full.messages)); })
+      .catch(() => { if (!cancelled) setActiveMessages([]); });
+    return () => { cancelled = true; };
+  }, [activeId]);
+
+  // Persist a conversation (called debounced by Chat after each settled turn).
+  const persist = useCallback(async (id, messages) => {
+    const summary = convsRef.current.find((c) => c.id === id);
+    let title = summary?.title;
+    if (!title || title === "New chat") {
+      const firstUser = messages.find((m) => m.role === "user");
+      if (firstUser) title = titleFrom(firstUser.text);
+    }
+    try {
+      const res = await apiUpsertConversation(id, { title, messages });
+      setConversations((prev) => {
+        const others = prev.filter((c) => c.id !== id);
+        return [res, ...others]; // move to top (most recent)
+      });
+    } catch {
+      /* keep local state; will retry on next change */
+    }
   }, []);
 
   function newChat() {
-    const empty = conversations.find((c) => !c.messages || !c.messages.length);
+    const empty = conversations.find((c) => (c.messageCount || 0) === 0);
     if (empty) { setActiveId(empty.id); return; }
     const conv = newConversation();
     setConversations((prev) => [conv, ...prev]);
     setActiveId(conv.id);
   }
 
-  function deleteChat(id) {
+  async function deleteChat(id) {
+    try { await apiDeleteConversation(id); } catch { /* ignore */ }
     setConversations((prev) => {
       const list = prev.filter((c) => c.id !== id);
       if (id === activeId) {
-        const next = [...list].sort((a, b) => b.updatedAt - a.updatedAt)[0];
-        if (next) setActiveId(next.id);
+        if (list.length) setActiveId(list[0].id);
         else {
           const conv = newConversation();
           setActiveId(conv.id);
@@ -108,15 +137,12 @@ export default function App() {
     });
   }
 
-  function renameChat(id, title) {
-    setConversations((prev) =>
-      prev.map((c) => (c.id === id ? { ...c, title } : c))
-    );
+  async function renameChat(id, title) {
+    setConversations((prev) => prev.map((c) => (c.id === id ? { ...c, title } : c)));
+    try { await apiRenameConversation(id, title); } catch { /* ignore */ }
   }
 
   if (!settings || !activeId) return <div className="boot">Loading…</div>;
-
-  const activeConv = conversations.find((c) => c.id === activeId);
 
   return (
     <div className={`app ${sidebarOpen ? "" : "collapsed"}`}>
@@ -156,14 +182,18 @@ export default function App() {
         {!sidebarOpen && (
           <button className="icon-btn floating" onClick={() => setSidebarOpen(true)} title="Show sidebar">⟩</button>
         )}
-        <Chat
-          key={activeId}
-          settings={settings}
-          disabled={totalChunks === 0}
-          onIngested={refreshSources}
-          initialMessages={activeConv ? activeConv.messages : []}
-          onPersist={(msgs) => persist(activeId, msgs)}
-        />
+        {activeMessages === null ? (
+          <div className="boot">Loading conversation…</div>
+        ) : (
+          <Chat
+            key={activeId}
+            settings={settings}
+            disabled={totalChunks === 0}
+            onIngested={refreshSources}
+            initialMessages={activeMessages}
+            onPersist={(msgs) => persist(activeId, msgs)}
+          />
+        )}
       </main>
     </div>
   );
