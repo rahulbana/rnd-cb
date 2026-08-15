@@ -1,7 +1,7 @@
 import React, { useEffect, useRef, useState } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
-import { openChatSocket } from "../api";
+import { openChatSocket, ingestFile } from "../api";
 import { STEP_LABELS } from "./StepTimeline.jsx";
 
 function emptyAssistant() {
@@ -15,14 +15,33 @@ const SUGGESTIONS = [
   "Explain this document in simple terms",
 ];
 
-export default function Chat({ settings, disabled }) {
+// File-type badge shown on each attachment chip.
+function fileKind(name) {
+  const ext = (name.split(".").pop() || "").toLowerCase();
+  const map = {
+    pdf: ["PDF", "#e5484d"],
+    doc: ["DOC", "#2563eb"], docx: ["DOC", "#2563eb"],
+    xls: ["XLS", "#16a34a"], xlsx: ["XLS", "#16a34a"], xlsm: ["XLS", "#16a34a"],
+    csv: ["CSV", "#16a34a"], tsv: ["CSV", "#16a34a"],
+    ppt: ["PPT", "#d97706"], pptx: ["PPT", "#d97706"],
+    png: ["IMG", "#7c3aed"], jpg: ["IMG", "#7c3aed"], jpeg: ["IMG", "#7c3aed"],
+    webp: ["IMG", "#7c3aed"], tiff: ["IMG", "#7c3aed"], bmp: ["IMG", "#7c3aed"],
+    txt: ["TXT", "#6b7280"], md: ["TXT", "#6b7280"], log: ["TXT", "#6b7280"],
+  };
+  return map[ext] || ["FILE", "#6b7280"];
+}
+
+export default function Chat({ settings, disabled, onIngested }) {
   const [messages, setMessages] = useState([]);
   const [input, setInput] = useState("");
   const [connected, setConnected] = useState(false);
+  const [attachments, setAttachments] = useState([]);
+  const [dragOver, setDragOver] = useState(false);
   const chatRef = useRef(null);
   const activeIdx = useRef(null);
   const scrollRef = useRef(null);
   const taRef = useRef(null);
+  const fileRef = useRef(null);
 
   useEffect(() => {
     const chat = openChatSocket({
@@ -39,7 +58,6 @@ export default function Chat({ settings, disabled }) {
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: "smooth" });
   }, [messages]);
 
-  // Auto-grow the composer textarea.
   useEffect(() => {
     const ta = taRef.current;
     if (!ta) return;
@@ -47,6 +65,7 @@ export default function Chat({ settings, disabled }) {
     ta.style.height = Math.min(ta.scrollHeight, 200) + "px";
   }, [input]);
 
+  // ---- chat streaming ----
   function updateActive(mutator) {
     setMessages((prev) => {
       const idx = activeIdx.current;
@@ -100,10 +119,52 @@ export default function Chat({ settings, disabled }) {
     setInput("");
   }
 
+  // ---- uploads (ChatGPT-style, in the composer) ----
+  function handleFiles(fileList) {
+    for (const file of Array.from(fileList)) {
+      const id = (crypto.randomUUID && crypto.randomUUID()) || String(Math.random());
+      setAttachments((a) => [...a, { id, name: file.name, status: "uploading", steps: [] }]);
+      const onEvent = (event) => {
+        if (event.type === "step") {
+          setAttachments((a) =>
+            a.map((x) => (x.id === id ? { ...x, steps: [...x.steps, event] } : x))
+          );
+        }
+      };
+      ingestFile(file, onEvent)
+        .then(() => {
+          setAttachments((a) => a.map((x) => (x.id === id ? { ...x, status: "ready" } : x)));
+          onIngested && onIngested();
+        })
+        .catch((err) => {
+          setAttachments((a) =>
+            a.map((x) => (x.id === id ? { ...x, status: "error", error: err.message } : x))
+          );
+        });
+    }
+  }
+
+  function onDrop(e) {
+    e.preventDefault();
+    setDragOver(false);
+    if (e.dataTransfer.files?.length) handleFiles(e.dataTransfer.files);
+  }
+
   const empty = messages.length === 0;
 
   return (
-    <div className="chat">
+    <div
+      className="chat"
+      onDragOver={(e) => { e.preventDefault(); setDragOver(true); }}
+      onDragLeave={(e) => { if (e.currentTarget === e.target) setDragOver(false); }}
+      onDrop={onDrop}
+    >
+      {dragOver && (
+        <div className="drop-overlay">
+          <div className="drop-card">⬇ Drop files to add them to the chat</div>
+        </div>
+      )}
+
       <div className="thread" ref={scrollRef}>
         {empty ? (
           <div className="welcome">
@@ -111,8 +172,8 @@ export default function Chat({ settings, disabled }) {
             <h1>What would you like to know?</h1>
             <p className="welcome-sub">
               {disabled
-                ? "Add a document from the sidebar, then ask anything about it."
-                : "Ask a question about your uploaded documents."}
+                ? "Attach a document below (or drop one here), then ask anything about it."
+                : "Ask a question about your documents — or attach more below."}
             </p>
             {!disabled && (
               <div className="suggestions">
@@ -155,27 +216,56 @@ export default function Chat({ settings, disabled }) {
 
       <div className="composer-wrap">
         <div className="composer">
-          <textarea
-            ref={taRef}
-            value={input}
-            rows={1}
-            placeholder={disabled ? "Add a document to get started…" : "Message your documents…"}
-            onChange={(e) => setInput(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === "Enter" && !e.shiftKey) {
-                e.preventDefault();
-                send();
-              }
-            }}
-          />
-          <button
-            className="send-btn"
-            onClick={() => send()}
-            disabled={!connected || !input.trim()}
-            aria-label="Send"
-          >
-            ↑
-          </button>
+          {attachments.length > 0 && (
+            <div className="composer-attachments">
+              {attachments.map((att) => (
+                <AttachmentChip
+                  key={att.id}
+                  att={att}
+                  onRemove={() => setAttachments((a) => a.filter((x) => x.id !== att.id))}
+                />
+              ))}
+            </div>
+          )}
+          <div className="composer-row">
+            <input
+              ref={fileRef}
+              type="file"
+              multiple
+              hidden
+              accept=".txt,.md,.log,.csv,.tsv,.pdf,.doc,.docx,.xls,.xlsx,.xlsm,.ppt,.pptx,.png,.jpg,.jpeg,.webp,.tiff,.bmp"
+              onChange={(e) => { handleFiles(e.target.files); e.target.value = ""; }}
+            />
+            <button
+              className="attach-btn"
+              onClick={() => fileRef.current?.click()}
+              title="Attach documents"
+              aria-label="Attach documents"
+            >
+              +
+            </button>
+            <textarea
+              ref={taRef}
+              value={input}
+              rows={1}
+              placeholder={disabled ? "Attach a document to get started…" : "Message your documents…"}
+              onChange={(e) => setInput(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" && !e.shiftKey) {
+                  e.preventDefault();
+                  send();
+                }
+              }}
+            />
+            <button
+              className="send-btn"
+              onClick={() => send()}
+              disabled={!connected || !input.trim()}
+              aria-label="Send"
+            >
+              ↑
+            </button>
+          </div>
         </div>
         <div className="composer-foot">
           <span className={`conn ${connected ? "on" : "off"}`}>
@@ -192,7 +282,32 @@ export default function Chat({ settings, disabled }) {
   );
 }
 
-// Collapsible ChatGPT-style "working…" trace summarizing the pipeline steps.
+function AttachmentChip({ att, onRemove }) {
+  const [label, color] = fileKind(att.name);
+  const labels = STEP_LABELS.ingest;
+  const last = att.steps[att.steps.length - 1];
+  let status = "Uploading…";
+  if (att.status === "ready") status = "Ready";
+  else if (att.status === "error") status = att.error || "Failed";
+  else if (last) status = `${labels[last.step] || last.step}…`;
+
+  return (
+    <div className={`attachment ${att.status}`}>
+      <div className="attachment-icon" style={{ background: color }}>
+        {att.status === "uploading" ? <span className="spinner light" /> : label}
+      </div>
+      <div className="attachment-meta">
+        <div className="attachment-name" title={att.name}>{att.name}</div>
+        <div className="attachment-status">
+          {att.status === "ready" && "✓ "}
+          {status}
+        </div>
+      </div>
+      <button className="attachment-x" onClick={onRemove} aria-label="Remove">×</button>
+    </div>
+  );
+}
+
 function StepTrace({ steps, status }) {
   const [open, setOpen] = useState(false);
   if (steps.length === 0 && status !== "running") return null;

@@ -1,6 +1,5 @@
 import React, { useCallback, useEffect, useState } from "react";
 import { getConfig, listSources } from "./api";
-import Uploader from "./components/Uploader.jsx";
 import Settings from "./components/Settings.jsx";
 import Sources from "./components/Sources.jsx";
 import Chat from "./components/Chat.jsx";
@@ -67,7 +66,6 @@ export default function App() {
         </button>
 
         <div className="sidebar-scroll">
-          <Uploader onIngested={refreshSources} />
           <Sources sources={sources} totalChunks={totalChunks} onChange={refreshSources} />
         </div>
 
@@ -87,7 +85,12 @@ export default function App() {
             ⟩
           </button>
         )}
-        <Chat key={sessionKey} settings={settings} disabled={totalChunks === 0} />
+        <Chat
+          key={sessionKey}
+          settings={settings}
+          disabled={totalChunks === 0}
+          onIngested={refreshSources}
+        />
       </main>
     </div>
   );
