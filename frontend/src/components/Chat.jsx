@@ -452,29 +452,56 @@ function AttachmentChip({ att, onRemove, onRetry }) {
   );
 }
 
+const STEP_ICON = {
+  done: "✓",
+  start: null,      // rendered as a spinner
+  progress: null,
+  error: "✕",
+};
+
 function StepTrace({ steps, status }) {
-  const [open, setOpen] = useState(false);
+  // Visible by default; the user can hide it.
+  const [open, setOpen] = useState(true);
   if (steps.length === 0 && status !== "running") return null;
+
   const labels = STEP_LABELS.chat;
-  const active = [...steps].reverse().find((s) => s.status === "start");
+  const order = Object.keys(labels).filter((k) => k !== "complete");
   const running = status === "running";
-  const summary = running
-    ? (active ? `${labels[active.step] || active.step}…` : "Working…")
+
+  // Collapse the stream of start/done events into one row per step (last wins).
+  const byStep = {};
+  for (const s of steps) byStep[s.step] = s;
+  const rows = order.filter((k) => byStep[k]).map((k) => ({ key: k, ...byStep[k] }));
+
+  const active = [...steps].reverse().find((s) => s.status === "start");
+  const headline = running
+    ? (active ? `${labels[active.step] || active.step}…` : "Thinking…")
     : "Thought process";
+
   return (
     <div className={`trace ${running ? "running" : ""}`}>
-      <button className="trace-head" onClick={() => setOpen((o) => !o)}>
-        {running && <span className="spinner" />}
-        <span className="trace-summary">{summary}</span>
-        <span className="trace-caret">{open ? "▾" : "▸"}</span>
-      </button>
+      <div className="trace-head">
+        <span className="trace-headline">
+          {running ? <span className="spinner" /> : <span className="trace-spark">✦</span>}
+          {headline}
+        </span>
+        <button className="trace-toggle" onClick={() => setOpen((o) => !o)}>
+          {open ? "Hide" : "Show"}
+        </button>
+      </div>
       {open && (
         <ol className="trace-steps">
-          {steps.map((s, i) => (
-            <li key={i} className={s.status}>
-              <span className="trace-dot" />
-              <span className="trace-label">{labels[s.step] || s.step}</span>
-              {s.detail && <span className="trace-detail">{s.detail}</span>}
+          {rows.map((s) => (
+            <li key={s.key} className={s.status}>
+              <span className="trace-icon">
+                {s.status === "start" || s.status === "progress"
+                  ? <span className="spinner sm" />
+                  : (STEP_ICON[s.status] || "•")}
+              </span>
+              <div className="trace-body">
+                <span className="trace-label">{labels[s.key] || s.key}</span>
+                {s.detail && <span className="trace-detail">{s.detail}</span>}
+              </div>
             </li>
           ))}
         </ol>

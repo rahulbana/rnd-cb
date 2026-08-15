@@ -230,27 +230,51 @@ textarea:focus { outline: none; border-color: var(--accent-blue); }
 .cursor { animation: caret 1s step-end infinite; color: var(--muted); }
 @keyframes caret { 50% { opacity: 0; } }
 
-/* Step trace (collapsible) */
-.trace { margin-bottom: 10px; }
+/* Step trace — a presentable "thought process" card, expanded by default */
+.trace {
+  margin-bottom: 14px; border: 1px solid var(--border); border-radius: 12px;
+  background: var(--sidebar); overflow: hidden;
+}
+.trace.running { border-color: var(--border-strong); }
 .trace-head {
-  display: inline-flex; align-items: center; gap: 8px;
-  background: none; border: none; color: var(--muted); font-size: 13px; padding: 4px 0;
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 9px 12px; font-size: 13px;
 }
-.trace-summary { color: var(--muted); }
-.trace.running .trace-summary { color: var(--text); }
-.trace-caret { color: var(--faint); font-size: 10px; }
+.trace-headline { display: inline-flex; align-items: center; gap: 8px; font-weight: 500; color: var(--text); }
+.trace-spark { color: var(--accent-blue); font-size: 13px; }
+.trace-toggle {
+  background: none; border: none; color: var(--muted); font-size: 12px; font-weight: 500;
+  padding: 3px 8px; border-radius: 6px;
+}
+.trace-toggle:hover { background: var(--hover); color: var(--text); }
+
 .spinner {
-  width: 13px; height: 13px; border: 2px solid var(--border-strong);
-  border-top-color: var(--muted); border-radius: 50%; animation: spin .7s linear infinite;
+  flex: none; width: 14px; height: 14px; border: 2px solid var(--border-strong);
+  border-top-color: var(--accent-blue); border-radius: 50%; animation: spin .7s linear infinite;
 }
+.spinner.sm { width: 11px; height: 11px; border-width: 2px; }
 @keyframes spin { to { transform: rotate(360deg); } }
-.trace-steps { list-style: none; margin: 6px 0 0; padding: 8px 0 4px 6px; border-left: 2px solid var(--border); display: flex; flex-direction: column; gap: 5px; }
-.trace-steps li { display: flex; align-items: baseline; gap: 8px; font-size: 12.5px; color: var(--muted); }
-.trace-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--border-strong); transform: translateX(-11px); }
-.trace-steps li.done .trace-dot { background: #16a34a; }
-.trace-steps li.start .trace-dot { background: var(--accent-blue); }
-.trace-label { min-width: 84px; margin-left: -8px; color: var(--text); }
-.trace-detail { color: var(--faint); }
+
+.trace-steps {
+  list-style: none; margin: 0; padding: 4px 12px 12px;
+  display: flex; flex-direction: column; gap: 2px;
+}
+.trace-steps li { display: flex; align-items: flex-start; gap: 10px; padding: 5px 0; position: relative; }
+/* connector line between step icons */
+.trace-steps li:not(:last-child)::before {
+  content: ""; position: absolute; left: 9px; top: 22px; bottom: -3px; width: 2px; background: var(--border);
+}
+.trace-icon {
+  flex: none; width: 20px; height: 20px; border-radius: 50%; z-index: 1;
+  display: grid; place-items: center; font-size: 11px; font-weight: 700;
+  background: var(--border); color: var(--muted);
+}
+.trace-steps li.done .trace-icon { background: rgba(22,163,74,.15); color: #16a34a; }
+.trace-steps li.start .trace-icon, .trace-steps li.progress .trace-icon { background: none; }
+.trace-steps li.error .trace-icon { background: rgba(220,38,38,.15); color: var(--error); }
+.trace-body { display: flex; flex-direction: column; gap: 1px; padding-top: 1px; min-width: 0; }
+.trace-label { font-size: 13px; color: var(--text); font-weight: 500; }
+.trace-detail { font-size: 12px; color: var(--muted); line-height: 1.35; }
 
 /* Citations */
 .citations { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 10px; }
