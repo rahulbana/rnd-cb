@@ -7,10 +7,15 @@ Values here are safe production-shaped defaults for local development.
 from __future__ import annotations
 
 from functools import lru_cache
-from typing import Literal
+from typing import Annotated, Literal
 
-from pydantic import Field
-from pydantic_settings import BaseSettings, SettingsConfigDict
+from pydantic import Field, field_validator
+from pydantic_settings import BaseSettings, NoDecode, SettingsConfigDict
+
+# List fields populated from env/.env should accept a plain comma-separated
+# string (e.g. RAG_RERANK_MODELS=a,b) instead of requiring JSON. NoDecode tells
+# the settings source to hand us the raw string so our validator can split it.
+CsvList = Annotated[list[str], NoDecode]
 
 
 class Settings(BaseSettings):
@@ -26,7 +31,7 @@ class Settings(BaseSettings):
     environment: Literal["development", "staging", "production"] = "development"
     data_dir: str = "./data"
     upload_dir: str = "./data/uploads"
-    cors_origins: list[str] = Field(default_factory=lambda: ["http://localhost:5173"])
+    cors_origins: CsvList = Field(default_factory=lambda: ["http://localhost:5173"])
 
     # --- Embeddings ---
     embedding_provider: Literal["sentence_transformer"] = "sentence_transformer"
@@ -52,7 +57,7 @@ class Settings(BaseSettings):
     # --- Reranking ---
     rerank_enabled: bool = True
     # Comma-separated list of cross-encoder model names (chained in order).
-    rerank_models: list[str] = Field(
+    rerank_models: CsvList = Field(
         default_factory=lambda: ["cross-encoder/ms-marco-MiniLM-L-6-v2"]
     )
 
@@ -72,6 +77,19 @@ class Settings(BaseSettings):
 
     ollama_base_url: str = "http://localhost:11434"
     ollama_model: str = "llama3.1"
+
+    @field_validator("cors_origins", "rerank_models", mode="before")
+    @classmethod
+    def _split_csv(cls, value):
+        """Accept a JSON list, a comma-separated string, or a real list."""
+        if isinstance(value, str):
+            value = value.strip()
+            if value.startswith("["):
+                import json
+
+                return json.loads(value)
+            return [item.strip() for item in value.split(",") if item.strip()]
+        return value
 
 
 @lru_cache
