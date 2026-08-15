@@ -12,6 +12,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from .api import routes_documents, routes_health, routes_ws
 from .config import get_settings
 from .core.logging import configure_logging, get_logger
+from .core.preflight import run_preflight
 
 configure_logging()
 log = get_logger(__name__)
@@ -40,6 +41,7 @@ def create_app() -> FastAPI:
         log.info("%s starting (env=%s, llm=%s, retrieval=%s)",
                  settings.app_name, settings.environment,
                  settings.llm_provider, settings.retrieval_strategy)
+        run_preflight()
 
     return app
 
