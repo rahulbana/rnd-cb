@@ -4,6 +4,12 @@ import remarkGfm from "remark-gfm";
 import { openChatSocket, ingestFile } from "../api";
 import { STEP_LABELS } from "./StepTimeline.jsx";
 
+const MAX_UPLOAD_MB = 50;
+const SUPPORTED = [
+  "txt", "md", "log", "csv", "tsv", "pdf", "doc", "docx", "xls", "xlsx",
+  "xlsm", "ppt", "pptx", "png", "jpg", "jpeg", "webp", "tiff", "bmp",
+];
+
 function emptyAssistant() {
   return { role: "assistant", text: "", steps: [], sources: [], status: "running" };
 }
@@ -15,7 +21,6 @@ const SUGGESTIONS = [
   "Explain this document in simple terms",
 ];
 
-// File-type badge shown on each attachment chip.
 function fileKind(name) {
   const ext = (name.split(".").pop() || "").toLowerCase();
   const map = {
@@ -31,14 +36,24 @@ function fileKind(name) {
   return map[ext] || ["FILE", "#6b7280"];
 }
 
+function humanSize(bytes) {
+  if (!bytes) return "";
+  const units = ["B", "KB", "MB", "GB"];
+  let i = 0, n = bytes;
+  while (n >= 1024 && i < units.length - 1) { n /= 1024; i++; }
+  return `${n.toFixed(n < 10 && i > 0 ? 1 : 0)} ${units[i]}`;
+}
+
 export default function Chat({ settings, disabled, onIngested }) {
   const [messages, setMessages] = useState([]);
   const [input, setInput] = useState("");
   const [connected, setConnected] = useState(false);
   const [attachments, setAttachments] = useState([]);
   const [dragOver, setDragOver] = useState(false);
+  const [atBottom, setAtBottom] = useState(true);
   const chatRef = useRef(null);
   const activeIdx = useRef(null);
+  const lastQuery = useRef(null);
   const scrollRef = useRef(null);
   const taRef = useRef(null);
   const fileRef = useRef(null);
@@ -55,8 +70,8 @@ export default function Chat({ settings, disabled, onIngested }) {
   }, []);
 
   useEffect(() => {
-    scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: "smooth" });
-  }, [messages]);
+    if (atBottom) scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight });
+  }, [messages, atBottom]);
 
   useEffect(() => {
     const ta = taRef.current;
@@ -64,6 +79,12 @@ export default function Chat({ settings, disabled, onIngested }) {
     ta.style.height = "auto";
     ta.style.height = Math.min(ta.scrollHeight, 200) + "px";
   }, [input]);
+
+  function onScroll() {
+    const el = scrollRef.current;
+    if (!el) return;
+    setAtBottom(el.scrollHeight - el.scrollTop - el.clientHeight < 120);
+  }
 
   // ---- chat streaming ----
   function updateActive(mutator) {
@@ -88,10 +109,11 @@ export default function Chat({ settings, disabled, onIngested }) {
         updateActive((m) => ({ ...m, sources: event.data || [] }));
         break;
       case "token":
-        updateActive((m) => ({ ...m, text: m.text + (event.data || "") }));
+        // Ignore tokens after a manual Stop.
+        updateActive((m) => (m.status !== "running" ? m : { ...m, text: m.text + (event.data || "") }));
         break;
       case "done":
-        updateActive((m) => ({ ...m, status: "done" }));
+        updateActive((m) => (m.status === "stopped" ? m : { ...m, status: "done" }));
         break;
       case "error":
         updateActive((m) => ({ ...m, status: "error", text: m.text + `\n\n⚠️ ${event.detail}` }));
@@ -101,14 +123,22 @@ export default function Chat({ settings, disabled, onIngested }) {
     }
   }
 
-  function send(text) {
-    const q = (text ?? input).trim();
-    if (!q || !chatRef.current?.ready) return;
+  function ask(q, replaceIdx = null) {
+    if (!chatRef.current?.ready) return;
+    lastQuery.current = q;
     setMessages((prev) => {
-      const next = [...prev, { role: "user", text: q }, emptyAssistant()];
-      activeIdx.current = next.length - 1;
+      let next;
+      if (replaceIdx != null) {
+        next = prev.slice();
+        next[replaceIdx] = emptyAssistant();
+        activeIdx.current = replaceIdx;
+      } else {
+        next = [...prev, { role: "user", text: q }, emptyAssistant()];
+        activeIdx.current = next.length - 1;
+      }
       return next;
     });
+    setAtBottom(true);
     chatRef.current.ask(q, {
       retrieval_strategy: settings.retrieval_strategy,
       rerank_enabled: settings.rerank_enabled,
@@ -116,32 +146,68 @@ export default function Chat({ settings, disabled, onIngested }) {
       top_k: settings.top_k,
       final_top_k: settings.final_top_k,
     });
+  }
+
+  function send(text) {
+    const q = (text ?? input).trim();
+    if (!q) return;
+    ask(q);
     setInput("");
   }
 
-  // ---- uploads (ChatGPT-style, in the composer) ----
+  function regenerate() {
+    const q = lastQuery.current;
+    if (!q) return;
+    let idx = messages.length - 1;
+    if (messages[idx]?.role !== "assistant") return;
+    ask(q, idx);
+  }
+
+  function stop() {
+    updateActive((m) => ({ ...m, status: "stopped" }));
+  }
+
+  // ---- uploads ----
   function handleFiles(fileList) {
     for (const file of Array.from(fileList)) {
       const id = (crypto.randomUUID && crypto.randomUUID()) || String(Math.random());
-      setAttachments((a) => [...a, { id, name: file.name, status: "uploading", steps: [] }]);
-      const onEvent = (event) => {
-        if (event.type === "step") {
-          setAttachments((a) =>
-            a.map((x) => (x.id === id ? { ...x, steps: [...x.steps, event] } : x))
-          );
-        }
-      };
-      ingestFile(file, onEvent)
-        .then(() => {
-          setAttachments((a) => a.map((x) => (x.id === id ? { ...x, status: "ready" } : x)));
-          onIngested && onIngested();
-        })
-        .catch((err) => {
-          setAttachments((a) =>
-            a.map((x) => (x.id === id ? { ...x, status: "error", error: err.message } : x))
-          );
-        });
+      const ext = (file.name.split(".").pop() || "").toLowerCase();
+      const base = { id, name: file.name, size: file.size, file, steps: [] };
+
+      if (!SUPPORTED.includes(ext)) {
+        setAttachments((a) => [...a, { ...base, status: "error", error: `Unsupported .${ext}` }]);
+        continue;
+      }
+      if (file.size > MAX_UPLOAD_MB * 1024 * 1024) {
+        setAttachments((a) => [...a, {
+          ...base, status: "error", error: `Too large (max ${MAX_UPLOAD_MB} MB)`,
+        }]);
+        continue;
+      }
+      setAttachments((a) => [...a, { ...base, status: "uploading" }]);
+      startIngest(id, file);
     }
+  }
+
+  function startIngest(id, file) {
+    setAttachments((a) => a.map((x) => (x.id === id ? { ...x, status: "uploading", steps: [] } : x)));
+    const onEvent = (event) => {
+      if (event.type === "step") {
+        setAttachments((a) =>
+          a.map((x) => (x.id === id ? { ...x, steps: [...x.steps, event] } : x))
+        );
+      }
+    };
+    ingestFile(file, onEvent)
+      .then(() => {
+        setAttachments((a) => a.map((x) => (x.id === id ? { ...x, status: "ready" } : x)));
+        onIngested && onIngested();
+      })
+      .catch((err) => {
+        setAttachments((a) =>
+          a.map((x) => (x.id === id ? { ...x, status: "error", error: err.message } : x))
+        );
+      });
   }
 
   function onDrop(e) {
@@ -151,6 +217,7 @@ export default function Chat({ settings, disabled, onIngested }) {
   }
 
   const empty = messages.length === 0;
+  const streaming = messages[messages.length - 1]?.status === "running";
 
   return (
     <div
@@ -165,7 +232,7 @@ export default function Chat({ settings, disabled, onIngested }) {
         </div>
       )}
 
-      <div className="thread" ref={scrollRef}>
+      <div className="thread" ref={scrollRef} onScroll={onScroll}>
         {empty ? (
           <div className="welcome">
             <div className="welcome-logo">✦</div>
@@ -200,12 +267,21 @@ export default function Chat({ settings, disabled, onIngested }) {
                     {m.sources.length > 0 && <Citations sources={m.sources} />}
                     <div className="markdown">
                       {m.text ? (
-                        <ReactMarkdown remarkPlugins={[remarkGfm]}>{m.text}</ReactMarkdown>
+                        <ReactMarkdown remarkPlugins={[remarkGfm]} components={MD}>
+                          {m.text}
+                        </ReactMarkdown>
                       ) : m.status === "running" ? (
                         <span className="thinking-dots"><span /><span /><span /></span>
                       ) : null}
                       {m.status === "running" && m.text && <span className="cursor">▍</span>}
                     </div>
+                    {m.status !== "running" && m.text && (
+                      <MessageActions
+                        text={m.text}
+                        canRegenerate={i === messages.length - 1}
+                        onRegenerate={regenerate}
+                      />
+                    )}
                   </div>
                 </div>
               )
@@ -213,6 +289,16 @@ export default function Chat({ settings, disabled, onIngested }) {
           </div>
         )}
       </div>
+
+      {!atBottom && !empty && (
+        <button
+          className="scroll-bottom"
+          onClick={() => { setAtBottom(true); scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: "smooth" }); }}
+          aria-label="Scroll to bottom"
+        >
+          ↓
+        </button>
+      )}
 
       <div className="composer-wrap">
         <div className="composer">
@@ -223,6 +309,7 @@ export default function Chat({ settings, disabled, onIngested }) {
                   key={att.id}
                   att={att}
                   onRemove={() => setAttachments((a) => a.filter((x) => x.id !== att.id))}
+                  onRetry={() => att.file && startIngest(att.id, att.file)}
                 />
               ))}
             </div>
@@ -233,15 +320,10 @@ export default function Chat({ settings, disabled, onIngested }) {
               type="file"
               multiple
               hidden
-              accept=".txt,.md,.log,.csv,.tsv,.pdf,.doc,.docx,.xls,.xlsx,.xlsm,.ppt,.pptx,.png,.jpg,.jpeg,.webp,.tiff,.bmp"
+              accept={SUPPORTED.map((e) => "." + e).join(",")}
               onChange={(e) => { handleFiles(e.target.files); e.target.value = ""; }}
             />
-            <button
-              className="attach-btn"
-              onClick={() => fileRef.current?.click()}
-              title="Attach documents"
-              aria-label="Attach documents"
-            >
+            <button className="attach-btn" onClick={() => fileRef.current?.click()} title="Attach documents" aria-label="Attach documents">
               +
             </button>
             <textarea
@@ -257,35 +339,74 @@ export default function Chat({ settings, disabled, onIngested }) {
                 }
               }}
             />
-            <button
-              className="send-btn"
-              onClick={() => send()}
-              disabled={!connected || !input.trim()}
-              aria-label="Send"
-            >
-              ↑
-            </button>
+            {streaming ? (
+              <button className="send-btn stop" onClick={stop} aria-label="Stop" title="Stop">■</button>
+            ) : (
+              <button className="send-btn" onClick={() => send()} disabled={!connected || !input.trim()} aria-label="Send">↑</button>
+            )}
           </div>
         </div>
         <div className="composer-foot">
-          <span className={`conn ${connected ? "on" : "off"}`}>
-            {connected ? "connected" : "connecting…"}
-          </span>
-          <span>·</span>
-          <span>{settings.retrieval_strategy} retrieval</span>
+          <span className={`conn ${connected ? "on" : "off"}`}>{connected ? "connected" : "connecting…"}</span>
+          <span>·</span><span>{settings.retrieval_strategy} retrieval</span>
           {settings.rerank_enabled && <><span>·</span><span>rerank on</span></>}
-          <span>·</span>
-          <span>{settings.llm_provider}</span>
+          <span>·</span><span>{settings.llm_provider}</span>
         </div>
       </div>
     </div>
   );
 }
 
-function AttachmentChip({ att, onRemove }) {
+// ---- code block with language label + copy ----
+function CodeBlock({ className, children }) {
+  const raw = String(children ?? "");
+  const isBlock = /language-/.test(className || "") || raw.includes("\n");
+  if (!isBlock) return <code className={className}>{children}</code>;
+  const lang = (/language-(\w+)/.exec(className || "") || [])[1] || "code";
+  const [copied, setCopied] = useState(false);
+  const copy = () => {
+    navigator.clipboard?.writeText(raw.replace(/\n$/, ""));
+    setCopied(true);
+    setTimeout(() => setCopied(false), 1200);
+  };
+  return (
+    <div className="code-wrap">
+      <div className="code-head">
+        <span className="code-lang">{lang}</span>
+        <button className="code-copy" onClick={copy}>{copied ? "Copied!" : "Copy"}</button>
+      </div>
+      <pre><code className={className}>{children}</code></pre>
+    </div>
+  );
+}
+const MD = { code: CodeBlock };
+
+function MessageActions({ text, canRegenerate, onRegenerate }) {
+  const [copied, setCopied] = useState(false);
+  return (
+    <div className="msg-actions">
+      <button
+        className="action-btn"
+        onClick={() => { navigator.clipboard?.writeText(text); setCopied(true); setTimeout(() => setCopied(false), 1200); }}
+        title="Copy"
+      >
+        {copied ? "✓ Copied" : "⧉ Copy"}
+      </button>
+      {canRegenerate && (
+        <button className="action-btn" onClick={onRegenerate} title="Regenerate">↻ Regenerate</button>
+      )}
+    </div>
+  );
+}
+
+function AttachmentChip({ att, onRemove, onRetry }) {
   const [label, color] = fileKind(att.name);
   const labels = STEP_LABELS.ingest;
+  const done = att.steps.filter((s) => s.status === "done").map((s) => s.step);
+  const doneCount = new Set(done).size;
+  const pct = att.status === "ready" ? 100 : Math.min(95, Math.round((doneCount / 6) * 100));
   const last = att.steps[att.steps.length - 1];
+
   let status = "Uploading…";
   if (att.status === "ready") status = "Ready";
   else if (att.status === "error") status = att.error || "Failed";
@@ -301,8 +422,15 @@ function AttachmentChip({ att, onRemove }) {
         <div className="attachment-status">
           {att.status === "ready" && "✓ "}
           {status}
+          {att.size ? <span className="attachment-size"> · {humanSize(att.size)}</span> : null}
         </div>
+        {att.status === "uploading" && (
+          <div className="attachment-bar"><div style={{ width: `${pct}%` }} /></div>
+        )}
       </div>
+      {att.status === "error" && att.file && (
+        <button className="attachment-retry" onClick={onRetry} title="Retry">↻</button>
+      )}
       <button className="attachment-x" onClick={onRemove} aria-label="Remove">×</button>
     </div>
   );
@@ -311,14 +439,12 @@ function AttachmentChip({ att, onRemove }) {
 function StepTrace({ steps, status }) {
   const [open, setOpen] = useState(false);
   if (steps.length === 0 && status !== "running") return null;
-
   const labels = STEP_LABELS.chat;
   const active = [...steps].reverse().find((s) => s.status === "start");
   const running = status === "running";
   const summary = running
     ? (active ? `${labels[active.step] || active.step}…` : "Working…")
     : "Thought process";
-
   return (
     <div className={`trace ${running ? "running" : ""}`}>
       <button className="trace-head" onClick={() => setOpen((o) => !o)}>
