@@ -10,6 +10,9 @@ export default function App() {
   const [settings, setSettings] = useState(null);
   const [sources, setSources] = useState([]);
   const [totalChunks, setTotalChunks] = useState(0);
+  const [sessionKey, setSessionKey] = useState(0); // bump to start a new chat
+  const [sidebarOpen, setSidebarOpen] = useState(true);
+  const [showSettings, setShowSettings] = useState(false);
 
   const refreshSources = useCallback(async () => {
     try {
@@ -47,36 +50,45 @@ export default function App() {
     refreshSources();
   }, [refreshSources]);
 
-  const onIngested = useCallback(() => {
-    refreshSources();
-  }, [refreshSources]);
-
-  if (!settings) return <div className="loading">Loading…</div>;
+  if (!settings) return <div className="boot">Loading…</div>;
 
   return (
-    <div className="app">
-      <header className="app-header">
-        <h1>🧠 Intelligent RAG Chatbot</h1>
-        <span className="subtitle">
-          Multi-format ingestion · switchable retrieval · streaming answers
-        </span>
-      </header>
+    <div className={`app ${sidebarOpen ? "" : "collapsed"}`}>
+      <aside className="sidebar">
+        <div className="sidebar-top">
+          <div className="brand">✦ DocChat</div>
+          <button className="icon-btn" onClick={() => setSidebarOpen(false)} title="Hide sidebar">
+            ⟨
+          </button>
+        </div>
 
-      <div className="layout">
-        <aside className="sidebar">
-          <Uploader onIngested={onIngested} />
-          <Settings config={config} settings={settings} onChange={setSettings} />
-          <Sources
-            sources={sources}
-            totalChunks={totalChunks}
-            onChange={refreshSources}
-          />
-        </aside>
+        <button className="new-chat" onClick={() => setSessionKey((k) => k + 1)}>
+          ✎ New chat
+        </button>
 
-        <main className="main">
-          <Chat settings={settings} disabled={totalChunks === 0} />
-        </main>
-      </div>
+        <div className="sidebar-scroll">
+          <Uploader onIngested={refreshSources} />
+          <Sources sources={sources} totalChunks={totalChunks} onChange={refreshSources} />
+        </div>
+
+        <div className="sidebar-foot">
+          <button className="settings-toggle" onClick={() => setShowSettings((s) => !s)}>
+            ⚙ Retrieval settings {showSettings ? "▾" : "▸"}
+          </button>
+          {showSettings && (
+            <Settings config={config} settings={settings} onChange={setSettings} />
+          )}
+        </div>
+      </aside>
+
+      <main className="main">
+        {!sidebarOpen && (
+          <button className="icon-btn floating" onClick={() => setSidebarOpen(true)} title="Show sidebar">
+            ⟩
+          </button>
+        )}
+        <Chat key={sessionKey} settings={settings} disabled={totalChunks === 0} />
+      </main>
     </div>
   );
 }

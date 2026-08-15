@@ -7,9 +7,7 @@ export default function Settings({ config, settings, onChange }) {
   const set = (patch) => onChange({ ...settings, ...patch });
 
   return (
-    <div className="panel">
-      <h2>Retrieval settings</h2>
-
+    <div className="settings-body">
       <label className="field">
         <span>Retrieval technique</span>
         <select
