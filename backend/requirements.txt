@@ -24,6 +24,13 @@ pandas>=2.2            # CSV / Excel dataframes
 # --- Chunking ---
 tiktoken>=0.7          # accurate token counting
 
+# --- ML backend (PyTorch) ---
+# Declared explicitly so installs are reproducible. On Intel (x86) macOS pip
+# resolves this to 2.2.2 automatically — the last PyTorch release with x86 mac
+# wheels. Apple Silicon / Linux get a newer build (raise the cap there to use
+# newer transformers below).
+torch>=2.2
+
 # --- Embeddings & reranking ---
 # transformers/sentence-transformers are capped so they stay compatible with
 # torch 2.2.2 — the last PyTorch release that supports Intel (x86) macOS.
