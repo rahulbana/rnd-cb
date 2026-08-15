@@ -30,6 +30,9 @@ tiktoken>=0.7          # accurate token counting
 # wheels. Apple Silicon / Linux get a newer build (raise the cap there to use
 # newer transformers below).
 torch>=2.2
+# torch 2.2.x is built against NumPy 1.x and errors ("Numpy is not available")
+# when paired with NumPy 2.0. Cap it; on torch>=2.3 you may drop the upper bound.
+numpy>=1.26,<2
 
 # --- Embeddings & reranking ---
 # transformers/sentence-transformers are capped so they stay compatible with

@@ -48,6 +48,22 @@ def check_ml_backend() -> list[str]:
     except Exception:  # transformers not installed yet — surfaced elsewhere
         pass
 
+    # torch < 2.3 is built against NumPy 1.x; pairing it with NumPy 2.0 raises
+    # "Numpy is not available" the moment a tensor is converted to an array.
+    try:
+        import numpy
+
+        torch_major_minor = tuple(int(p) for p in torch_version.split(".")[:2])
+        numpy_major = int(numpy.__version__.split(".")[0])
+        if torch_major_minor < (2, 3) and numpy_major >= 2:
+            problems.append(
+                f"torch {torch_version} is incompatible with NumPy "
+                f"{numpy.__version__} — embeddings will fail with 'Numpy is not "
+                "available'. Fix: pip install 'numpy<2'"
+            )
+    except Exception:
+        pass
+
     return problems
 
 
