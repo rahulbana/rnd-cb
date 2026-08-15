@@ -44,8 +44,8 @@ function humanSize(bytes) {
   return `${n.toFixed(n < 10 && i > 0 ? 1 : 0)} ${units[i]}`;
 }
 
-export default function Chat({ settings, disabled, onIngested }) {
-  const [messages, setMessages] = useState([]);
+export default function Chat({ settings, disabled, onIngested, initialMessages, onPersist }) {
+  const [messages, setMessages] = useState(() => initialMessages || []);
   const [input, setInput] = useState("");
   const [connected, setConnected] = useState(false);
   const [attachments, setAttachments] = useState([]);
@@ -57,6 +57,8 @@ export default function Chat({ settings, disabled, onIngested }) {
   const scrollRef = useRef(null);
   const taRef = useRef(null);
   const fileRef = useRef(null);
+  const persistRef = useRef(onPersist);
+  persistRef.current = onPersist;
 
   useEffect(() => {
     const chat = openChatSocket({
@@ -68,6 +70,15 @@ export default function Chat({ settings, disabled, onIngested }) {
     return () => chat.close();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // Persist conversation to history (debounced so streaming isn't a write storm).
+  // Skip the initial mount so merely opening a chat doesn't bump its timestamp.
+  const firstPersist = useRef(true);
+  useEffect(() => {
+    if (firstPersist.current) { firstPersist.current = false; return; }
+    const t = setTimeout(() => persistRef.current && persistRef.current(messages), 400);
+    return () => clearTimeout(t);
+  }, [messages]);
 
   useEffect(() => {
     if (atBottom) scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight });
@@ -156,10 +167,12 @@ export default function Chat({ settings, disabled, onIngested }) {
   }
 
   function regenerate() {
-    const q = lastQuery.current;
-    if (!q) return;
-    let idx = messages.length - 1;
+    const idx = messages.length - 1;
     if (messages[idx]?.role !== "assistant") return;
+    // Fall back to the last user turn (e.g. after reloading a saved chat where
+    // the in-memory lastQuery ref was reset).
+    const q = lastQuery.current || [...messages].reverse().find((m) => m.role === "user")?.text;
+    if (!q) return;
     ask(q, idx);
   }
 
