@@ -64,6 +64,7 @@ class Settings(BaseSettings):
     # --- Parsing backends (switchable) ---
     pdf_backend: Literal["pymupdf", "pdfplumber", "unstructured", "docling"] = "pymupdf"
     pdf_ocr_fallback: bool = True  # OCR pages that yield no extractable text
+    pdf_ocr_dpi: int = 200  # lower (e.g. 120-150) is faster but less accurate
     ocr_language: str = "eng"
 
     # --- LLM ---

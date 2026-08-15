@@ -53,7 +53,9 @@ class PDFParser(BaseParser):
         fitz = require("fitz", "pymupdf")
         settings = get_settings()
         elements: list[Element] = []
+        ocr_pages = 0
         with fitz.open(path) as pdf:
+            n_pages = pdf.page_count
             for page_no, page in enumerate(pdf, start=1):
                 text = page.get_text("text").strip()
                 if text:
@@ -65,22 +67,31 @@ class PDFParser(BaseParser):
                                         metadata={"page": page_no})
                             )
                 elif settings.pdf_ocr_fallback:
-                    ocr_text = self._ocr_page(fitz, page, settings.ocr_language)
+                    # Scanned/image page: OCR is expensive (seconds/page on CPU).
+                    ocr_pages += 1
+                    log.info("OCR page %d/%d of %s (no embedded text) …",
+                             page_no, n_pages, source_name)
+                    ocr_text = self._ocr_page(fitz, page, settings.ocr_language,
+                                              settings.pdf_ocr_dpi)
                     if ocr_text:
                         elements.append(
                             Element(type=ElementType.OCR, text=ocr_text,
                                     metadata={"page": page_no, "ocr": True})
                         )
+        if ocr_pages:
+            log.warning("%s: OCR ran on %d/%d pages — this is the slow part. "
+                        "Lower RAG_PDF_OCR_DPI or set RAG_PDF_OCR_FALLBACK=false "
+                        "for digital PDFs.", source_name, ocr_pages, n_pages)
         return ParsedDocument(source_name=source_name, parser="pdf:pymupdf",
                               elements=elements)
 
     @staticmethod
-    def _ocr_page(fitz, page, language: str) -> str:
+    def _ocr_page(fitz, page, language: str, dpi: int = 200) -> str:
         try:
             pytesseract = require("pytesseract", "pytesseract")
             pil = require("PIL.Image", "Pillow")
             import io
-            pix = page.get_pixmap(dpi=200)
+            pix = page.get_pixmap(dpi=dpi)
             image = pil.open(io.BytesIO(pix.tobytes("png")))
             return pytesseract.image_to_string(image, lang=language).strip()
         except ParserError as exc:
