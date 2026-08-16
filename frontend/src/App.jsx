@@ -28,7 +28,10 @@ export default function App() {
 
   const [conversations, setConversations] = useState([]); // summaries
   const [activeId, setActiveId] = useState(null);
-  const [activeMessages, setActiveMessages] = useState(null); // null = loading
+  // Loaded messages tagged with the conversation they belong to, so Chat only
+  // mounts once messages for the CURRENT active id are ready (prevents a new
+  // chat from inheriting the previous chat's messages).
+  const [loaded, setLoaded] = useState(null); // { id, messages } | null
   const convsRef = useRef([]);
   convsRef.current = conversations;
 
@@ -91,14 +94,14 @@ export default function App() {
     if (!activeId) return;
     const summary = convsRef.current.find((c) => c.id === activeId);
     if (summary && (summary.messageCount || 0) === 0) {
-      setActiveMessages([]); // brand-new / empty — no fetch needed
+      setLoaded({ id: activeId, messages: [] }); // brand-new / empty — no fetch
       return;
     }
     let cancelled = false;
-    setActiveMessages(null);
+    setLoaded(null); // show loading until this id's messages arrive
     apiGetConversation(activeId)
-      .then((full) => { if (!cancelled) setActiveMessages(sanitizeMessages(full.messages)); })
-      .catch(() => { if (!cancelled) setActiveMessages([]); });
+      .then((full) => { if (!cancelled) setLoaded({ id: activeId, messages: sanitizeMessages(full.messages) }); })
+      .catch(() => { if (!cancelled) setLoaded({ id: activeId, messages: [] }); });
     return () => { cancelled = true; };
   }, [activeId]);
 
@@ -123,10 +126,15 @@ export default function App() {
 
   function newChat() {
     const empty = conversations.find((c) => (c.messageCount || 0) === 0);
-    if (empty) { setActiveId(empty.id); return; }
+    if (empty) {
+      setActiveId(empty.id);
+      setLoaded({ id: empty.id, messages: [] });
+      return;
+    }
     const conv = newConversation();
     setConversations((prev) => [conv, ...prev]);
     setActiveId(conv.id);
+    setLoaded({ id: conv.id, messages: [] });
   }
 
   async function deleteChat(id) {
@@ -198,18 +206,18 @@ export default function App() {
         {!sidebarOpen && (
           <button className="icon-btn floating" onClick={() => setSidebarOpen(true)} title="Show sidebar">⟩</button>
         )}
-        {activeMessages === null ? (
-          <div className="boot">Loading conversation…</div>
-        ) : (
+        {loaded && loaded.id === activeId ? (
           <Chat
             key={activeId}
             settings={settings}
             disabled={totalChunks === 0}
             onIngested={refreshSources}
-            initialMessages={activeMessages}
+            initialMessages={loaded.messages}
             onPersist={(msgs) => persist(activeId, msgs)}
             traceDefaultOpen={traceDefaultOpen}
           />
+        ) : (
+          <div className="boot">Loading conversation…</div>
         )}
       </main>
     </div>
