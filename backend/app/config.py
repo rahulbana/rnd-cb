@@ -66,6 +66,17 @@ class Settings(BaseSettings):
         default_factory=lambda: ["cross-encoder/ms-marco-MiniLM-L-6-v2"]
     )
 
+    # --- Agent / tools ---
+    agent_enabled: bool = True          # agentic mode (LLM chooses tools) vs. plain RAG
+    agent_max_steps: int = 6            # max tool-calling iterations
+    tools_enabled: CsvList = Field(
+        default_factory=lambda: ["search_documents", "get_current_time",
+                                 "calculator", "web_search"]
+    )
+    web_search_provider: Literal["duckduckgo", "tavily", "none"] = "duckduckgo"
+    web_search_results: int = 5
+    tavily_api_key: str | None = None   # optional; better web results when set
+
     # --- Parsing backends (switchable) ---
     pdf_backend: Literal["pymupdf", "pdfplumber", "unstructured", "docling"] = "pymupdf"
     pdf_ocr_fallback: bool = True  # OCR pages that yield no extractable text

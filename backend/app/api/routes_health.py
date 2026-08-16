@@ -35,10 +35,13 @@ async def config() -> dict:
             "chunk_strategy": s.chunk_strategy,
             "top_k": s.retrieval_top_k,
             "final_top_k": s.final_top_k,
+            "agent_enabled": s.agent_enabled,
+            "tools_enabled": s.tools_enabled,
         },
         "options": {
             "retrieval_strategy": ["simple", "hybrid"],
             "llm_provider": ["openai", "ollama"],
+            "tools": ["search_documents", "get_current_time", "calculator", "web_search"],
         },
         "indexed_chunks": indexed,
         "openai_configured": bool(s.openai_api_key),

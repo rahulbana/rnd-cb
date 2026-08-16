@@ -6,6 +6,8 @@ import uuid
 
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect
 
+from ..agent.agent import run_agent
+from ..config import get_settings
 from ..core.events import EventType, bus
 from ..core.logging import get_logger
 from ..rag.pipeline import ChatOptions, run_chat
@@ -70,8 +72,12 @@ async def ws_chat(ws: WebSocket) -> None:
                 await ws.send_json({"type": "error", "detail": "Empty query."})
                 continue
             options = ChatOptions.from_dict(payload.get("options"))
+            settings = get_settings()
+            agent_on = settings.agent_enabled if options.agent_enabled is None \
+                else options.agent_enabled
+            runner = run_agent if agent_on else run_chat
             channel = f"chat:{uuid.uuid4().hex}"
-            await _relay(ws, channel, lambda q=query, o=options:
-                         run_chat(channel, q, o))
+            await _relay(ws, channel, lambda q=query, o=options, r=runner:
+                         r(channel, q, o))
     except WebSocketDisconnect:
         log.info("Chat socket disconnected")

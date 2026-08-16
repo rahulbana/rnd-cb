@@ -6,8 +6,46 @@ export default function Settings({ config, settings, onChange, traceDefaultOpen,
   const opts = config.options || {};
   const set = (patch) => onChange({ ...settings, ...patch });
 
+  const TOOL_LABELS = {
+    search_documents: "📄 Documents",
+    get_current_time: "🕐 Current time",
+    calculator: "🧮 Calculator",
+    web_search: "🌐 Web search",
+  };
+  const allTools = (config.options && config.options.tools) || Object.keys(TOOL_LABELS);
+  const toolsEnabled = settings.tools_enabled || [];
+  const toggleTool = (name, on) => {
+    const next = on ? [...new Set([...toolsEnabled, name])] : toolsEnabled.filter((t) => t !== name);
+    set({ tools_enabled: next });
+  };
+
   return (
     <div className="settings-body">
+      <label className="field checkbox">
+        <input
+          type="checkbox"
+          checked={!!settings.agent_enabled}
+          onChange={(e) => set({ agent_enabled: e.target.checked })}
+        />
+        <span>Agentic mode (use tools)</span>
+      </label>
+
+      {settings.agent_enabled && (
+        <div className="tools-group">
+          <div className="tools-label">Tools</div>
+          {allTools.map((name) => (
+            <label key={name} className="field checkbox tool-row">
+              <input
+                type="checkbox"
+                checked={toolsEnabled.includes(name)}
+                onChange={(e) => toggleTool(name, e.target.checked)}
+              />
+              <span>{TOOL_LABELS[name] || name}</span>
+            </label>
+          ))}
+        </div>
+      )}
+
       <label className="field">
         <span>Retrieval technique</span>
         <select

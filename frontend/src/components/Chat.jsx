@@ -124,7 +124,9 @@ export default function Chat({ settings, disabled, onIngested, initialMessages, 
           ...m,
           steps: [...m.steps, {
             step: event.step, status: event.status, detail: event.detail,
-            t: Date.now(), seconds: event.data && event.data.seconds,
+            t: Date.now(),
+            seconds: event.data && event.data.seconds,
+            label: event.data && event.data.label,
           }],
         }));
         break;
@@ -170,6 +172,8 @@ export default function Chat({ settings, disabled, onIngested, initialMessages, 
       llm_provider: settings.llm_provider,
       top_k: settings.top_k,
       final_top_k: settings.final_top_k,
+      agent_enabled: settings.agent_enabled,
+      tools_enabled: settings.tools_enabled,
     });
   }
 
@@ -501,29 +505,32 @@ function StepTrace({ steps, status, defaultOpen = true }) {
   if (steps.length === 0 && status !== "running") return null;
 
   const labels = STEP_LABELS.chat;
-  const order = Object.keys(labels).filter((k) => k !== "complete");
   const running = status === "running";
 
-  // Collapse the start/done event stream into one row per step (last wins).
+  // Collapse the start/done event stream into one row per step (last wins),
+  // ordered by first appearance so dynamic agent tool-steps render in order.
   // Prefer the server-measured duration (the CPU stages block the event loop,
   // so client-side arrival timing reads ~0); fall back to client timing.
   const byStep = {};
   const startT = {};
+  const order = [];
   for (const s of steps) {
+    if (!(s.step in byStep)) order.push(s.step);
     byStep[s.step] = s;
     if (s.status === "start" && startT[s.step] == null) startT[s.step] = s.t;
   }
-  const rows = order.filter((k) => byStep[k]).map((k) => {
+  const stepLabel = (s) => s.label || labels[s.step] || s.step;
+  const rows = order.filter((k) => k !== "complete").map((k) => {
     const s = byStep[k];
     let secs = null;
     if (s.seconds != null) secs = s.seconds;
     else if (s.status === "done" && startT[k] != null && s.t != null) secs = (s.t - startT[k]) / 1000;
-    return { key: k, ...s, secs };
+    return { key: k, ...s, secs, label: stepLabel(s) };
   });
 
   const active = [...steps].reverse().find((s) => s.status === "start");
   const headline = running
-    ? (active ? `${labels[active.step] || active.step}…` : "Thinking…")
+    ? (active ? `${stepLabel(active)}…` : "Thinking…")
     : "Thought process";
 
   const total = rows.reduce((sum, r) => (r.secs != null ? sum + r.secs : sum), 0);
@@ -551,7 +558,7 @@ function StepTrace({ steps, status, defaultOpen = true }) {
               </span>
               <div className="trace-body">
                 <span className="trace-label">
-                  {labels[s.key] || s.key}
+                  {s.label}
                   {s.secs != null && <span className="trace-time">{fmtDuration(s.secs)}</span>}
                 </span>
                 {s.detail && <span className="trace-detail">{s.detail}</span>}

@@ -3,7 +3,7 @@ from __future__ import annotations
 
 from typing import AsyncIterator
 
-from .base import BaseLLM, Message
+from .base import AssistantTurn, BaseLLM, Message, ToolCall
 from ..config import get_settings
 
 
@@ -41,3 +41,17 @@ class OpenAILLM(BaseLLM):
             delta = chunk.choices[0].delta
             if delta and delta.content:
                 yield delta.content
+
+    async def chat(self, messages: list[Message], tools=None) -> AssistantTurn:
+        kwargs = dict(model=self.model, messages=messages,
+                      temperature=self._temperature, max_tokens=self._max_tokens)
+        if tools:
+            kwargs["tools"] = tools
+            kwargs["tool_choice"] = "auto"
+        response = await self._client.chat.completions.create(**kwargs)
+        msg = response.choices[0].message
+        calls = [
+            ToolCall(id=tc.id, name=tc.function.name, arguments=tc.function.arguments or "{}")
+            for tc in (msg.tool_calls or [])
+        ]
+        return AssistantTurn(content=msg.content or "", tool_calls=calls)

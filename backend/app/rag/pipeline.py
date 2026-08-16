@@ -30,6 +30,8 @@ class ChatOptions:
     llm_provider: str | None = None
     top_k: int | None = None          # candidates to retrieve
     final_top_k: int | None = None    # passages to send to the LLM
+    agent_enabled: bool | None = None  # agentic (tools) vs. plain RAG
+    tools_enabled: list[str] | None = None
 
     @classmethod
     def from_dict(cls, d: dict | None) -> "ChatOptions":
@@ -41,6 +43,8 @@ class ChatOptions:
             llm_provider=d.get("llm_provider"),
             top_k=d.get("top_k"),
             final_top_k=d.get("final_top_k"),
+            agent_enabled=d.get("agent_enabled"),
+            tools_enabled=d.get("tools_enabled"),
         )
 
 

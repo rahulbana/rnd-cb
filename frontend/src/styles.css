@@ -206,6 +206,9 @@ textarea:focus { outline: none; border-color: var(--accent-blue); }
 .field.checkbox { flex-direction: row; align-items: center; gap: 8px; }
 .field-row { display: flex; gap: 8px; }
 .field-row .field { flex: 1; }
+.tools-group { margin: -2px 0 12px 6px; padding: 8px 10px; border-left: 2px solid var(--border); }
+.tools-label { font-size: 10px; text-transform: uppercase; letter-spacing: .06em; color: var(--faint); margin-bottom: 6px; }
+.tool-row { margin-bottom: 6px; }
 
 /* ---------- Main / chat ---------- */
 .main { position: relative; min-width: 0; display: flex; }

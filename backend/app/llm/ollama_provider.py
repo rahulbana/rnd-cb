@@ -2,9 +2,10 @@
 from __future__ import annotations
 
 import json
+import uuid
 from typing import AsyncIterator
 
-from .base import BaseLLM, Message
+from .base import AssistantTurn, BaseLLM, Message, ToolCall
 from ..config import get_settings
 
 
@@ -44,3 +45,29 @@ class OllamaLLM(BaseLLM):
                         yield token
                     if data.get("done"):
                         break
+
+    async def chat(self, messages: list[Message], tools=None) -> AssistantTurn:
+        import httpx
+
+        payload = {
+            "model": self.model,
+            "messages": messages,
+            "stream": False,
+            "options": {"temperature": self._temperature},
+        }
+        if tools:
+            payload["tools"] = tools
+        async with httpx.AsyncClient(timeout=None) as client:
+            resp = await client.post(f"{self._base_url}/api/chat", json=payload)
+            resp.raise_for_status()
+            data = resp.json()
+        msg = data.get("message", {})
+        calls = []
+        for tc in msg.get("tool_calls", []) or []:
+            fn = tc.get("function", {})
+            args = fn.get("arguments", {})
+            # Ollama returns arguments as a dict; normalize to a JSON string.
+            args_str = args if isinstance(args, str) else json.dumps(args)
+            calls.append(ToolCall(id=uuid.uuid4().hex, name=fn.get("name", ""),
+                                  arguments=args_str))
+        return AssistantTurn(content=msg.get("content", "") or "", tool_calls=calls)

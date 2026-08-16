@@ -117,9 +117,10 @@ class StepEmitter:
     async def emit(self, event: Event) -> None:
         await bus.publish(self.channel, event)
 
-    async def step_start(self, step: str, detail: str | None = None) -> None:
+    async def step_start(self, step: str, detail: str | None = None,
+                        data: Any | None = None) -> None:
         await self.emit(Event(type=EventType.STEP, phase=self.phase, step=step,
-                              status=Status.START, detail=detail))
+                              status=Status.START, detail=detail, data=data))
 
     async def step_done(self, step: str, detail: str | None = None,
                         data: Any | None = None) -> None:

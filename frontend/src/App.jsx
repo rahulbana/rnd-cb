@@ -57,6 +57,8 @@ export default function App() {
           llm_provider: d.llm_provider,
           top_k: d.top_k,
           final_top_k: d.final_top_k,
+          agent_enabled: d.agent_enabled ?? true,
+          tools_enabled: d.tools_enabled ?? ["search_documents", "get_current_time", "calculator", "web_search"],
         });
       })
       .catch(() => {
@@ -64,6 +66,8 @@ export default function App() {
         setSettings({
           retrieval_strategy: "hybrid", rerank_enabled: true,
           llm_provider: "openai", top_k: 20, final_top_k: 5,
+          agent_enabled: true,
+          tools_enabled: ["search_documents", "get_current_time", "calculator", "web_search"],
         });
       });
     refreshSources();
