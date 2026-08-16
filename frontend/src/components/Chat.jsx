@@ -526,12 +526,15 @@ function StepTrace({ steps, status, defaultOpen = true }) {
     ? (active ? `${labels[active.step] || active.step}…` : "Thinking…")
     : "Thought process";
 
+  const total = rows.reduce((sum, r) => (r.secs != null ? sum + r.secs : sum), 0);
+
   return (
     <div className={`trace ${running ? "running" : ""}`}>
       <div className="trace-head">
         <span className="trace-headline">
           {running ? <span className="spinner" /> : <span className="trace-spark">✦</span>}
           {headline}
+          {!running && total > 0 && <span className="trace-total">{fmtDuration(total)}</span>}
         </span>
         <button className="trace-toggle" onClick={() => setOpen((o) => !o)}>
           {open ? "Hide" : "Show"}
