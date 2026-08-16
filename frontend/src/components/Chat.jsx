@@ -176,6 +176,8 @@ export default function Chat({ settings, disabled, onIngested, initialMessages, 
     if (!q) return;
     ask(q);
     setInput("");
+    // Drop finished upload chips; keep any still uploading or errored.
+    setAttachments((a) => a.filter((x) => x.status === "uploading" || x.status === "error"));
   }
 
   function regenerate() {
@@ -227,6 +229,9 @@ export default function Chat({ settings, disabled, onIngested, initialMessages, 
       .then(() => {
         setAttachments((a) => a.map((x) => (x.id === id ? { ...x, status: "ready" } : x)));
         onIngested && onIngested();
+        // The document now lives in the sidebar's Documents list, so the
+        // composer chip is just a transient confirmation — auto-dismiss it.
+        setTimeout(() => setAttachments((a) => a.filter((x) => x.id !== id)), 2500);
       })
       .catch((err) => {
         setAttachments((a) =>
