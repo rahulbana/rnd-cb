@@ -12,6 +12,9 @@ step live** in the UI.
 - **Vector store:** ChromaDB — pluggable
 - **Retrieval:** `simple` (dense) or `hybrid` (dense + BM25, RRF-fused) — switchable
 - **Re-ranking:** cross-encoder(s), on/off and chainable — switchable
+- **Agentic mode:** the LLM decides when to call tools — `search_documents` (the RAG
+  pipeline as a tool), `calculator`, `get_current_time`, `web_search` — in a
+  reasoning loop, with each tool call streamed live to the UI. Switchable per request.
 
 ---
 
@@ -70,6 +73,7 @@ paragraph → line → sentence → word boundaries. Also available: `by_element
 | Re-ranker | `reranking/base.py` | implement `BaseReranker` |
 | LLM | `llm/base.py` | implement `BaseLLM` |
 | Parser | `ingestion/parsers/base.py` | implement `BaseParser`, register in `ingestion/router.py` |
+| Agent tool | `tools/base.py` | implement `Tool` (name/description/JSON-schema/`run`), register in `tools/registry.py` |
 
 ---
 
