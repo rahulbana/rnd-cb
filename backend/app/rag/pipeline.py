@@ -13,6 +13,7 @@ from dataclasses import dataclass
 from ..config import get_settings
 from ..core.events import Phase, StepEmitter, bus
 from ..core.logging import get_logger
+from ..embeddings import get_embedder
 from ..llm import get_llm
 from ..rag.prompt import build_messages, sources_payload
 from ..reranking import get_reranker
