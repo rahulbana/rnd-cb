@@ -80,10 +80,11 @@ class HybridRetriever(BaseRetriever):
     def __init__(self) -> None:
         self._dense = SimpleRetriever()
 
-    def retrieve(self, query: str, top_k: int) -> list[RetrievedChunk]:
+    def retrieve(self, query: str, top_k: int,
+                 query_embedding: list[float] | None = None) -> list[RetrievedChunk]:
         alpha = get_settings().hybrid_alpha
         # Over-fetch from each arm so fusion has candidates to work with.
-        dense = self._dense.retrieve(query, top_k=top_k)
+        dense = self._dense.retrieve(query, top_k, query_embedding)
         sparse = _bm25_index.search(query, top_k=top_k)
 
         fused: dict[str, RetrievedChunk] = {}

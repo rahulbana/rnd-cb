@@ -6,6 +6,8 @@ can switch techniques live.
 """
 from __future__ import annotations
 
+import asyncio
+import time
 from dataclasses import dataclass
 
 from ..config import get_settings
@@ -48,17 +50,26 @@ async def run_chat(channel: str, query: str, options: ChatOptions) -> None:
     final_k = options.final_top_k or settings.final_top_k
 
     try:
-        # 1. Retrieve (embedding of the query happens inside the retriever) ---
         strategy = options.retrieval_strategy or settings.retrieval_strategy
-        await emitter.step_start("embed_query", "Embedding your question")
-        await emitter.step_done("embed_query")
 
+        # 1. Embed the query (timed; runs off the event loop so the "start"
+        #    event flushes to the client before the CPU work begins). ---------
+        embedder = get_embedder()
+        await emitter.step_start("embed_query", "Embedding your question")
+        t0 = time.perf_counter()
+        qvec = await asyncio.to_thread(embedder.embed_query, query)
+        await emitter.step_done("embed_query", f"dim {len(qvec)}",
+                                data={"seconds": round(time.perf_counter() - t0, 3)})
+
+        # 2. Retrieve -------------------------------------------------------
         await emitter.step_start("retrieve", f"{strategy} search, top {top_k}")
         retriever = get_retriever(strategy)
-        candidates = retriever.retrieve(query, top_k=top_k)
+        t0 = time.perf_counter()
+        candidates = await asyncio.to_thread(retriever.retrieve, query, top_k, qvec)
         await emitter.step_done(
             "retrieve", f"{len(candidates)} candidate passages",
-            data={"strategy": strategy, "count": len(candidates)},
+            data={"strategy": strategy, "count": len(candidates),
+                  "seconds": round(time.perf_counter() - t0, 3)},
         )
 
         if not candidates:
@@ -67,15 +78,17 @@ async def run_chat(channel: str, query: str, options: ChatOptions) -> None:
             await _generate(emitter, query, [], options)
             return
 
-        # 2. Rerank ---------------------------------------------------------
+        # 3. Rerank ---------------------------------------------------------
         rerank_on = settings.rerank_enabled if options.rerank_enabled is None \
             else options.rerank_enabled
         if rerank_on:
             reranker = get_reranker(enabled=True, models=options.rerank_models)
             await emitter.step_start("rerank", f"{reranker.name}: {len(candidates)} → {final_k}")
-            top = reranker.rerank(query, candidates, top_k=final_k)
+            t0 = time.perf_counter()
+            top = await asyncio.to_thread(reranker.rerank, query, candidates, final_k)
             await emitter.step_done("rerank", f"selected top {len(top)}",
-                                    data={"reranker": reranker.name})
+                                    data={"reranker": reranker.name,
+                                          "seconds": round(time.perf_counter() - t0, 3)})
         else:
             top = candidates[:final_k]
             await emitter.step_done("rerank", "disabled — using retrieval order")
@@ -98,11 +111,13 @@ async def _generate(emitter: StepEmitter, query, chunks, options: ChatOptions) -
     llm = get_llm(provider)
     messages = build_messages(query, chunks)
     produced = False
+    t0 = time.perf_counter()
     async for token in llm.stream(messages):
         produced = True
         await emitter.token(token)
     if not produced:
         await emitter.token("(the model returned an empty response)")
-    await emitter.step_done("generate", f"model: {llm.model}")
+    await emitter.step_done("generate", f"model: {llm.model}",
+                            data={"seconds": round(time.perf_counter() - t0, 3)})
     await emitter.step_done("complete", "done")
     await emitter.done()

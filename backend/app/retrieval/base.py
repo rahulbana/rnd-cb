@@ -20,4 +20,8 @@ class BaseRetriever(ABC):
     name: str = "base"
 
     @abstractmethod
-    def retrieve(self, query: str, top_k: int) -> list[RetrievedChunk]: ...
+    def retrieve(self, query: str, top_k: int,
+                 query_embedding: list[float] | None = None) -> list[RetrievedChunk]:
+        """Retrieve candidates. ``query_embedding`` may be supplied to reuse a
+        precomputed vector (so embedding can be timed as its own pipeline step
+        instead of being hidden inside retrieval)."""

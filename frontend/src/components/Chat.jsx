@@ -44,6 +44,12 @@ function humanSize(bytes) {
   return `${n.toFixed(n < 10 && i > 0 ? 1 : 0)} ${units[i]}`;
 }
 
+// Sub-second stages show as ms so they don't all read "0.0s".
+function fmtDuration(secs) {
+  if (secs == null) return "";
+  return secs < 1 ? `${Math.round(secs * 1000)}ms` : `${secs.toFixed(1)}s`;
+}
+
 export default function Chat({ settings, disabled, onIngested, initialMessages, onPersist, traceDefaultOpen = true }) {
   const [messages, setMessages] = useState(() => initialMessages || []);
   const [input, setInput] = useState("");
@@ -116,7 +122,10 @@ export default function Chat({ settings, disabled, onIngested, initialMessages, 
       case "step":
         updateActive((m) => ({
           ...m,
-          steps: [...m.steps, { step: event.step, status: event.status, detail: event.detail, t: Date.now() }],
+          steps: [...m.steps, {
+            step: event.step, status: event.status, detail: event.detail,
+            t: Date.now(), seconds: event.data && event.data.seconds,
+          }],
         }));
         break;
       case "sources":
@@ -468,8 +477,9 @@ function StepTrace({ steps, status, defaultOpen = true }) {
   const order = Object.keys(labels).filter((k) => k !== "complete");
   const running = status === "running";
 
-  // Collapse the start/done event stream into one row per step (last wins),
-  // and derive each step's duration from its start→done timestamps.
+  // Collapse the start/done event stream into one row per step (last wins).
+  // Prefer the server-measured duration (the CPU stages block the event loop,
+  // so client-side arrival timing reads ~0); fall back to client timing.
   const byStep = {};
   const startT = {};
   for (const s of steps) {
@@ -478,8 +488,10 @@ function StepTrace({ steps, status, defaultOpen = true }) {
   }
   const rows = order.filter((k) => byStep[k]).map((k) => {
     const s = byStep[k];
-    const ms = s.status === "done" && startT[k] != null && s.t != null ? s.t - startT[k] : null;
-    return { key: k, ...s, ms };
+    let secs = null;
+    if (s.seconds != null) secs = s.seconds;
+    else if (s.status === "done" && startT[k] != null && s.t != null) secs = (s.t - startT[k]) / 1000;
+    return { key: k, ...s, secs };
   });
 
   const active = [...steps].reverse().find((s) => s.status === "start");
@@ -510,7 +522,7 @@ function StepTrace({ steps, status, defaultOpen = true }) {
               <div className="trace-body">
                 <span className="trace-label">
                   {labels[s.key] || s.key}
-                  {s.ms != null && <span className="trace-time">{(s.ms / 1000).toFixed(1)}s</span>}
+                  {s.secs != null && <span className="trace-time">{fmtDuration(s.secs)}</span>}
                 </span>
                 {s.detail && <span className="trace-detail">{s.detail}</span>}
               </div>
