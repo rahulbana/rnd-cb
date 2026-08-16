@@ -273,7 +273,9 @@ textarea:focus { outline: none; border-color: var(--accent-blue); }
 .trace-steps li.start .trace-icon, .trace-steps li.progress .trace-icon { background: none; }
 .trace-steps li.error .trace-icon { background: rgba(220,38,38,.15); color: var(--error); }
 .trace-body { display: flex; flex-direction: column; gap: 1px; padding-top: 1px; min-width: 0; }
-.trace-label { font-size: 13px; color: var(--text); font-weight: 500; }
+.trace-label { font-size: 13px; color: var(--text); font-weight: 500; display: inline-flex; align-items: baseline; gap: 8px; }
+.trace-time { font-size: 11px; font-weight: 400; color: var(--faint);
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
 .trace-detail { font-size: 12px; color: var(--muted); line-height: 1.35; }
 
 /* Citations */

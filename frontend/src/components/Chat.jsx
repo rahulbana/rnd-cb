@@ -44,7 +44,7 @@ function humanSize(bytes) {
   return `${n.toFixed(n < 10 && i > 0 ? 1 : 0)} ${units[i]}`;
 }
 
-export default function Chat({ settings, disabled, onIngested, initialMessages, onPersist }) {
+export default function Chat({ settings, disabled, onIngested, initialMessages, onPersist, traceDefaultOpen = true }) {
   const [messages, setMessages] = useState(() => initialMessages || []);
   const [input, setInput] = useState("");
   const [connected, setConnected] = useState(false);
@@ -116,7 +116,7 @@ export default function Chat({ settings, disabled, onIngested, initialMessages, 
       case "step":
         updateActive((m) => ({
           ...m,
-          steps: [...m.steps, { step: event.step, status: event.status, detail: event.detail }],
+          steps: [...m.steps, { step: event.step, status: event.status, detail: event.detail, t: Date.now() }],
         }));
         break;
       case "sources":
@@ -279,7 +279,7 @@ export default function Chat({ settings, disabled, onIngested, initialMessages, 
                 <div key={i} className="turn assistant">
                   <div className="avatar">✦</div>
                   <div className="assistant-content">
-                    <StepTrace steps={m.steps} status={m.status} />
+                    <StepTrace steps={m.steps} status={m.status} defaultOpen={traceDefaultOpen} />
                     {m.sources.length > 0 && <Citations sources={m.sources} />}
                     <div className="markdown">
                       {m.text ? (
@@ -459,19 +459,28 @@ const STEP_ICON = {
   error: "✕",
 };
 
-function StepTrace({ steps, status }) {
-  // Visible by default; the user can hide it.
-  const [open, setOpen] = useState(true);
+function StepTrace({ steps, status, defaultOpen = true }) {
+  // Visible per the global preference by default; the user can toggle per message.
+  const [open, setOpen] = useState(defaultOpen);
   if (steps.length === 0 && status !== "running") return null;
 
   const labels = STEP_LABELS.chat;
   const order = Object.keys(labels).filter((k) => k !== "complete");
   const running = status === "running";
 
-  // Collapse the stream of start/done events into one row per step (last wins).
+  // Collapse the start/done event stream into one row per step (last wins),
+  // and derive each step's duration from its start→done timestamps.
   const byStep = {};
-  for (const s of steps) byStep[s.step] = s;
-  const rows = order.filter((k) => byStep[k]).map((k) => ({ key: k, ...byStep[k] }));
+  const startT = {};
+  for (const s of steps) {
+    byStep[s.step] = s;
+    if (s.status === "start" && startT[s.step] == null) startT[s.step] = s.t;
+  }
+  const rows = order.filter((k) => byStep[k]).map((k) => {
+    const s = byStep[k];
+    const ms = s.status === "done" && startT[k] != null && s.t != null ? s.t - startT[k] : null;
+    return { key: k, ...s, ms };
+  });
 
   const active = [...steps].reverse().find((s) => s.status === "start");
   const headline = running
@@ -499,7 +508,10 @@ function StepTrace({ steps, status }) {
                   : (STEP_ICON[s.status] || "•")}
               </span>
               <div className="trace-body">
-                <span className="trace-label">{labels[s.key] || s.key}</span>
+                <span className="trace-label">
+                  {labels[s.key] || s.key}
+                  {s.ms != null && <span className="trace-time">{(s.ms / 1000).toFixed(1)}s</span>}
+                </span>
                 {s.detail && <span className="trace-detail">{s.detail}</span>}
               </div>
             </li>

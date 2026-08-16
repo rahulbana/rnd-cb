@@ -1,7 +1,7 @@
 import React from "react";
 
 // Live-switchable retrieval settings sent with every chat request.
-export default function Settings({ config, settings, onChange }) {
+export default function Settings({ config, settings, onChange, traceDefaultOpen, onTraceDefaultOpen }) {
   if (!config) return null;
   const opts = config.options || {};
   const set = (patch) => onChange({ ...settings, ...patch });
@@ -30,6 +30,17 @@ export default function Settings({ config, settings, onChange }) {
         />
         <span>Re-ranker (cross-encoder)</span>
       </label>
+
+      {onTraceDefaultOpen && (
+        <label className="field checkbox">
+          <input
+            type="checkbox"
+            checked={traceDefaultOpen}
+            onChange={(e) => onTraceDefaultOpen(e.target.checked)}
+          />
+          <span>Show thought process by default</span>
+        </label>
+      )}
 
       <label className="field">
         <span>LLM provider</span>

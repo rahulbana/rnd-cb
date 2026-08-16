@@ -17,6 +17,14 @@ export default function App() {
   const [totalChunks, setTotalChunks] = useState(0);
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [showSettings, setShowSettings] = useState(false);
+  const [traceDefaultOpen, setTraceDefaultOpen] = useState(
+    () => localStorage.getItem("docchat:traceOpen") !== "false"
+  );
+
+  function updateTraceDefault(v) {
+    setTraceDefaultOpen(v);
+    localStorage.setItem("docchat:traceOpen", String(v));
+  }
 
   const [conversations, setConversations] = useState([]); // summaries
   const [activeId, setActiveId] = useState(null);
@@ -174,7 +182,15 @@ export default function App() {
           <button className="settings-toggle" onClick={() => setShowSettings((s) => !s)}>
             ⚙ Retrieval settings {showSettings ? "▾" : "▸"}
           </button>
-          {showSettings && <Settings config={config} settings={settings} onChange={setSettings} />}
+          {showSettings && (
+            <Settings
+              config={config}
+              settings={settings}
+              onChange={setSettings}
+              traceDefaultOpen={traceDefaultOpen}
+              onTraceDefaultOpen={updateTraceDefault}
+            />
+          )}
         </div>
       </aside>
 
@@ -192,6 +208,7 @@ export default function App() {
             onIngested={refreshSources}
             initialMessages={activeMessages}
             onPersist={(msgs) => persist(activeId, msgs)}
+            traceDefaultOpen={traceDefaultOpen}
           />
         )}
       </main>
