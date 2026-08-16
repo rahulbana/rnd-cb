@@ -41,12 +41,30 @@ SessionLocal = sessionmaker(bind=engine, autoflush=False, expire_on_commit=False
 
 
 def init_db() -> None:
-    """Create tables if they don't exist. (For schema migrations in production,
-    introduce Alembic; create_all is sufficient for this app's single table set.)"""
+    """Create tables if they don't exist, then apply small additive column
+    migrations. (For real schema evolution in production, introduce Alembic;
+    this is enough for the app's current needs.)"""
     from . import models  # noqa: F401  ensure models are registered
 
     Base.metadata.create_all(bind=engine)
+    _ensure_columns()
     log.info("Database ready at %s", get_settings().database_url)
+
+
+def _ensure_columns() -> None:
+    """Add columns introduced after a table was first created (idempotent)."""
+    from sqlalchemy import inspect, text
+
+    insp = inspect(engine)
+    if "messages" not in insp.get_table_names():
+        return
+    existing = {c["name"] for c in insp.get_columns("messages")}
+    additive = {"attachments": "JSON"}
+    for name, col_type in additive.items():
+        if name not in existing:
+            with engine.begin() as conn:
+                conn.execute(text(f"ALTER TABLE messages ADD COLUMN {name} {col_type}"))
+            log.info("Migrated: added messages.%s", name)
 
 
 def get_db():

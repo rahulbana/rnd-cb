@@ -43,6 +43,7 @@ def upsert_conversation(
             status=m.get("status"),
             sources=m.get("sources"),
             steps=m.get("steps"),
+            attachments=m.get("attachments"),
         ))
     db.commit()
     db.refresh(conv)

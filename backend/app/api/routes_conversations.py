@@ -19,6 +19,7 @@ class MessageIn(BaseModel):
     status: str | None = None
     sources: list | None = None
     steps: list | None = None
+    attachments: list | None = None
 
 
 class ConversationUpsert(BaseModel):
@@ -50,6 +51,7 @@ def _full(conv: Conversation) -> dict:
                 "status": m.status,
                 "sources": m.sources or [],
                 "steps": m.steps or [],
+                "attachments": m.attachments or [],
             }
             for m in conv.messages
         ],

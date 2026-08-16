@@ -146,7 +146,7 @@ export default function Chat({ settings, disabled, onIngested, initialMessages, 
     }
   }
 
-  function ask(q, replaceIdx = null) {
+  function ask(q, replaceIdx = null, atts = []) {
     if (!chatRef.current?.ready) return;
     lastQuery.current = q;
     setMessages((prev) => {
@@ -156,7 +156,9 @@ export default function Chat({ settings, disabled, onIngested, initialMessages, 
         next[replaceIdx] = emptyAssistant();
         activeIdx.current = replaceIdx;
       } else {
-        next = [...prev, { role: "user", text: q }, emptyAssistant()];
+        const userMsg = { role: "user", text: q };
+        if (atts.length) userMsg.attachments = atts;
+        next = [...prev, userMsg, emptyAssistant()];
         activeIdx.current = next.length - 1;
       }
       return next;
@@ -174,10 +176,13 @@ export default function Chat({ settings, disabled, onIngested, initialMessages, 
   function send(text) {
     const q = (text ?? input).trim();
     if (!q) return;
-    ask(q);
+    if (attachments.some((a) => a.status === "uploading")) return; // wait for uploads
+    // Attach ready files to this user message (ChatGPT-style), then clear them.
+    const ready = attachments.filter((a) => a.status === "ready");
+    const atts = ready.map((a) => ({ name: a.name, size: a.size, kind: fileKind(a.name)[0] }));
+    ask(q, null, atts);
     setInput("");
-    // Drop finished upload chips; keep any still uploading or errored.
-    setAttachments((a) => a.filter((x) => x.status === "uploading" || x.status === "error"));
+    setAttachments((a) => a.filter((x) => x.status === "error"));
   }
 
   function regenerate() {
@@ -229,9 +234,6 @@ export default function Chat({ settings, disabled, onIngested, initialMessages, 
       .then(() => {
         setAttachments((a) => a.map((x) => (x.id === id ? { ...x, status: "ready" } : x)));
         onIngested && onIngested();
-        // The document now lives in the sidebar's Documents list, so the
-        // composer chip is just a transient confirmation — auto-dismiss it.
-        setTimeout(() => setAttachments((a) => a.filter((x) => x.id !== id)), 2500);
       })
       .catch((err) => {
         setAttachments((a) =>
@@ -248,6 +250,7 @@ export default function Chat({ settings, disabled, onIngested, initialMessages, 
 
   const empty = messages.length === 0;
   const streaming = messages[messages.length - 1]?.status === "running";
+  const uploading = attachments.some((a) => a.status === "uploading");
 
   return (
     <div
@@ -287,7 +290,12 @@ export default function Chat({ settings, disabled, onIngested, initialMessages, 
             {messages.map((m, i) =>
               m.role === "user" ? (
                 <div key={i} className="turn user">
-                  <div className="user-bubble">{m.text}</div>
+                  {m.attachments && m.attachments.length > 0 && (
+                    <div className="msg-attachments">
+                      {m.attachments.map((f, k) => <MsgFile key={k} file={f} />)}
+                    </div>
+                  )}
+                  {m.text && <div className="user-bubble">{m.text}</div>}
                 </div>
               ) : (
                 <div key={i} className="turn assistant">
@@ -372,7 +380,7 @@ export default function Chat({ settings, disabled, onIngested, initialMessages, 
             {streaming ? (
               <button className="send-btn stop" onClick={stop} aria-label="Stop" title="Stop">■</button>
             ) : (
-              <button className="send-btn" onClick={() => send()} disabled={!connected || !input.trim()} aria-label="Send">↑</button>
+              <button className="send-btn" onClick={() => send()} disabled={!connected || !input.trim() || uploading} title={uploading ? "Waiting for upload…" : "Send"} aria-label="Send">↑</button>
             )}
           </div>
         </div>
@@ -425,6 +433,20 @@ function MessageActions({ text, canRegenerate, onRegenerate }) {
       {canRegenerate && (
         <button className="action-btn" onClick={onRegenerate} title="Regenerate">↻ Regenerate</button>
       )}
+    </div>
+  );
+}
+
+// A file card rendered on a sent user message (ChatGPT-style).
+function MsgFile({ file }) {
+  const [, color] = fileKind(file.name);
+  return (
+    <div className="msg-file">
+      <div className="msg-file-icon" style={{ background: color }}>{file.kind || "FILE"}</div>
+      <div className="msg-file-meta">
+        <div className="msg-file-name" title={file.name}>{file.name}</div>
+        {file.size ? <div className="msg-file-size">{humanSize(file.size)}</div> : null}
+      </div>
     </div>
   );
 }

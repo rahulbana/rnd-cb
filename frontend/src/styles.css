@@ -228,11 +228,25 @@ textarea:focus { outline: none; border-color: var(--accent-blue); }
 .suggestion:hover { background: var(--hover); }
 
 /* Turns */
-.turn.user { display: flex; justify-content: flex-end; }
+.turn.user { display: flex; flex-direction: column; align-items: flex-end; gap: 6px; }
 .user-bubble {
   background: var(--user-bubble); border-radius: 20px; padding: 10px 16px;
   max-width: 80%; white-space: pre-wrap; word-wrap: break-word; line-height: 1.5;
 }
+
+/* Files attached to a sent user message */
+.msg-attachments { display: flex; flex-wrap: wrap; gap: 8px; justify-content: flex-end; max-width: 80%; }
+.msg-file {
+  display: flex; align-items: center; gap: 10px; width: 230px; max-width: 100%;
+  background: var(--user-bubble); border: 1px solid var(--border); border-radius: 12px; padding: 8px 10px;
+}
+.msg-file-icon {
+  flex: none; width: 32px; height: 32px; border-radius: 8px; color: #fff;
+  display: grid; place-items: center; font-size: 10px; font-weight: 700; letter-spacing: .03em;
+}
+.msg-file-meta { min-width: 0; }
+.msg-file-name { font-size: 13px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.msg-file-size { font-size: 11px; color: var(--muted); }
 .turn.assistant { display: flex; gap: 14px; align-items: flex-start; }
 .avatar {
   flex: none; width: 28px; height: 28px; border-radius: 50%;

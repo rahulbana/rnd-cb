@@ -47,5 +47,7 @@ class Message(Base):
     # Retrieval provenance / step trace kept as JSON (portable across backends).
     sources: Mapped[list | None] = mapped_column(JSON, nullable=True)
     steps: Mapped[list | None] = mapped_column(JSON, nullable=True)
+    # Files attached to a (user) message, e.g. [{name, size, kind}].
+    attachments: Mapped[list | None] = mapped_column(JSON, nullable=True)
 
     conversation: Mapped["Conversation"] = relationship(back_populates="messages")
