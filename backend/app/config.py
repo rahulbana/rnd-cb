@@ -95,7 +95,7 @@ class Settings(BaseSettings):
     ollama_base_url: str = "http://localhost:11434"
     ollama_model: str = "llama3.1"
 
-    @field_validator("cors_origins", "rerank_models", mode="before")
+    @field_validator("cors_origins", "rerank_models", "tools_enabled", mode="before")
     @classmethod
     def _split_csv(cls, value):
         """Accept a JSON list, a comma-separated string, or a real list."""
