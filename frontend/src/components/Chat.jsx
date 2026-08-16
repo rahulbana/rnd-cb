@@ -523,33 +523,43 @@ function StepTrace({ steps, status, defaultOpen = true }) {
 }
 
 function Citations({ sources }) {
+  const [show, setShow] = useState(false); // collapsed by default
   const [open, setOpen] = useState(null);
   return (
-    <div className="citations">
-      {sources.map((s) => (
-        <span key={s.n} className="cite-wrap">
-          <button
-            className="cite"
-            onMouseEnter={() => setOpen(s.n)}
-            onMouseLeave={() => setOpen(null)}
-            onClick={() => setOpen(open === s.n ? null : s.n)}
-          >
-            <span className="cite-n">{s.n}</span>
-            <span className="cite-src">{s.source}</span>
-          </button>
-          {open === s.n && (
-            <span className="cite-pop">
-              <span className="cite-meta">
-                {s.source}
-                {s.page != null ? ` · p.${s.page}` : ""}
-                {s.slide != null ? ` · slide ${s.slide}` : ""}
-                {` · score ${s.score}`}
-              </span>
-              <span className="cite-text">{s.preview}</span>
+    <div className="citations-block">
+      <button className="citations-toggle" onClick={() => setShow((s) => !s)}>
+        <span className="cite-badge">{sources.length}</span>
+        {sources.length === 1 ? "source" : "sources"}
+        <span className="citations-caret">{show ? "▾" : "▸"}</span>
+      </button>
+      {show && (
+        <div className="citations">
+          {sources.map((s) => (
+            <span key={s.n} className="cite-wrap">
+              <button
+                className="cite"
+                onMouseEnter={() => setOpen(s.n)}
+                onMouseLeave={() => setOpen(null)}
+                onClick={() => setOpen(open === s.n ? null : s.n)}
+              >
+                <span className="cite-n">{s.n}</span>
+                <span className="cite-src">{s.source}</span>
+              </button>
+              {open === s.n && (
+                <span className="cite-pop">
+                  <span className="cite-meta">
+                    {s.source}
+                    {s.page != null ? ` · p.${s.page}` : ""}
+                    {s.slide != null ? ` · slide ${s.slide}` : ""}
+                    {` · score ${s.score}`}
+                  </span>
+                  <span className="cite-text">{s.preview}</span>
+                </span>
+              )}
             </span>
-          )}
-        </span>
-      ))}
+          ))}
+        </div>
+      )}
     </div>
   );
 }

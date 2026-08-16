@@ -298,7 +298,20 @@ textarea:focus { outline: none; border-color: var(--accent-blue); }
 .trace-detail { font-size: 12px; color: var(--muted); line-height: 1.35; }
 
 /* Citations */
-.citations { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 10px; }
+.citations-block { margin-bottom: 12px; }
+.citations-toggle {
+  display: inline-flex; align-items: center; gap: 7px;
+  background: none; border: none; color: var(--muted); font-size: 12px; font-weight: 500;
+  padding: 4px 8px 4px 4px; border-radius: 8px;
+}
+.citations-toggle:hover { background: var(--hover); color: var(--text); }
+.cite-badge {
+  background: var(--text); color: var(--bg); border-radius: 10px;
+  min-width: 18px; height: 18px; padding: 0 6px; display: inline-grid; place-items: center;
+  font-size: 10px; font-weight: 700;
+}
+.citations-caret { color: var(--faint); font-size: 10px; }
+.citations { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
 .cite-wrap { position: relative; }
 .cite {
   display: inline-flex; align-items: center; gap: 6px; max-width: 220px;
