@@ -1,0 +1,9 @@
+# Tic Tac Toe has no third-party dependencies.
+#
+# It relies only on the Python standard library:
+#   - tkinter  (GUI — bundled with most CPython installs;
+#               on Debian/Ubuntu: sudo apt-get install python3-tk)
+#   - random   (Easy-mode AI moves)
+#
+# There is nothing to `pip install`. This file exists so tooling that
+# expects a requirements.txt has one to read.
