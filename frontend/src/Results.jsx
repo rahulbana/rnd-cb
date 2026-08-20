@@ -25,7 +25,7 @@ function Answer({ children }) {
 }
 
 export default function Results({ result, onReset }) {
-  const { material, source_filename, grade_level, html } = result
+  const { material, source_filename, grade_level, html, ocr_used } = result
   const { notes, questions } = material
 
   function download() {
@@ -57,6 +57,7 @@ export default function Results({ result, onReset }) {
           <p className="sub">
             From <strong>{source_filename}</strong>
             {grade_level ? ` · ${grade_level}` : ''}
+            {ocr_used && <span className="ocr-badge">🔎 Read via OCR</span>}
           </p>
         </div>
         <div className="actions">

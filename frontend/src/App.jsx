@@ -2,7 +2,8 @@ import { useEffect, useMemo, useState } from 'react'
 import { fetchQuestionTypes, generate } from './api.js'
 import Results from './Results.jsx'
 
-const ACCEPTED = '.pdf,.doc,.docx,.ppt,.pptx,.txt,.md,.csv'
+const ACCEPTED =
+  '.pdf,.doc,.docx,.ppt,.pptx,.txt,.md,.csv,.png,.jpg,.jpeg,.webp,.gif,.bmp,.tif,.tiff'
 
 export default function App() {
   const [types, setTypes] = useState([])
@@ -106,7 +107,9 @@ export default function App() {
               ) : (
                 <>
                   <span className="big">Drop a document here or click to browse</span>
-                  <span className="file-hint">PDF, DOCX, PPTX, or text files</span>
+                  <span className="file-hint">
+                    PDF, DOCX, PPTX, text — or scanned PDFs &amp; images (OCR)
+                  </span>
                 </>
               )}
             </label>

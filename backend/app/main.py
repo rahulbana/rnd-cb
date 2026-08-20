@@ -12,7 +12,7 @@ from fastapi import FastAPI, File, Form, HTTPException, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse, JSONResponse
 
-from .document_parser import UnsupportedFileError, extract_text
+from .document_parser import UnsupportedFileError, parse_document
 from .html_generator import render_html
 from .llm import LLMConfigError, generate_study_material
 from .schemas import (
@@ -75,13 +75,18 @@ async def generate(
             detail=f"File exceeds the {MAX_UPLOAD_BYTES // (1024 * 1024)} MB limit.",
         )
 
-    # 1. Extract text from the document.
+    # 1. Extract text from the document (OCR is used automatically for scanned
+    #    PDFs and image uploads).
     try:
-        text = extract_text(file.filename or "", data)
+        parsed = parse_document(file.filename or "", data)
     except UnsupportedFileError as exc:
         raise HTTPException(status_code=415, detail=str(exc))
+    except LLMConfigError as exc:
+        # OCR needs the OpenAI key; report it clearly.
+        raise HTTPException(status_code=503, detail=str(exc))
     except Exception as exc:  # noqa: BLE001 - surface a friendly message
         raise HTTPException(status_code=400, detail=f"Could not read the file: {exc}")
+    text = parsed.text
 
     # 2. Determine which question types to generate.
     selected: List[str] = [
@@ -106,6 +111,7 @@ async def generate(
     return GenerateResponse(
         source_filename=file.filename or "document",
         grade_level=grade_level or None,
+        ocr_used=parsed.ocr_used,
         material=material,
         html=html_doc,
     )
