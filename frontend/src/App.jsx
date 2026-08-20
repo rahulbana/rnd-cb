@@ -12,6 +12,7 @@ export default function App() {
   const [file, setFile] = useState(null)
   const [gradeLevel, setGradeLevel] = useState('')
   const [webSearch, setWebSearch] = useState(true)
+  const [previousYear, setPreviousYear] = useState(true)
   const [coverage, setCoverage] = useState('exhaustive')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
@@ -52,7 +53,7 @@ export default function App() {
     setLoading(true)
     setResult(null)
     try {
-      const data = await generate({ file, questionTypes: selectedIds, gradeLevel, webSearch, coverage })
+      const data = await generate({ file, questionTypes: selectedIds, gradeLevel, webSearch, coverage, previousYear })
       setResult(data)
     } catch (e) {
       setError(e.message)
@@ -218,6 +219,27 @@ export default function App() {
                 <span className="switch-desc">
                   Search reputable schools &amp; coaching sites to add exam-relevant
                   points and questions (cited in the downloads).
+                </span>
+              </span>
+            </label>
+          </section>
+
+          <section className="field">
+            <label className="switch-row">
+              <span className="switch">
+                <input
+                  type="checkbox"
+                  checked={previousYear}
+                  onChange={(e) => setPreviousYear(e.target.checked)}
+                  disabled={!webSearch}
+                />
+                <span className="switch-track"><span className="switch-thumb" /></span>
+              </span>
+              <span className="switch-text">
+                <span className="switch-title">📜 Add previous year questions</span>
+                <span className="switch-desc">
+                  Search online for previous-year / board exam papers on this topic
+                  and include those questions with answers.
                 </span>
               </span>
             </label>

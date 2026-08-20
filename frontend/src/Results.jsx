@@ -2,6 +2,7 @@ export default function Results({ result, onReset }) {
   const { material, source_filename, grade_level, downloads, ocr_used,
     web_search_used, sources = [] } = result
   const { notes } = material
+  const pyqCount = material?.previous_year?.length || 0
 
   const base = (notes.title || source_filename || 'study-material').replace(/[^\w\-]+/g, '_')
 
@@ -39,6 +40,9 @@ export default function Results({ result, onReset }) {
                 🌐 Enriched with {sources.length || 'online'} reference
                 {sources.length === 1 ? '' : 's'}
               </span>
+            )}
+            {pyqCount > 0 && (
+              <span className="pyq-badge">📜 {pyqCount} previous-year questions</span>
             )}
           </p>
         </div>

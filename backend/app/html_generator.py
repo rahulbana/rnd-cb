@@ -62,6 +62,7 @@ def render_html(
         _render_simple(parts, "short", q.short, include_answers)
         _render_simple(parts, "long", q.long, include_answers)
         _render_case(parts, q.case_based, include_answers)
+        _render_pyq(parts, getattr(material, "previous_year", None) or [], include_answers)
 
     # ---- References (from online research) --------------------------------
     if sources:
@@ -309,6 +310,42 @@ def _render_case(parts, items, include_answers):
     parts.append("</ol></section>")
 
 
+def _render_pyq(parts, items, include_answers):
+    if not items:
+        return
+    parts.append(
+        '<section class="qsection pyq card"><h2>📜 Previous Year Questions '
+        f'<span class="count">{len(items)}</span></h2>'
+        '<p class="pyq-note">Compiled from previous-year / board exam papers found '
+        "online. Year/exam/marks are shown when the source indicated them.</p>"
+        '<ol class="qlist">'
+    )
+    for it in items:
+        meta = []
+        if getattr(it, "year", ""):
+            meta.append(_e(it.year))
+        if getattr(it, "exam", ""):
+            meta.append(_e(it.exam))
+        if getattr(it, "qtype", ""):
+            meta.append(_e(it.qtype))
+        if getattr(it, "marks", ""):
+            meta.append(_e(it.marks))
+        tag = f'<span class="pyq-meta">{" · ".join(meta)}</span>' if meta else ""
+        parts.append(f'<li><div class="q">{_e(it.question)}{tag}</div>')
+        if getattr(it, "source", ""):
+            src = _e(it.source)
+            parts.append(
+                f'<div class="pyq-src"><a href="{src}" target="_blank" '
+                f'rel="noopener">source</a></div>'
+            )
+        if include_answers:
+            parts.append(_answer_block(_e(it.answer)))
+        else:
+            parts.append('<div class="write-space long"></div>')
+        parts.append("</li>")
+    parts.append("</ol></section>")
+
+
 _HEAD = """<!DOCTYPE html>
 <html lang="en"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -376,6 +413,12 @@ li {{ margin:6px 0; }}
 .examples li {{ font-weight:400; }}
 .formulas li {{ font-weight:400; }}
 .formulas code {{ background:#f1f5f9; padding:2px 6px; border-radius:6px; }}
+.pyq h2 {{ color:#b45309; }}
+.pyq-note {{ color:var(--muted); font-size:.85rem; margin:0 0 10px; }}
+.pyq-meta {{ display:inline-block; margin-left:8px; background:#fef3c7; color:#92400e;
+  border-radius:999px; padding:1px 8px; font-size:.72rem; font-weight:600; vertical-align:middle; }}
+.pyq-src {{ margin-top:4px; }}
+.pyq-src a {{ color:var(--accent); font-size:.8rem; }}
 .refs-note {{ color:var(--muted); font-size:.88rem; margin:0 0 8px; }}
 .refs-list li {{ font-weight:400; word-break:break-all; }}
 .refs-list a {{ color:var(--accent); }}

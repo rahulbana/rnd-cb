@@ -99,9 +99,22 @@ class Questions(BaseModel):
     case_based: List[CaseBasedQ] = Field(default_factory=list)
 
 
+class PYQ(BaseModel):
+    """A previous-year / exam-paper style question compiled from online sources."""
+
+    question: str
+    answer: str = ""
+    qtype: str = ""   # e.g. MCQ, Short Answer, Long Answer
+    marks: str = ""   # e.g. "2 marks"
+    year: str = ""    # e.g. "2019" (only when known from the source)
+    exam: str = ""    # e.g. "CBSE Board" (only when known from the source)
+    source: str = ""  # source URL, when available
+
+
 class StudyMaterial(BaseModel):
     notes: Notes = Field(default_factory=Notes)
     questions: Questions = Field(default_factory=Questions)
+    previous_year: List[PYQ] = Field(default_factory=list)
 
 
 class Downloads(BaseModel):

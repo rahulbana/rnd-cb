@@ -14,9 +14,13 @@ from fastapi.responses import HTMLResponse, JSONResponse
 
 from .document_parser import UnsupportedFileError, parse_document
 from .html_generator import render_html, render_variants
-from .llm import LLMConfigError, generate_study_material
+from .llm import (
+    LLMConfigError,
+    generate_previous_year_questions,
+    generate_study_material,
+)
 from .ocr import OCRError
-from .web_research import ResearchResult, gather_references
+from .web_research import ResearchResult, gather_previous_year, gather_references
 from .schemas import (
     QUESTION_TYPE_LABELS,
     QUESTION_TYPES,
@@ -74,6 +78,7 @@ async def generate(
     grade_level: str = Form(""),
     web_search: bool = Form(True),
     coverage: str = Form("thorough"),
+    previous_year: bool = Form(True),
 ):
     """Parse the uploaded document and generate notes + questions."""
     data = await file.read()
@@ -113,6 +118,14 @@ async def generate(
         except Exception:  # noqa: BLE001 - research is best-effort
             research = ResearchResult()
 
+    # 3b. Optionally search online for previous-year / board exam papers.
+    pyq_research = ResearchResult()
+    if previous_year and web_search:
+        try:
+            pyq_research = gather_previous_year(text, grade_level)
+        except Exception:  # noqa: BLE001 - best-effort
+            pyq_research = ResearchResult()
+
     # 4. Generate study material with the LLM (using any research context).
     try:
         material = generate_study_material(
@@ -126,18 +139,34 @@ async def generate(
             status_code=502, detail=f"Generation failed: {exc}"
         )
 
+    # 4b. Compile previous-year questions (best-effort; never fails the request).
+    if previous_year:
+        try:
+            material.previous_year = generate_previous_year_questions(
+                text, pyq_context=pyq_research.context,
+                grade_level=grade_level, coverage=coverage,
+            )
+        except Exception:  # noqa: BLE001
+            material.previous_year = []
+
+    # Merge PYQ source URLs into the reference list shown to the user.
+    all_sources = list(research.sources)
+    for url in pyq_research.sources:
+        if url not in all_sources:
+            all_sources.append(url)
+
     # 5. Render the three downloadable, self-contained HTML documents:
     #    notes, questions+answers, and questions-only (practice sheet).
     variants = render_variants(
-        material, file.filename or "document", grade_level, sources=research.sources
+        material, file.filename or "document", grade_level, sources=all_sources
     )
 
     return GenerateResponse(
         source_filename=file.filename or "document",
         grade_level=grade_level or None,
         ocr_used=parsed.ocr_used,
-        web_search_used=research.used,
-        sources=research.sources,
+        web_search_used=research.used or pyq_research.used,
+        sources=all_sources,
         material=material,
         downloads=Downloads(**variants),
     )

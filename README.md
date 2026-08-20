@@ -24,6 +24,10 @@ image** (`.png`, `.jpg`, …) — and get back:
   - Short Answer
   - Long Answer
   - Case-Based
+- **Previous Year Questions** — searches online for previous-year / board exam
+  papers on the document's topic and compiles those questions (with model
+  answers, and the year/exam/marks when the source states them, plus a link back
+  to the source). Appears in the Questions downloads.
 
 Everything can be viewed in the browser and downloaded as **three separate,
 printable HTML files**:
@@ -183,6 +187,8 @@ and returns just that document.
 - `grade_level`: optional string (e.g. `Class 8`)
 - `web_search`: `true`/`false` (default `true`) — gather online references
 - `coverage`: `standard` | `thorough` | `exhaustive` (default `thorough`)
+- `previous_year`: `true`/`false` (default `true`) — search online for
+  previous-year / board exam papers and include those questions
 
 The JSON response includes `web_search_used` and a `sources` list of the
 reference URLs used.

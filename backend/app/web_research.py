@@ -35,6 +35,12 @@ TAVILY_API_KEY = os.getenv("TAVILY_API_KEY", "")
 # Steer results toward study material.
 _QUERY_SUFFIX = os.getenv("RESEARCH_QUERY_SUFFIX", "study notes important exam questions")
 
+# Steer results toward previous-year / board exam question papers.
+_PYQ_SUFFIX = os.getenv(
+    "PYQ_QUERY_SUFFIX",
+    "previous year question paper board exam important questions with answers",
+)
+
 # Image search (for illustrating notes). Best-effort; disable via env.
 ENABLE_IMAGE_SEARCH = os.getenv("ENABLE_IMAGE_SEARCH", "true").lower() not in (
     "0", "false", "no", "off",
@@ -73,6 +79,42 @@ def gather_references(text: str, grade_level: str = "") -> ResearchResult:
     query = _build_query(text, grade_level)
     if not query:
         return ResearchResult()
+
+    try:
+        if SEARCH_PROVIDER == "tavily":
+            results, answer = _search_tavily(query)
+        else:
+            results, answer = _search_duckduckgo(query)
+    except Exception:
+        return ResearchResult()
+
+    if not results and not answer:
+        return ResearchResult()
+
+    context = _build_context(results, answer)
+    sources = _dedupe([r["url"] for r in results if r.get("url")])
+    return ResearchResult(
+        context=context, sources=sources, used=True, provider=SEARCH_PROVIDER
+    )
+
+
+def gather_previous_year(text: str, grade_level: str = "") -> ResearchResult:
+    """Search the web for previous-year / board exam question papers on the topic.
+
+    Returns an empty (used=False) result on any failure so callers can proceed.
+    """
+    if not is_enabled():
+        return ResearchResult()
+
+    topic = _llm_query(text, grade_level) or _heuristic_query(text)
+    if not topic:
+        return ResearchResult()
+
+    parts = [topic]
+    if grade_level:
+        parts.append(grade_level)
+    parts.append(_PYQ_SUFFIX)
+    query = " ".join(p for p in parts if p).strip()
 
     try:
         if SEARCH_PROVIDER == "tavily":

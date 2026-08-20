@@ -22,6 +22,7 @@ from .schemas import (
     NoteImage,
     NoteSection,
     Notes,
+    PYQ,
     Questions,
     ShortLongQ,
     StudyMaterial,
@@ -43,6 +44,9 @@ MAX_PER_TYPE = int(os.getenv("MAX_QUESTIONS_PER_TYPE", "40"))
 # Detailed notes: how many sub-topics to expand, and how many to illustrate.
 NOTES_MAX_SECTIONS = int(os.getenv("NOTES_MAX_SECTIONS", "14"))
 NOTES_MAX_IMAGES = int(os.getenv("NOTES_MAX_IMAGES", "6"))
+
+# Previous-year questions to compile per coverage level.
+PYQ_TARGETS = {"standard": 8, "thorough": 15, "exhaustive": 25}
 
 
 class LLMConfigError(Exception):
@@ -207,6 +211,79 @@ def generate_study_material(
                 setattr(questions, t, [])
 
     return StudyMaterial(notes=notes, questions=questions)
+
+
+def generate_previous_year_questions(
+    text: str,
+    pyq_context: str = "",
+    grade_level: str = "",
+    coverage: str = "",
+    n: int | None = None,
+) -> List[PYQ]:
+    """Compile previous-year / board-exam style questions for the topic.
+
+    Uses search results from previous-year question papers (``pyq_context``) so
+    the questions reflect what has actually been asked. Returns [] on failure.
+    """
+    coverage = (coverage or DEFAULT_COVERAGE).lower()
+    if n is None:
+        n = PYQ_TARGETS.get(coverage, PYQ_TARGETS["thorough"])
+    n = min(int(n), MAX_PER_TYPE)
+
+    client = _client()
+    audience = _audience(grade_level)
+    text = text[:MAX_CHARS]
+
+    ctx = ""
+    if pyq_context.strip():
+        ctx = f"""
+
+The following are SEARCH RESULTS from previous-year / board exam question papers
+and exam sites for this topic. Prefer questions that actually appear here, and
+when a result states a year, exam/board, or marks, carry them over accurately.
+
+=== PREVIOUS-YEAR SEARCH RESULTS START ===
+{pyq_context.strip()}
+=== PREVIOUS-YEAR SEARCH RESULTS END ==="""
+
+    prompt = f"""You are an exam coach compiling PREVIOUS-YEAR exam questions for a
+student. {audience}
+
+Using the document topic below and the previous-year search results, compile a
+set of previous-year / board-exam style questions strictly on this topic.
+
+RULES:
+- Generate at least {n} questions, ordered by increasing difficulty.
+- Prefer real questions found in the search results; reflect the real exam
+  pattern, wording, and mark distribution for this topic.
+- Fill "year", "exam", "marks" ONLY when the source actually indicates them —
+  otherwise leave them as empty strings. Never fabricate a specific year/board.
+- Every question MUST include a clear, correct model answer.
+- Keep every question on the document's topic; do not drift off-topic.
+
+Return ONLY valid JSON (no markdown fences) of this shape:
+{{"items": [
+  {{"question": "...", "answer": "model answer", "qtype": "MCQ|Very Short|Short|Long|Case-Based",
+    "marks": "e.g. 3 marks or empty", "year": "e.g. 2019 or empty",
+    "exam": "e.g. CBSE or empty", "source": "url or empty"}}
+]}}
+
+=== DOCUMENT START ===
+{text}
+=== DOCUMENT END ==={ctx}"""
+
+    try:
+        data = _call_json(client, prompt)
+    except Exception:
+        return []
+    items = data.get("items", []) if isinstance(data, dict) else []
+    out: List[PYQ] = []
+    for item in items:
+        try:
+            out.append(PYQ.model_validate(item))
+        except Exception:
+            continue
+    return out
 
 
 def _generate_detailed_notes(
