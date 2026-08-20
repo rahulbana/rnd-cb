@@ -11,12 +11,13 @@ export async function fetchQuestionTypes() {
   return { types: data.types, openaiConfigured }
 }
 
-export async function generate({ file, questionTypes, gradeLevel, webSearch }) {
+export async function generate({ file, questionTypes, gradeLevel, webSearch, coverage }) {
   const form = new FormData()
   form.append('file', file)
   form.append('question_types', questionTypes.join(','))
   form.append('grade_level', gradeLevel || '')
   form.append('web_search', webSearch ? 'true' : 'false')
+  form.append('coverage', coverage || 'thorough')
 
   const res = await fetch(`${BASE}/api/generate`, { method: 'POST', body: form })
   if (!res.ok) {

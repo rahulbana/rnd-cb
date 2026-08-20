@@ -9,6 +9,10 @@ image** (`.png`, `.jpg`, …) — and get back:
   or **Tavily**) for curriculum-aligned reference material from reputable
   sources (education boards, coaching centres, educational sites) to enrich the
   notes and questions, with the sources cited in the downloads.
+- **Depth of coverage** — pick *Standard*, *Thorough*, or *Exhaustive*
+  ("topper mode"). Exhaustive generates a large question bank that tests every
+  concept, including small, easily-overlooked facts. Questions are generated per
+  type in concurrent calls, so large sets never get truncated.
 - **Practice questions** with answers, in every requested format:
   - True / False
   - Multiple Choice (MCQ)
@@ -127,6 +131,9 @@ Backend environment variables (see `backend/.env.example`):
 | `ALLOWED_ORIGINS`   | `*`            | CORS origins (comma-separated)           |
 | `MAX_UPLOAD_BYTES`  | `15728640`     | Upload size limit (15 MB)                |
 | `MAX_SOURCE_CHARS`  | `48000`        | Max characters of source text sent to LLM|
+| `DEFAULT_COVERAGE`  | `thorough`     | Default depth: standard/thorough/exhaustive|
+| `MAX_QUESTIONS_PER_TYPE`| `40`       | Hard ceiling on questions per type        |
+| `GENERATION_WORKERS`| `6`            | Concurrency for per-type generation calls |
 | `OCR_LANG`          | `eng`          | Tesseract language(s), e.g. `eng+hin`     |
 | `MAX_OCR_PAGES`     | `20`           | Max scanned pages OCR'd per document      |
 | `OCR_DPI`           | `300`          | Rasterisation DPI for scanned PDF pages   |
@@ -158,6 +165,7 @@ and returns just that document.
 - `question_types`: comma-separated ids (e.g. `mcq,true_false,long`)
 - `grade_level`: optional string (e.g. `Class 8`)
 - `web_search`: `true`/`false` (default `true`) — gather online references
+- `coverage`: `standard` | `thorough` | `exhaustive` (default `thorough`)
 
 The JSON response includes `web_search_used` and a `sources` list of the
 reference URLs used.

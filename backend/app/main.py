@@ -73,6 +73,7 @@ async def generate(
     question_types: str = Form(",".join(QUESTION_TYPES)),
     grade_level: str = Form(""),
     web_search: bool = Form(True),
+    coverage: str = Form("thorough"),
 ):
     """Parse the uploaded document and generate notes + questions."""
     data = await file.read()
@@ -115,7 +116,8 @@ async def generate(
     # 4. Generate study material with the LLM (using any research context).
     try:
         material = generate_study_material(
-            text, selected, grade_level=grade_level, research_context=research.context
+            text, selected, grade_level=grade_level,
+            research_context=research.context, coverage=coverage,
         )
     except LLMConfigError as exc:
         raise HTTPException(status_code=503, detail=str(exc))

@@ -95,6 +95,20 @@ body {
 .check-label { font-size: 0.95rem; font-weight: 500; }
 .check-card.on .check-label { color: var(--accent-dark); font-weight: 600; }
 
+/* Segmented control (coverage depth) */
+.segmented { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
+.seg {
+  display: flex; flex-direction: column; gap: 3px; text-align: left;
+  border: 1.5px solid var(--line); background: #fff; border-radius: 12px;
+  padding: 12px 14px; cursor: pointer; transition: all 0.12s ease;
+}
+.seg:hover { border-color: #c7d2fe; }
+.seg.on { border-color: var(--accent); background: #eef2ff; box-shadow: 0 0 0 3px rgba(79,70,229,0.1); }
+.seg-title { font-weight: 700; font-size: 0.95rem; }
+.seg.on .seg-title { color: var(--accent-dark); }
+.seg-desc { color: var(--muted); font-size: 0.78rem; }
+@media (max-width: 520px) { .segmented { grid-template-columns: 1fr; } }
+
 /* Toggle switch */
 .switch-row { display: flex; align-items: flex-start; gap: 12px; cursor: pointer; }
 .switch { position: relative; flex: none; margin-top: 2px; }

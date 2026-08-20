@@ -12,6 +12,7 @@ export default function App() {
   const [file, setFile] = useState(null)
   const [gradeLevel, setGradeLevel] = useState('')
   const [webSearch, setWebSearch] = useState(true)
+  const [coverage, setCoverage] = useState('exhaustive')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   const [result, setResult] = useState(null)
@@ -51,7 +52,7 @@ export default function App() {
     setLoading(true)
     setResult(null)
     try {
-      const data = await generate({ file, questionTypes: selectedIds, gradeLevel, webSearch })
+      const data = await generate({ file, questionTypes: selectedIds, gradeLevel, webSearch, coverage })
       setResult(data)
     } catch (e) {
       setError(e.message)
@@ -125,6 +126,27 @@ export default function App() {
               value={gradeLevel}
               onChange={(e) => setGradeLevel(e.target.value)}
             />
+          </section>
+
+          <section className="field">
+            <label>Depth of coverage</label>
+            <div className="segmented">
+              {[
+                { id: 'standard', title: 'Standard', desc: 'A quick set' },
+                { id: 'thorough', title: 'Thorough', desc: 'Solid revision' },
+                { id: 'exhaustive', title: 'Exhaustive', desc: 'Topper mode — every concept' },
+              ].map((c) => (
+                <button
+                  key={c.id}
+                  type="button"
+                  className={`seg ${coverage === c.id ? 'on' : ''}`}
+                  onClick={() => setCoverage(c.id)}
+                >
+                  <span className="seg-title">{c.title}</span>
+                  <span className="seg-desc">{c.desc}</span>
+                </button>
+              ))}
+            </div>
           </section>
 
           <section className="field">
