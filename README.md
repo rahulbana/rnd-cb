@@ -18,7 +18,9 @@ Everything can be viewed in the browser and **downloaded as a single, printable
 HTML file** (answers are collapsible, so it doubles as a quiz sheet).
 
 > **Privacy:** No documents or generated content are stored. Files are parsed in
-> memory and discarded once the response is returned.
+> memory and discarded once the response is returned. Only the **extracted plain
+> text** is sent to OpenAI — never the original file or its page images. Scanned
+> files are OCR'd **locally** (Tesseract) before any text leaves the server.
 
 ## Tech stack
 
@@ -26,19 +28,38 @@ HTML file** (answers are collapsible, so it doubles as a quiz sheet).
 |-----------|-----------------------------------------|
 | Backend   | Python, FastAPI, OpenAI                 |
 | Parsing   | pypdf, python-docx, python-pptx         |
-| OCR       | OpenAI vision model + PyMuPDF (scanned) |
+| OCR       | Tesseract (local) + PyMuPDF (scanned)   |
 | Frontend  | React (Vite)                            |
 | Output    | Self-contained HTML file                |
+
+### Text-first pipeline
+
+Text is always extracted **on the server first**, and only that text is sent to
+OpenAI to generate notes and questions. The original document — and, for scanned
+files, its page images — never leaves the server.
 
 ### Scanned documents & images
 
 Scanned PDFs have no embedded text layer, so ordinary extraction returns
 nothing. The app detects this automatically: when a PDF yields little or no
-text, its pages are rasterised with **PyMuPDF** and read by an **OpenAI vision
-model** (OCR). Uploaded image files (`.png`, `.jpg`, `.jpeg`, `.webp`, `.gif`,
-`.bmp`, `.tiff`) are OCR'd the same way. No OS packages (e.g. Tesseract) are
-required. Results that used OCR are flagged with a "Read via OCR" badge in the
-UI and in the API response (`ocr_used: true`).
+text, its pages are rasterised with **PyMuPDF** and read **locally** with
+**Tesseract** (`pytesseract`). Uploaded image files (`.png`, `.jpg`, `.jpeg`,
+`.webp`, `.gif`, `.bmp`, `.tiff`) are OCR'd the same way. Results that used OCR
+are flagged with a "Read via OCR" badge in the UI and in the API response
+(`ocr_used: true`).
+
+**Requirement:** the Tesseract binary must be installed on the host:
+
+```bash
+# Debian/Ubuntu
+sudo apt-get install -y tesseract-ocr
+# macOS
+brew install tesseract
+```
+
+`GET /api/health` reports `ocr_available` so you can confirm it's set up. For
+non-English scans, install the matching language pack and set `OCR_LANG`
+(e.g. `eng+hin`).
 
 ## Project layout
 
@@ -47,7 +68,7 @@ backend/          FastAPI service
   app/
     main.py             API endpoints (/api/generate, /api/health, ...)
     document_parser.py  Extract text from PDF/DOCX/PPTX/TXT (in memory)
-    ocr.py              OCR scanned PDFs & images via OpenAI vision + PyMuPDF
+    ocr.py              Local OCR (Tesseract) for scanned PDFs & images
     llm.py              OpenAI prompt + JSON parsing
     html_generator.py   Render notes + questions to a printable HTML file
     schemas.py          Pydantic models & question-type definitions
@@ -96,9 +117,9 @@ Backend environment variables (see `backend/.env.example`):
 | `ALLOWED_ORIGINS`   | `*`            | CORS origins (comma-separated)           |
 | `MAX_UPLOAD_BYTES`  | `15728640`     | Upload size limit (15 MB)                |
 | `MAX_SOURCE_CHARS`  | `48000`        | Max characters of source text sent to LLM|
-| `OPENAI_VISION_MODEL`| `OPENAI_MODEL`| Vision model used for OCR                |
-| `MAX_OCR_PAGES`     | `10`           | Max scanned pages OCR'd per document      |
-| `OCR_DPI`           | `150`          | Rasterisation DPI for scanned PDF pages   |
+| `OCR_LANG`          | `eng`          | Tesseract language(s), e.g. `eng+hin`     |
+| `MAX_OCR_PAGES`     | `20`           | Max scanned pages OCR'd per document      |
+| `OCR_DPI`           | `300`          | Rasterisation DPI for scanned PDF pages   |
 
 ## API
 
@@ -121,6 +142,7 @@ Old binary `.doc` and `.ppt` files are not readable by the pure-Python
 libraries. The API returns a friendly message asking the user to re-save them as
 `.docx`/`.pptx` or PDF.
 
-Scanned/image-only PDFs and image uploads **are** supported via OCR (see above);
-this requires `OPENAI_API_KEY` to be set. OCR quality depends on how legible the
-scan is, and only the first `MAX_OCR_PAGES` pages are processed to bound cost.
+Scanned/image-only PDFs and image uploads **are** supported via local OCR (see
+above); this requires the Tesseract binary. OCR quality depends on how legible
+the scan is, and only the first `MAX_OCR_PAGES` pages are processed to bound
+work.

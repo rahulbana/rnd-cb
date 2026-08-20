@@ -85,7 +85,7 @@ def parse_document(filename: str, data: bytes, allow_ocr: bool = True) -> Parsed
         # Unknown extension — try to sniff it before giving up.
         text = _best_effort(data)
         if not text.strip() and allow_ocr and _is_probably_image(data):
-            text = ocr.ocr_images([("image/png", data)])
+            text = ocr.ocr_images([data])
             ocr_used = True
         if not text.strip():
             raise UnsupportedFileError(

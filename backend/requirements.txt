@@ -8,3 +8,5 @@ python-pptx==1.0.2
 pydantic==2.10.4
 python-dotenv==1.0.1
 PyMuPDF==1.25.2
+pytesseract==0.3.13
+Pillow==11.1.0

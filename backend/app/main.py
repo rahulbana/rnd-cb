@@ -15,6 +15,7 @@ from fastapi.responses import HTMLResponse, JSONResponse
 from .document_parser import UnsupportedFileError, parse_document
 from .html_generator import render_html
 from .llm import LLMConfigError, generate_study_material
+from .ocr import OCRError
 from .schemas import (
     QUESTION_TYPE_LABELS,
     QUESTION_TYPES,
@@ -47,9 +48,12 @@ MAX_UPLOAD_BYTES = int(os.getenv("MAX_UPLOAD_BYTES", str(15 * 1024 * 1024)))
 
 @app.get("/api/health")
 def health():
+    from .ocr import is_ocr_configured
+
     return {
         "status": "ok",
         "openai_configured": bool(os.getenv("OPENAI_API_KEY")),
+        "ocr_available": is_ocr_configured(),
     }
 
 
@@ -81,8 +85,8 @@ async def generate(
         parsed = parse_document(file.filename or "", data)
     except UnsupportedFileError as exc:
         raise HTTPException(status_code=415, detail=str(exc))
-    except LLMConfigError as exc:
-        # OCR needs the OpenAI key; report it clearly.
+    except OCRError as exc:
+        # Local OCR (Tesseract) is unavailable on the server.
         raise HTTPException(status_code=503, detail=str(exc))
     except Exception as exc:  # noqa: BLE001 - surface a friendly message
         raise HTTPException(status_code=400, detail=f"Could not read the file: {exc}")
