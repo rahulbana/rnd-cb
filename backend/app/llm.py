@@ -80,10 +80,13 @@ _TYPE_SPECS = {
         "misconceptions.",
     ),
     "mcq": (
-        '{"question": "...", "options": ["A","B","C","D"], '
+        '{"question": "...", "options": ["first option text", "second option text", '
+        '"third option text", "fourth option text"], '
         '"answer": "the exact text of the correct option", "explanation": "..."}',
-        "Exactly 4 options each, with plausible distractors. Vary the correct "
-        "option position.",
+        "Exactly 4 options each, with plausible distractors. Do NOT prefix "
+        "options with letters or numbers like 'A.', 'B)', or '1.' — give the "
+        "option text only. The answer must exactly match one option's text. Vary "
+        "the correct option position.",
     ),
     "fill_blanks": (
         '{"question": "a sentence with a ______ blank", "answer": "the missing word/phrase"}',
@@ -102,9 +105,17 @@ _TYPE_SPECS = {
         "Long-answer/essay style covering a concept in depth.",
     ),
     "case_based": (
-        '{"case": "a short real-world scenario grounded in the material", '
-        '"questions": [{"question": "...", "answer": "..."}]}',
-        "Each case is a scenario followed by 2-4 sub-questions with answers.",
+        '{"case": "a rich, detailed real-world scenario/passage (5-8 sentences) '
+        'grounded in the material, with concrete context, data or examples", '
+        '"questions": [{"question": "a higher-order sub-question", '
+        '"answer": "a deep, well-explained answer (4-8 sentences) with reasoning, '
+        'steps, and the underlying concept made explicit"}]}',
+        "Each case must be an in-depth scenario/passage (at least 5 sentences) "
+        "followed by 4-5 higher-order sub-questions that require analysis, "
+        "application, and reasoning (not mere recall). Every answer must be "
+        "thorough and clearly EXPLAINED in depth — state the reasoning, any "
+        "steps/working, and the concept being tested — so a student fully "
+        "understands why the answer is correct.",
     ),
 }
 

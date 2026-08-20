@@ -8,6 +8,7 @@ Three variants are produced:
 from __future__ import annotations
 
 import html
+import re
 from datetime import datetime
 
 from .schemas import QUESTION_TYPE_LABELS, StudyMaterial
@@ -124,11 +125,22 @@ def render_variants(
 
 
 def _answer_block(inner: str) -> str:
-    # Answers are collapsible so the sheet can be used as a quiz first.
+    # Answers are shown by default (open) but can be collapsed.
     return (
-        '<details class="answer"><summary>Show answer</summary>'
+        '<details class="answer" open><summary>Answer</summary>'
         f'<div class="answer-body">{inner}</div></details>'
     )
+
+
+# Leading option labels the model sometimes bakes into the option text, e.g.
+# "A. ", "A) ", "(A) ", "a. ", "1. ", "1) ". We add our own label, so strip these.
+_OPTION_LABEL_RE = re.compile(r"^\s*[\(\[]?[A-Za-z0-9][\)\].:]\s+")
+
+
+def _clean_option(opt: str) -> str:
+    text = str(opt or "")
+    # Strip once; guards against a single embedded label without eating content.
+    return _OPTION_LABEL_RE.sub("", text, count=1).strip()
 
 
 def _section_open(parts: list[str], key: str, count: int) -> None:
@@ -161,7 +173,7 @@ def _render_mcq(parts, items, include_answers):
     _section_open(parts, "mcq", len(items))
     for it in items:
         opts = "".join(
-            f'<li class="opt">{_e(chr(65 + i))}. {_e(opt)}</li>'
+            f'<li class="opt">{_e(chr(65 + i))}. {_e(_clean_option(opt))}</li>'
             for i, opt in enumerate(it.options)
         )
         parts.append(
@@ -169,7 +181,7 @@ def _render_mcq(parts, items, include_answers):
             f'<ol class="options" type="A">{opts}</ol>'
         )
         if include_answers:
-            body = f"<strong>{_e(it.answer)}</strong>"
+            body = f"<strong>{_e(_clean_option(it.answer))}</strong>"
             if it.explanation:
                 body += f"<p>{_e(it.explanation)}</p>"
             parts.append(_answer_block(body))
