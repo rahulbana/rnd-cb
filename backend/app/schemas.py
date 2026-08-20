@@ -29,8 +29,22 @@ QUESTION_TYPE_LABELS = {
 }
 
 
+class NoteImage(BaseModel):
+    query: str = ""      # search phrase suggested by the LLM
+    url: str = ""        # resolved online image URL (best-effort)
+    source: str = ""     # page the image came from
+    caption: str = ""    # what the image shows
+
+
 class NoteSection(BaseModel):
     heading: str = ""
+    overview: str = ""                                  # 1-2 sentence intro
+    explanation: str = ""                               # detailed prose (paragraphs)
+    key_points: List[str] = Field(default_factory=list)
+    examples: List[str] = Field(default_factory=list)
+    formulas: List[str] = Field(default_factory=list)
+    image: Optional[NoteImage] = None
+    # Back-compat: some callers/tests still send "points".
     points: List[str] = Field(default_factory=list)
 
 

@@ -19,6 +19,8 @@ from .schemas import (
     CaseBasedQ,
     FillBlankQ,
     MCQ,
+    NoteImage,
+    NoteSection,
     Notes,
     Questions,
     ShortLongQ,
@@ -37,6 +39,10 @@ MAX_WORKERS = int(os.getenv("GENERATION_WORKERS", "6"))
 
 # Safety ceiling so a single type can't request a runaway number of questions.
 MAX_PER_TYPE = int(os.getenv("MAX_QUESTIONS_PER_TYPE", "40"))
+
+# Detailed notes: how many sub-topics to expand, and how many to illustrate.
+NOTES_MAX_SECTIONS = int(os.getenv("NOTES_MAX_SECTIONS", "14"))
+NOTES_MAX_IMAGES = int(os.getenv("NOTES_MAX_IMAGES", "6"))
 
 
 class LLMConfigError(Exception):
@@ -178,7 +184,9 @@ def generate_study_material(
     # Notes + each question type run concurrently.
     questions = Questions()
     with ThreadPoolExecutor(max_workers=max(1, MAX_WORKERS)) as ex:
-        notes_future = ex.submit(_generate_notes, client, text, audience, ref_block)
+        notes_future = ex.submit(
+            _generate_detailed_notes, client, text, audience, ref_block
+        )
         futures = {}
         for t in selected_types:
             n = min(int(counts.get(t, targets.get(t, 8))), MAX_PER_TYPE)
@@ -201,23 +209,104 @@ def generate_study_material(
     return StudyMaterial(notes=notes, questions=questions)
 
 
-def _generate_notes(client: OpenAI, text: str, audience: str, ref_block: str) -> Notes:
-    prompt = f"""You are an expert teacher preparing thorough revision NOTES from
-the document below. {audience}
+def _generate_detailed_notes(
+    client: OpenAI, text: str, audience: str, ref_block: str
+) -> Notes:
+    """Two-stage detailed notes: outline the sub-topics, then expand each deeply.
 
-Make the notes COMPREHENSIVE and GRANULAR — capture every concept, including
-minor and easily-overlooked details: definitions, key terms, names, dates,
-formulas, units, examples, and exceptions. Organise by sub-topic. Keep language
-age-appropriate. Base the notes on the document (and reference material, if
-given); do not invent unsupported facts.
+    Splitting per sub-topic keeps every section well within output limits, so the
+    explanations can be long and detailed without truncation.
+    """
+    outline = _notes_outline(client, text, audience, ref_block)
+    title = str(outline.get("title", "") or "")
+    summary = str(outline.get("summary", "") or "")
+    glossary = [str(g) for g in (outline.get("glossary") or []) if str(g).strip()]
+
+    subs = []
+    for s in (outline.get("subtopics") or [])[:NOTES_MAX_SECTIONS]:
+        if isinstance(s, dict):
+            heading = str(s.get("heading") or s.get("title") or "").strip()
+            focus = str(s.get("focus") or s.get("hint") or "").strip()
+        else:
+            heading, focus = str(s).strip(), ""
+        if heading:
+            subs.append((heading, focus))
+
+    # Expand each sub-topic into a detailed section, concurrently.
+    sections: List[NoteSection | None] = [None] * len(subs)
+    if subs:
+        with ThreadPoolExecutor(max_workers=max(1, MAX_WORKERS)) as ex:
+            futs = {
+                ex.submit(
+                    _generate_section, client, h, focus, text, audience, ref_block
+                ): i
+                for i, (h, focus) in enumerate(subs)
+            }
+            for fut in as_completed(futs):
+                i = futs[fut]
+                try:
+                    sections[i] = fut.result()
+                except Exception:
+                    sections[i] = NoteSection(heading=subs[i][0])
+
+    ordered = [s for s in sections if s is not None]
+    _attach_images(ordered)
+    return Notes(title=title, summary=summary, sections=ordered, glossary=glossary)
+
+
+def _notes_outline(client: OpenAI, text: str, audience: str, ref_block: str) -> dict:
+    prompt = f"""You are an expert teacher planning DETAILED study notes from the
+document below. {audience}
+
+Identify EVERY topic and sub-topic covered in the document, in the order they
+appear. Be granular — split large topics into smaller sub-topics so each can be
+studied on its own. Do not miss minor sub-topics.
 
 Return ONLY valid JSON (no markdown fences) of this shape:
 {{
-  "title": "short descriptive title",
-  "summary": "3-5 sentence overview",
-  "key_points": ["many concise revision bullets covering all concepts"],
-  "sections": [{{"heading": "sub-topic", "points": ["detailed point", "..."]}}],
+  "title": "descriptive title of the whole document",
+  "summary": "4-6 sentence overview of what the document covers",
+  "subtopics": [
+    {{"heading": "sub-topic name", "focus": "what this sub-topic should explain"}}
+  ],
   "glossary": ["Term: short definition", "..."]
+}}
+
+=== DOCUMENT START ===
+{text}
+=== DOCUMENT END ==={ref_block}"""
+    return _call_json(client, prompt)
+
+
+def _generate_section(
+    client: OpenAI, heading: str, focus: str, text: str, audience: str, ref_block: str
+) -> NoteSection:
+    focus_line = f"\nThis section should focus on: {focus}" if focus else ""
+    prompt = f"""You are an expert teacher writing a DETAILED, well-explained study
+note for ONE sub-topic. {audience}
+
+Sub-topic: "{heading}".{focus_line}
+
+Explain this sub-topic THOROUGHLY, as if teaching a student who wants to master
+it: clear definitions, the underlying concepts and reasoning, how/why it works,
+step-by-step where relevant, common mistakes, and worked examples. Write the
+"explanation" as flowing prose in 2-4 short paragraphs (separate paragraphs with
+a blank line). Base everything on the document (and reference material, if
+given); do not invent unsupported facts.
+
+Also suggest a helpful diagram/illustration to accompany the note via
+"image_query" (a concise, specific search phrase), or "" if an image would not
+help.
+
+Return ONLY valid JSON (no markdown fences) of this shape:
+{{
+  "heading": "{heading}",
+  "overview": "1-2 sentence introduction to the sub-topic",
+  "explanation": "detailed multi-paragraph explanation",
+  "key_points": ["important revision bullets, including small details"],
+  "examples": ["worked example or illustration", "..."],
+  "formulas": ["any formulas/equations with what each symbol means", "..."],
+  "image_query": "concise image search phrase or empty string"
 }}
 
 === DOCUMENT START ===
@@ -225,7 +314,57 @@ Return ONLY valid JSON (no markdown fences) of this shape:
 === DOCUMENT END ==={ref_block}"""
 
     data = _call_json(client, prompt)
-    return Notes.model_validate(data)
+    image = None
+    query = str(data.get("image_query", "") or "").strip()
+    if query:
+        image = NoteImage(query=query, caption=str(data.get("overview", "") or "")[:120])
+    return NoteSection(
+        heading=str(data.get("heading", heading) or heading),
+        overview=str(data.get("overview", "") or ""),
+        explanation=str(data.get("explanation", "") or ""),
+        key_points=[str(p) for p in (data.get("key_points") or []) if str(p).strip()],
+        examples=[str(p) for p in (data.get("examples") or []) if str(p).strip()],
+        formulas=[str(p) for p in (data.get("formulas") or []) if str(p).strip()],
+        image=image,
+    )
+
+
+def _attach_images(sections: List[NoteSection]) -> None:
+    """Resolve online images for sections that requested one (best-effort)."""
+    try:
+        from .web_research import find_image, images_enabled
+    except Exception:
+        for s in sections:
+            s.image = None
+        return
+
+    if not images_enabled():
+        for s in sections:
+            s.image = None
+        return
+
+    targets = [s for s in sections if s.image and s.image.query][:NOTES_MAX_IMAGES]
+    if targets:
+        with ThreadPoolExecutor(max_workers=min(4, len(targets))) as ex:
+            futs = {ex.submit(find_image, s.image.query): s for s in targets}
+            for fut in as_completed(futs):
+                s = futs[fut]
+                try:
+                    info = fut.result()
+                except Exception:
+                    info = {}
+                if info and info.get("url"):
+                    s.image.url = info["url"]
+                    s.image.source = info.get("source", "")
+                    if not s.image.caption:
+                        s.image.caption = info.get("title", "") or s.image.query
+                else:
+                    s.image = None
+
+    # Drop unresolved image placeholders (beyond the cap or failed lookups).
+    for s in sections:
+        if s.image and not s.image.url:
+            s.image = None
 
 
 def _generate_type(

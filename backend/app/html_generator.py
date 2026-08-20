@@ -51,25 +51,7 @@ def render_html(
 
     # ---- Notes ------------------------------------------------------------
     if include_notes:
-        parts.append('<section class="notes card"><h2>📘 Study Notes</h2>')
-        if notes.summary:
-            parts.append(f'<p class="summary">{_e(notes.summary)}</p>')
-        if notes.key_points:
-            parts.append("<h3>Key Points</h3><ul>")
-            parts.extend(f"<li>{_e(p)}</li>" for p in notes.key_points)
-            parts.append("</ul>")
-        for section in notes.sections:
-            if section.heading:
-                parts.append(f"<h3>{_e(section.heading)}</h3>")
-            if section.points:
-                parts.append("<ul>")
-                parts.extend(f"<li>{_e(p)}</li>" for p in section.points)
-                parts.append("</ul>")
-        if notes.glossary:
-            parts.append("<h3>Glossary</h3><ul class='glossary'>")
-            parts.extend(f"<li>{_e(g)}</li>" for g in notes.glossary)
-            parts.append("</ul>")
-        parts.append("</section>")
+        _render_notes(parts, notes)
 
     # ---- Questions --------------------------------------------------------
     if include_questions:
@@ -122,6 +104,95 @@ def render_variants(
             doc_label="Question Paper",
         ),
     }
+
+
+def _slug(text: str, i: int) -> str:
+    base = re.sub(r"[^a-z0-9]+", "-", str(text).lower()).strip("-")
+    return f"sec-{i}-{base}"[:60] or f"sec-{i}"
+
+
+def _paragraphs(text: str) -> str:
+    """Split a prose block into <p> paragraphs on blank lines / newlines."""
+    blocks = re.split(r"\n\s*\n", str(text).strip())
+    out = []
+    for b in blocks:
+        b = b.strip()
+        if b:
+            out.append(f"<p>{_e(b)}</p>")
+    return "".join(out)
+
+
+def _render_notes(parts: list[str], notes) -> None:
+    sections = notes.sections or []
+
+    parts.append('<section class="notes card"><h2>📘 Study Notes</h2>')
+    if notes.summary:
+        parts.append(f'<p class="summary">{_e(notes.summary)}</p>')
+
+    # Table of contents for easy navigation of a long, detailed document.
+    if len(sections) > 1:
+        parts.append('<nav class="toc"><h3>Contents</h3><ol>')
+        for i, s in enumerate(sections, start=1):
+            if s.heading:
+                parts.append(f'<li><a href="#{_slug(s.heading, i)}">{_e(s.heading)}</a></li>')
+        parts.append("</ol></nav>")
+
+    if notes.key_points:
+        parts.append('<div class="keypoints"><h3>Key Points at a Glance</h3><ul>')
+        parts.extend(f"<li>{_e(p)}</li>" for p in notes.key_points)
+        parts.append("</ul></div>")
+    parts.append("</section>")
+
+    # One card per sub-topic, studied in depth.
+    for i, s in enumerate(sections, start=1):
+        anchor = _slug(s.heading, i)
+        parts.append(f'<section class="notes-section card" id="{anchor}">')
+        if s.heading:
+            parts.append(f'<h2 class="sec-h"><span class="sec-n">{i}</span> {_e(s.heading)}</h2>')
+        if getattr(s, "overview", ""):
+            parts.append(f'<p class="sec-overview">{_e(s.overview)}</p>')
+
+        img = getattr(s, "image", None)
+        if img and getattr(img, "url", ""):
+            cap = _e(img.caption or s.heading)
+            src = _e(img.source or img.url)
+            parts.append(
+                '<figure class="note-figure">'
+                f'<img src="{_e(img.url)}" alt="{cap}" loading="lazy" '
+                'referrerpolicy="no-referrer">'
+                f'<figcaption>{cap} '
+                f'<a href="{src}" target="_blank" rel="noopener">source</a></figcaption>'
+                "</figure>"
+            )
+
+        if getattr(s, "explanation", ""):
+            parts.append(f'<div class="sec-body">{_paragraphs(s.explanation)}</div>')
+
+        # Back-compat: older shape used "points".
+        legacy = getattr(s, "points", None) or []
+        kp = getattr(s, "key_points", None) or legacy
+        if kp:
+            parts.append('<h3>Key Points</h3><ul>')
+            parts.extend(f"<li>{_e(p)}</li>" for p in kp)
+            parts.append("</ul>")
+
+        if getattr(s, "examples", None):
+            parts.append('<h3>Examples</h3><ul class="examples">')
+            parts.extend(f"<li>{_e(p)}</li>" for p in s.examples)
+            parts.append("</ul>")
+
+        if getattr(s, "formulas", None):
+            parts.append('<h3>Formulas</h3><ul class="formulas">')
+            parts.extend(f"<li><code>{_e(p)}</code></li>" for p in s.formulas)
+            parts.append("</ul>")
+
+        parts.append("</section>")
+
+    if notes.glossary:
+        parts.append('<section class="glossary-card card"><h2>📖 Glossary</h2>')
+        parts.append("<ul class='glossary'>")
+        parts.extend(f"<li>{_e(g)}</li>" for g in notes.glossary)
+        parts.append("</ul></section>")
 
 
 def _answer_block(inner: str) -> str:
@@ -282,6 +353,29 @@ li {{ margin:6px 0; }}
 .answer-body {{ margin-top:8px; background:#ecfdf5; border-left:4px solid #10b981;
   padding:10px 14px; border-radius:8px; }}
 .glossary li {{ font-weight:400; }}
+/* Detailed notes */
+.toc {{ background:#f8fafc; border:1px solid var(--line); border-radius:10px;
+  padding:12px 16px; margin-top:14px; }}
+.toc h3 {{ margin:0 0 6px; font-size:.95rem; }}
+.toc ol {{ margin:0; padding-left:20px; }}
+.toc a {{ color:var(--accent); text-decoration:none; }}
+.toc a:hover {{ text-decoration:underline; }}
+.keypoints {{ margin-top:14px; }}
+.notes-section {{ scroll-margin-top:16px; }}
+.sec-h {{ align-items:baseline; }}
+.sec-n {{ flex:none; background:var(--accent); color:#fff; border-radius:8px;
+  min-width:26px; height:26px; display:inline-flex; align-items:center;
+  justify-content:center; font-size:.85rem; font-weight:700; }}
+.sec-overview {{ color:#374151; font-weight:500; }}
+.sec-body p {{ margin:0 0 10px; }}
+.note-figure {{ margin:12px 0; text-align:center; }}
+.note-figure img {{ max-width:100%; height:auto; border:1px solid var(--line);
+  border-radius:10px; background:#fff; }}
+.note-figure figcaption {{ color:var(--muted); font-size:.82rem; margin-top:6px; }}
+.note-figure figcaption a {{ color:var(--accent); }}
+.examples li {{ font-weight:400; }}
+.formulas li {{ font-weight:400; }}
+.formulas code {{ background:#f1f5f9; padding:2px 6px; border-radius:6px; }}
 .refs-note {{ color:var(--muted); font-size:.88rem; margin:0 0 8px; }}
 .refs-list li {{ font-weight:400; word-break:break-all; }}
 .refs-list a {{ color:var(--accent); }}

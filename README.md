@@ -4,7 +4,10 @@ An end-to-end web app for **students and parents**. Upload a document — PDF, W
 (`.docx`), PowerPoint (`.pptx`), plain text, **a scanned PDF, or a photo/scan
 image** (`.png`, `.jpg`, …) — and get back:
 
-- **Revision notes** (summary, key points, section-wise bullets, glossary)
+- **Detailed revision notes** — every sub-topic in the document is expanded into
+  its own in-depth section (overview, multi-paragraph explanation, key points,
+  worked examples, formulas), with a table of contents and, where helpful, a
+  **reference diagram/image found online**, plus a glossary
 - **Optional online research** — the app can search the web (via **DuckDuckGo**
   or **Tavily**) for curriculum-aligned reference material from reputable
   sources (education boards, coaching centres, educational sites) to enrich the
@@ -50,6 +53,17 @@ printable HTML files**:
 Text is always extracted **on the server first**, and only that text is sent to
 OpenAI to generate notes and questions. The original document — and, for scanned
 files, its page images — never leaves the server.
+
+### Detailed notes with images
+
+The notes are built in two stages: the document is first outlined into its
+sub-topics, then each sub-topic is expanded in its own concurrent LLM call (so
+long, detailed explanations are never truncated). When online research is on,
+each section can be illustrated with a **reference image found via image search**
+and embedded by URL, with a link back to its source. Images are hotlinked from
+the web, so they render when the notes HTML is opened online; if a lookup fails
+the section simply renders without an image. Turn images off with
+`ENABLE_IMAGE_SEARCH=false`.
 
 ### Scanned documents & images
 
@@ -134,6 +148,9 @@ Backend environment variables (see `backend/.env.example`):
 | `DEFAULT_COVERAGE`  | `thorough`     | Default depth: standard/thorough/exhaustive|
 | `MAX_QUESTIONS_PER_TYPE`| `40`       | Hard ceiling on questions per type        |
 | `GENERATION_WORKERS`| `6`            | Concurrency for per-type generation calls |
+| `NOTES_MAX_SECTIONS`| `14`           | Max sub-topics expanded into detailed notes|
+| `NOTES_MAX_IMAGES`  | `6`            | Max online reference images embedded in notes|
+| `ENABLE_IMAGE_SEARCH`| `true`        | Embed reference images in notes (DDG images)|
 | `OCR_LANG`          | `eng`          | Tesseract language(s), e.g. `eng+hin`     |
 | `MAX_OCR_PAGES`     | `20`           | Max scanned pages OCR'd per document      |
 | `OCR_DPI`           | `300`          | Rasterisation DPI for scanned PDF pages   |

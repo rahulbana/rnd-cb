@@ -56,7 +56,7 @@ def test_html_render():
         ),
     )
     html = render_html(material, "science.pdf", "Class 6")
-    for token in ["The Water Cycle", "True", "Vapour", "evaporates", "Show answer", "<!DOCTYPE html>"]:
+    for token in ["The Water Cycle", "True", "Vapour", "evaporates", ">Answer</summary>", "<!DOCTYPE html>"]:
         assert token in html, f"missing {token!r}"
     # Escaping check
     hostile = render_html(
