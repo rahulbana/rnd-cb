@@ -51,6 +51,7 @@ def _build_prompt(
     selected_types: List[str],
     counts: Dict[str, int],
     grade_level: str,
+    research_context: str = "",
 ) -> str:
     text = text[:MAX_CHARS]
 
@@ -89,13 +90,29 @@ Return ONLY valid JSON (no markdown fences) with this exact shape:
 Only include the question-type keys that were requested; leave others as empty arrays.
 """
 
+    reference_block = ""
+    if research_context.strip():
+        reference_block = f"""
+
+You may also use the ADDITIONAL REFERENCE MATERIAL below — gathered from
+reputable educational sources online (school boards, coaching centres,
+educational sites) — to enrich the notes and questions with commonly-tested
+points and standard exam-style question patterns. The uploaded document is the
+primary source: prefer it, do not contradict it, and only use the references to
+add depth and exam-relevant coverage. Do not copy references verbatim.
+
+=== ADDITIONAL REFERENCE MATERIAL START ===
+{research_context.strip()}
+=== ADDITIONAL REFERENCE MATERIAL END ==="""
+
     return f"""You are an expert teacher creating study material from a document.
 {audience}
 
-Create clear, accurate revision NOTES and practice QUESTIONS strictly based on
-the document content below. Do not invent facts that are not supported by the
-text. Keep language age-appropriate and easy to understand. Every question must
-include its correct answer so parents can check their child's work.
+Create clear, accurate revision NOTES and practice QUESTIONS based primarily on
+the document content below. Do not invent facts that are unsupported by the
+document (or the reference material, when provided). Keep language
+age-appropriate and easy to understand. Every question must include its correct
+answer so parents can check their child's work.
 
 Question types requested (generate the given number for each):
 {wanted_block}
@@ -104,7 +121,7 @@ Question types requested (generate the given number for each):
 
 === DOCUMENT START ===
 {text}
-=== DOCUMENT END ==="""
+=== DOCUMENT END ==={reference_block}"""
 
 
 def generate_study_material(
@@ -112,6 +129,7 @@ def generate_study_material(
     selected_types: List[str],
     counts: Dict[str, int] | None = None,
     grade_level: str = "",
+    research_context: str = "",
 ) -> StudyMaterial:
     """Call OpenAI and parse the response into a StudyMaterial model."""
     selected_types = [t for t in selected_types if t in QUESTION_TYPES]
@@ -120,7 +138,7 @@ def generate_study_material(
     counts = counts or {}
 
     client = _client()
-    prompt = _build_prompt(text, selected_types, counts, grade_level)
+    prompt = _build_prompt(text, selected_types, counts, grade_level, research_context)
 
     response = client.chat.completions.create(
         model=MODEL,

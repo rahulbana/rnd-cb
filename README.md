@@ -5,6 +5,10 @@ An end-to-end web app for **students and parents**. Upload a document — PDF, W
 image** (`.png`, `.jpg`, …) — and get back:
 
 - **Revision notes** (summary, key points, section-wise bullets, glossary)
+- **Optional online research** — the app can search the web (via OpenAI) for
+  curriculum-aligned reference material from reputable sources (education
+  boards, coaching centres, educational sites) to enrich the notes and
+  questions, with the sources cited in the downloads.
 - **Practice questions** with answers, in every requested format:
   - True / False
   - Multiple Choice (MCQ)
@@ -74,6 +78,7 @@ backend/          FastAPI service
     main.py             API endpoints (/api/generate, /api/health, ...)
     document_parser.py  Extract text from PDF/DOCX/PPTX/TXT (in memory)
     ocr.py              Local OCR (Tesseract) for scanned PDFs & images
+    web_research.py     Optional online reference research (OpenAI web search)
     llm.py              OpenAI prompt + JSON parsing
     html_generator.py   Render the 3 printable HTML files (notes / Q+A / Q-only)
     schemas.py          Pydantic models & question-type definitions
@@ -125,6 +130,9 @@ Backend environment variables (see `backend/.env.example`):
 | `OCR_LANG`          | `eng`          | Tesseract language(s), e.g. `eng+hin`     |
 | `MAX_OCR_PAGES`     | `20`           | Max scanned pages OCR'd per document      |
 | `OCR_DPI`           | `300`          | Rasterisation DPI for scanned PDF pages   |
+| `ENABLE_WEB_SEARCH` | `true`         | Turn online reference research on/off     |
+| `OPENAI_SEARCH_MODEL`| `gpt-4o-mini-search-preview` | Web-search-capable model    |
+| `RESEARCH_MAX_SOURCES`| `8`          | Max reference URLs cited                  |
 
 ## API
 
@@ -147,6 +155,21 @@ and returns just that document.
 - `file`: the document
 - `question_types`: comma-separated ids (e.g. `mcq,true_false,long`)
 - `grade_level`: optional string (e.g. `Class 8`)
+- `web_search`: `true`/`false` (default `true`) — gather online references
+
+The JSON response includes `web_search_used` and a `sources` list of the
+reference URLs used.
+
+### Online reference research
+
+When `web_search` is on (and `ENABLE_WEB_SEARCH=true`), the extracted text is
+first sent to a web-search-capable OpenAI model, which finds curriculum-aligned
+reference material from reputable educational sources and returns a short
+briefing plus source URLs. That briefing is passed as *additional* context to
+notes/question generation — the uploaded document stays the primary source — and
+the URLs are cited in the Notes and Questions + Answers downloads. The step is
+best-effort: if the search model is unavailable, generation proceeds normally
+without it.
 
 ## Notes on legacy formats
 

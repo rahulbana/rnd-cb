@@ -102,5 +102,7 @@ class GenerateResponse(BaseModel):
     source_filename: str
     grade_level: Optional[str] = None
     ocr_used: bool = False  # True when the source was read via OCR (scanned)
+    web_search_used: bool = False  # True when online references were gathered
+    sources: List[str] = Field(default_factory=list)  # reference URLs
     material: StudyMaterial
     downloads: Downloads

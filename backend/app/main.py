@@ -16,6 +16,7 @@ from .document_parser import UnsupportedFileError, parse_document
 from .html_generator import render_html, render_variants
 from .llm import LLMConfigError, generate_study_material
 from .ocr import OCRError
+from .web_research import ResearchResult, gather_references
 from .schemas import (
     QUESTION_TYPE_LABELS,
     QUESTION_TYPES,
@@ -50,11 +51,13 @@ MAX_UPLOAD_BYTES = int(os.getenv("MAX_UPLOAD_BYTES", str(15 * 1024 * 1024)))
 @app.get("/api/health")
 def health():
     from .ocr import is_ocr_configured
+    from .web_research import is_enabled as web_search_enabled
 
     return {
         "status": "ok",
         "openai_configured": bool(os.getenv("OPENAI_API_KEY")),
         "ocr_available": is_ocr_configured(),
+        "web_search_enabled": web_search_enabled(),
     }
 
 
@@ -69,6 +72,7 @@ async def generate(
     file: UploadFile = File(...),
     question_types: str = Form(",".join(QUESTION_TYPES)),
     grade_level: str = Form(""),
+    web_search: bool = Form(True),
 ):
     """Parse the uploaded document and generate notes + questions."""
     data = await file.read()
@@ -100,9 +104,19 @@ async def generate(
     if not selected:
         selected = list(QUESTION_TYPES)
 
-    # 3. Generate study material with the LLM.
+    # 3. Optionally research reference material online to enrich the output.
+    research = ResearchResult()
+    if web_search:
+        try:
+            research = gather_references(text, grade_level)
+        except Exception:  # noqa: BLE001 - research is best-effort
+            research = ResearchResult()
+
+    # 4. Generate study material with the LLM (using any research context).
     try:
-        material = generate_study_material(text, selected, grade_level=grade_level)
+        material = generate_study_material(
+            text, selected, grade_level=grade_level, research_context=research.context
+        )
     except LLMConfigError as exc:
         raise HTTPException(status_code=503, detail=str(exc))
     except Exception as exc:  # noqa: BLE001
@@ -110,14 +124,18 @@ async def generate(
             status_code=502, detail=f"Generation failed: {exc}"
         )
 
-    # 4. Render the three downloadable, self-contained HTML documents:
+    # 5. Render the three downloadable, self-contained HTML documents:
     #    notes, questions+answers, and questions-only (practice sheet).
-    variants = render_variants(material, file.filename or "document", grade_level)
+    variants = render_variants(
+        material, file.filename or "document", grade_level, sources=research.sources
+    )
 
     return GenerateResponse(
         source_filename=file.filename or "document",
         grade_level=grade_level or None,
         ocr_used=parsed.ocr_used,
+        web_search_used=research.used,
+        sources=research.sources,
         material=material,
         downloads=Downloads(**variants),
     )

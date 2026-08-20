@@ -1,5 +1,6 @@
 export default function Results({ result, onReset }) {
-  const { material, source_filename, grade_level, downloads, ocr_used } = result
+  const { material, source_filename, grade_level, downloads, ocr_used,
+    web_search_used, sources = [] } = result
   const { notes } = material
 
   const base = (notes.title || source_filename || 'study-material').replace(/[^\w\-]+/g, '_')
@@ -33,6 +34,12 @@ export default function Results({ result, onReset }) {
             From <strong>{source_filename}</strong>
             {grade_level ? ` · ${grade_level}` : ''}
             {ocr_used && <span className="ocr-badge">🔎 Read via OCR</span>}
+            {web_search_used && (
+              <span className="web-badge">
+                🌐 Enriched with {sources.length || 'online'} reference
+                {sources.length === 1 ? '' : 's'}
+              </span>
+            )}
           </p>
         </div>
         <div className="actions">

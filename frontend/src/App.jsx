@@ -11,6 +11,7 @@ export default function App() {
   const [openaiConfigured, setOpenaiConfigured] = useState(true)
   const [file, setFile] = useState(null)
   const [gradeLevel, setGradeLevel] = useState('')
+  const [webSearch, setWebSearch] = useState(true)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   const [result, setResult] = useState(null)
@@ -50,7 +51,7 @@ export default function App() {
     setLoading(true)
     setResult(null)
     try {
-      const data = await generate({ file, questionTypes: selectedIds, gradeLevel })
+      const data = await generate({ file, questionTypes: selectedIds, gradeLevel, webSearch })
       setResult(data)
     } catch (e) {
       setError(e.message)
@@ -178,6 +179,26 @@ export default function App() {
                 </label>
               ))}
             </div>
+          </section>
+
+          <section className="field">
+            <label className="switch-row">
+              <span className="switch">
+                <input
+                  type="checkbox"
+                  checked={webSearch}
+                  onChange={(e) => setWebSearch(e.target.checked)}
+                />
+                <span className="switch-track"><span className="switch-thumb" /></span>
+              </span>
+              <span className="switch-text">
+                <span className="switch-title">🌐 Enrich with online references</span>
+                <span className="switch-desc">
+                  Search reputable schools &amp; coaching sites to add exam-relevant
+                  points and questions (cited in the downloads).
+                </span>
+              </span>
+            </label>
           </section>
 
           {error && <div className="banner error">{error}</div>}

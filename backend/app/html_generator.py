@@ -26,6 +26,7 @@ def render_html(
     include_questions: bool = True,
     include_answers: bool = True,
     doc_label: str = "",
+    sources: list[str] | None = None,
 ) -> str:
     """Render an HTML document with the requested sections."""
     notes = material.notes
@@ -79,24 +80,41 @@ def render_html(
         _render_simple(parts, "long", q.long, include_answers)
         _render_case(parts, q.case_based, include_answers)
 
+    # ---- References (from online research) --------------------------------
+    if sources:
+        parts.append('<section class="refs card"><h2>🌐 References</h2>')
+        parts.append(
+            '<p class="refs-note">Reference material gathered from reputable '
+            "educational sources online to enrich this material.</p><ol class='refs-list'>"
+        )
+        for url in sources:
+            safe = _e(url)
+            parts.append(f'<li><a href="{safe}" target="_blank" rel="noopener">{safe}</a></li>')
+        parts.append("</ol></section>")
+
     parts.append(_FOOTER)
     return "".join(parts)
 
 
 def render_variants(
-    material: StudyMaterial, source_filename: str, grade_level: str = ""
+    material: StudyMaterial,
+    source_filename: str,
+    grade_level: str = "",
+    sources: list[str] | None = None,
 ) -> dict[str, str]:
     """Produce the three downloadable HTML documents."""
     return {
         "notes": render_html(
             material, source_filename, grade_level,
             include_notes=True, include_questions=False, doc_label="Notes",
+            sources=sources,
         ),
         "questions_with_answers": render_html(
             material, source_filename, grade_level,
             include_notes=False, include_questions=True, include_answers=True,
-            doc_label="Questions & Answers",
+            doc_label="Questions & Answers", sources=sources,
         ),
+        # Keep the practice sheet clean — no reference list.
         "questions_only": render_html(
             material, source_filename, grade_level,
             include_notes=False, include_questions=True, include_answers=False,
@@ -252,6 +270,9 @@ li {{ margin:6px 0; }}
 .answer-body {{ margin-top:8px; background:#ecfdf5; border-left:4px solid #10b981;
   padding:10px 14px; border-radius:8px; }}
 .glossary li {{ font-weight:400; }}
+.refs-note {{ color:var(--muted); font-size:.88rem; margin:0 0 8px; }}
+.refs-list li {{ font-weight:400; word-break:break-all; }}
+.refs-list a {{ color:var(--accent); }}
 @media print {{
   body {{ background:#fff; padding:0; }}
   .card {{ box-shadow:none; border:1px solid #ccc; break-inside:avoid; }}
