@@ -14,8 +14,13 @@ image** (`.png`, `.jpg`, …) — and get back:
   - Long Answer
   - Case-Based
 
-Everything can be viewed in the browser and **downloaded as a single, printable
-HTML file** (answers are collapsible, so it doubles as a quiz sheet).
+Everything can be viewed in the browser and downloaded as **three separate,
+printable HTML files**:
+
+1. **Notes** — study/revision notes only
+2. **Questions + Answers** — the full question set with an answer key
+3. **Questions only** — a clean practice/exam sheet (no answers, with space to
+   write)
 
 > **Privacy:** No documents or generated content are stored. Files are parsed in
 > memory and discarded once the response is returned. Only the **extracted plain
@@ -70,7 +75,7 @@ backend/          FastAPI service
     document_parser.py  Extract text from PDF/DOCX/PPTX/TXT (in memory)
     ocr.py              Local OCR (Tesseract) for scanned PDFs & images
     llm.py              OpenAI prompt + JSON parsing
-    html_generator.py   Render notes + questions to a printable HTML file
+    html_generator.py   Render the 3 printable HTML files (notes / Q+A / Q-only)
     schemas.py          Pydantic models & question-type definitions
   requirements.txt
   .env.example
@@ -127,8 +132,15 @@ Backend environment variables (see `backend/.env.example`):
 |--------|-------------------------|------------------------------------------|
 | GET    | `/api/health`           | Status + whether OpenAI key is set       |
 | GET    | `/api/question-types`   | List of supported question types         |
-| POST   | `/api/generate`         | Upload a file → JSON (material + HTML)    |
-| POST   | `/api/generate/html`    | Upload a file → raw HTML document         |
+| POST   | `/api/generate`         | Upload a file → JSON (material + 3 HTML files) |
+| POST   | `/api/generate/html`    | Upload a file → one raw HTML document      |
+
+`POST /api/generate` returns a `downloads` object with three self-contained HTML
+documents: `notes`, `questions_with_answers`, and `questions_only`.
+
+`POST /api/generate/html` takes an extra `variant` field (`notes` |
+`questions_with_answers` | `questions_only`, default `questions_with_answers`)
+and returns just that document.
 
 `POST /api/generate` is `multipart/form-data`:
 

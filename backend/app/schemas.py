@@ -90,9 +90,17 @@ class StudyMaterial(BaseModel):
     questions: Questions = Field(default_factory=Questions)
 
 
+class Downloads(BaseModel):
+    """Three self-contained, printable HTML documents."""
+
+    notes: str = ""                    # study notes only
+    questions_with_answers: str = ""   # questions + answer key
+    questions_only: str = ""           # practice sheet, no answers
+
+
 class GenerateResponse(BaseModel):
     source_filename: str
     grade_level: Optional[str] = None
     ocr_used: bool = False  # True when the source was read via OCR (scanned)
     material: StudyMaterial
-    html: str  # self-contained HTML document ready to download / print
+    downloads: Downloads

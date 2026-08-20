@@ -66,9 +66,40 @@ def test_html_render():
     assert "&lt;script&gt;" in hostile
 
 
+def test_variants():
+    from app.html_generator import render_variants
+    material = StudyMaterial(
+        notes=Notes(title="Cells", summary="About cells.", key_points=["Unit of life"]),
+        questions=Questions(
+            mcq=[MCQ(question="Powerhouse?", options=["Nucleus", "Mitochondria"],
+                     answer="Mitochondria", explanation="ATP")],
+            short=[ShortLongQ(question="Define cell.", answer="Basic unit of life.")],
+        ),
+    )
+    v = render_variants(material, "bio.pdf", "Class 8")
+    assert set(v) == {"notes", "questions_with_answers", "questions_only"}
+
+    # Notes doc: has notes, no questions/answers
+    assert "About cells." in v["notes"]
+    assert "Powerhouse?" not in v["notes"]
+
+    # Q + A: has questions AND the answer key
+    assert "Powerhouse?" in v["questions_with_answers"]
+    assert "Mitochondria" in v["questions_with_answers"]
+    assert "Basic unit of life." in v["questions_with_answers"]
+
+    # Questions only: has questions but NOT the answers
+    qo = v["questions_only"]
+    assert "Powerhouse?" in qo
+    assert "Basic unit of life." not in qo   # answer text absent
+    assert "Show answer" not in qo           # no answer blocks
+    assert "Nucleus" in qo and "Mitochondria" in qo  # MCQ options kept
+
+
 if __name__ == "__main__":
     test_text(); print("text OK")
     test_docx(); print("docx OK")
     test_pptx(); print("pptx OK")
     test_html_render(); print("html OK")
+    test_variants(); print("variants OK")
     print("ALL PASSED")

@@ -13,12 +13,13 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse, JSONResponse
 
 from .document_parser import UnsupportedFileError, parse_document
-from .html_generator import render_html
+from .html_generator import render_html, render_variants
 from .llm import LLMConfigError, generate_study_material
 from .ocr import OCRError
 from .schemas import (
     QUESTION_TYPE_LABELS,
     QUESTION_TYPES,
+    Downloads,
     GenerateResponse,
 )
 
@@ -109,15 +110,16 @@ async def generate(
             status_code=502, detail=f"Generation failed: {exc}"
         )
 
-    # 4. Render a downloadable, self-contained HTML document.
-    html_doc = render_html(material, file.filename or "document", grade_level)
+    # 4. Render the three downloadable, self-contained HTML documents:
+    #    notes, questions+answers, and questions-only (practice sheet).
+    variants = render_variants(material, file.filename or "document", grade_level)
 
     return GenerateResponse(
         source_filename=file.filename or "document",
         grade_level=grade_level or None,
         ocr_used=parsed.ocr_used,
         material=material,
-        html=html_doc,
+        downloads=Downloads(**variants),
     )
 
 
@@ -126,10 +128,20 @@ async def generate_html(
     file: UploadFile = File(...),
     question_types: str = Form(",".join(QUESTION_TYPES)),
     grade_level: str = Form(""),
+    variant: str = Form("questions_with_answers"),
 ):
-    """Same as /api/generate but returns the raw HTML document directly."""
+    """Same as /api/generate but returns a single raw HTML document.
+
+    ``variant`` is one of: notes, questions_with_answers, questions_only.
+    """
     result: GenerateResponse = await generate(file, question_types, grade_level)  # type: ignore[arg-type]
-    return HTMLResponse(content=result.html)
+    html_doc = getattr(result.downloads, variant, None)
+    if html_doc is None:
+        raise HTTPException(
+            status_code=400,
+            detail="variant must be one of: notes, questions_with_answers, questions_only",
+        )
+    return HTMLResponse(content=html_doc)
 
 
 @app.exception_handler(Exception)
