@@ -62,15 +62,38 @@ body {
 }
 .field input[type='text']:focus { outline: 2px solid var(--accent); border-color: transparent; }
 
-/* Chips */
-.chips { display: flex; flex-wrap: wrap; gap: 10px; }
-.chip {
-  border: 1px solid var(--line); background: #fff; color: var(--ink);
-  padding: 9px 16px; border-radius: 999px; cursor: pointer; font-size: 0.92rem;
+/* Question-type checkboxes */
+.field-head { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; }
+.select-actions { display: flex; align-items: center; gap: 6px; }
+.select-actions .dot { color: var(--line); }
+.link-btn { background: none; border: none; color: var(--accent); cursor: pointer; font-size: 0.85rem; font-weight: 600; padding: 0; }
+.link-btn:hover { text-decoration: underline; }
+
+.checkbox-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 10px; }
+.check-card {
+  display: flex; align-items: center; gap: 10px;
+  border: 1.5px solid var(--line); background: #fff; border-radius: 12px;
+  padding: 12px 14px; cursor: pointer; user-select: none;
+  transition: border-color 0.12s ease, background 0.12s ease, box-shadow 0.12s ease;
+}
+.check-card:hover { border-color: #c7d2fe; }
+.check-card.on { border-color: var(--accent); background: #eef2ff; box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.1); }
+/* Hide the native control but keep it accessible/focusable */
+.check-card input {
+  position: absolute; opacity: 0; width: 0; height: 0; margin: 0;
+}
+.checkbox {
+  flex: none; width: 22px; height: 22px; border-radius: 7px;
+  border: 2px solid #cbd5e1; background: #fff; color: #fff;
+  display: inline-flex; align-items: center; justify-content: center;
   transition: all 0.12s ease;
 }
-.chip:hover { border-color: var(--accent); }
-.chip.on { background: var(--accent); color: #fff; border-color: var(--accent); font-weight: 600; }
+.checkbox svg { opacity: 0; transform: scale(0.6); transition: all 0.12s ease; }
+.check-card.on .checkbox { background: var(--accent); border-color: var(--accent); }
+.check-card.on .checkbox svg { opacity: 1; transform: scale(1); }
+.check-card input:focus-visible + .checkbox { box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.35); }
+.check-label { font-size: 0.95rem; font-weight: 500; }
+.check-card.on .check-label { color: var(--accent-dark); font-weight: 600; }
 
 /* Generate button */
 .generate {

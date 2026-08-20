@@ -127,18 +127,55 @@ export default function App() {
           </section>
 
           <section className="field">
-            <label>Question types</label>
-            <div className="chips">
-              {types.map((t) => (
+            <div className="field-head">
+              <label>Question types</label>
+              <div className="select-actions">
                 <button
-                  key={t.id}
                   type="button"
-                  className={`chip ${selected[t.id] ? 'on' : ''}`}
-                  onClick={() => toggle(t.id)}
+                  className="link-btn"
+                  onClick={() =>
+                    setSelected(Object.fromEntries(types.map((t) => [t.id, true])))
+                  }
                 >
-                  {selected[t.id] ? '✓ ' : ''}
-                  {t.label}
+                  Select all
                 </button>
+                <span className="dot">·</span>
+                <button
+                  type="button"
+                  className="link-btn"
+                  onClick={() =>
+                    setSelected(Object.fromEntries(types.map((t) => [t.id, false])))
+                  }
+                >
+                  Clear
+                </button>
+              </div>
+            </div>
+            <div className="checkbox-grid">
+              {types.map((t) => (
+                <label
+                  key={t.id}
+                  className={`check-card ${selected[t.id] ? 'on' : ''}`}
+                >
+                  <input
+                    type="checkbox"
+                    checked={!!selected[t.id]}
+                    onChange={() => toggle(t.id)}
+                  />
+                  <span className="checkbox" aria-hidden="true">
+                    <svg viewBox="0 0 24 24" width="14" height="14">
+                      <path
+                        d="M5 13l4 4L19 7"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="3"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                      />
+                    </svg>
+                  </span>
+                  <span className="check-label">{t.label}</span>
+                </label>
               ))}
             </div>
           </section>
