@@ -5,10 +5,10 @@ An end-to-end web app for **students and parents**. Upload a document — PDF, W
 image** (`.png`, `.jpg`, …) — and get back:
 
 - **Revision notes** (summary, key points, section-wise bullets, glossary)
-- **Optional online research** — the app can search the web (via OpenAI) for
-  curriculum-aligned reference material from reputable sources (education
-  boards, coaching centres, educational sites) to enrich the notes and
-  questions, with the sources cited in the downloads.
+- **Optional online research** — the app can search the web (via **DuckDuckGo**
+  or **Tavily**) for curriculum-aligned reference material from reputable
+  sources (education boards, coaching centres, educational sites) to enrich the
+  notes and questions, with the sources cited in the downloads.
 - **Practice questions** with answers, in every requested format:
   - True / False
   - Multiple Choice (MCQ)
@@ -78,7 +78,7 @@ backend/          FastAPI service
     main.py             API endpoints (/api/generate, /api/health, ...)
     document_parser.py  Extract text from PDF/DOCX/PPTX/TXT (in memory)
     ocr.py              Local OCR (Tesseract) for scanned PDFs & images
-    web_research.py     Optional online reference research (OpenAI web search)
+    web_research.py     Optional online reference research (DuckDuckGo / Tavily)
     llm.py              OpenAI prompt + JSON parsing
     html_generator.py   Render the 3 printable HTML files (notes / Q+A / Q-only)
     schemas.py          Pydantic models & question-type definitions
@@ -131,7 +131,9 @@ Backend environment variables (see `backend/.env.example`):
 | `MAX_OCR_PAGES`     | `20`           | Max scanned pages OCR'd per document      |
 | `OCR_DPI`           | `300`          | Rasterisation DPI for scanned PDF pages   |
 | `ENABLE_WEB_SEARCH` | `true`         | Turn online reference research on/off     |
-| `OPENAI_SEARCH_MODEL`| `gpt-4o-mini-search-preview` | Web-search-capable model    |
+| `SEARCH_PROVIDER`   | `duckduckgo`   | `duckduckgo` (no key) or `tavily`         |
+| `TAVILY_API_KEY`    | *(empty)*      | Required when `SEARCH_PROVIDER=tavily`    |
+| `RESEARCH_MAX_RESULTS`| `6`          | Search results fetched per document       |
 | `RESEARCH_MAX_SOURCES`| `8`          | Max reference URLs cited                  |
 
 ## API
@@ -162,14 +164,14 @@ reference URLs used.
 
 ### Online reference research
 
-When `web_search` is on (and `ENABLE_WEB_SEARCH=true`), the extracted text is
-first sent to a web-search-capable OpenAI model, which finds curriculum-aligned
-reference material from reputable educational sources and returns a short
-briefing plus source URLs. That briefing is passed as *additional* context to
-notes/question generation — the uploaded document stays the primary source — and
-the URLs are cited in the Notes and Questions + Answers downloads. The step is
-best-effort: if the search model is unavailable, generation proceeds normally
-without it.
+When `web_search` is on (and `ENABLE_WEB_SEARCH=true`), a short search query is
+distilled from the extracted text and run against **DuckDuckGo** (default, no API
+key) or **Tavily** (`SEARCH_PROVIDER=tavily` with `TAVILY_API_KEY`). The result
+snippets and URLs are passed as *additional* context to notes/question
+generation — the uploaded document stays the primary source — and the URLs are
+cited in the Notes and Questions + Answers downloads. Only the short query
+leaves the server, never the file. The step is best-effort: if search is
+unavailable, generation proceeds normally without it.
 
 ## Notes on legacy formats
 
