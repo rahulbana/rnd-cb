@@ -9,6 +9,7 @@ from __future__ import annotations
 
 from typing import Optional, Tuple
 
+import cv2
 import numpy as np
 
 try:
@@ -67,8 +68,10 @@ class HandTracker:
         When ``draw`` is True the detected hand skeleton is drawn onto
         ``frame_bgr`` in place.
         """
-        # MediaPipe wants RGB and an immutable buffer for a small speed-up.
-        frame_rgb = frame_bgr[:, :, ::-1]
+        # MediaPipe requires an RGB, C-contiguous buffer. cv2.cvtColor returns a
+        # fresh contiguous array (unlike a `[..., ::-1]` slice, which has a
+        # negative stride and is rejected as "not c_contiguous").
+        frame_rgb = cv2.cvtColor(frame_bgr, cv2.COLOR_BGR2RGB)
         frame_rgb.flags.writeable = False
         results = self._hands.process(frame_rgb)
 
