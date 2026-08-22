@@ -1,0 +1,7 @@
+# Core computer-vision + ML stack for the gesture game.
+# Tested with Python 3.9 - 3.11.
+
+numpy>=1.23,<2.0
+opencv-python>=4.7
+mediapipe>=0.10          # hand landmark detection (21 keypoints per hand)
+tensorflow>=2.12         # gesture classifier (Keras model)

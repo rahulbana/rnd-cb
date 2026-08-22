@@ -205,3 +205,8 @@ cython_debug/
 marimo/_static/
 marimo/_lsp/
 __marimo__/
+
+# Gesture-game generated artifacts
+data/*.csv
+models/*.keras
+models/*.h5
