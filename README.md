@@ -34,6 +34,7 @@ Query:  question ──▶ LLM finds entities ──▶ match graph nodes ──
 | `graph_rag/answer.py` | Turn graph facts into a final answer |
 | `build_graph.py` | CLI to build the graph |
 | `query.py` | CLI to ask questions |
+| `visualize.py` | CLI to render the graph as interactive HTML |
 | `data/` | Sample documents (swap in your own `.txt`) |
 
 ## Setup
@@ -65,6 +66,20 @@ python query.py "Who created AlphaGo and what did it achieve?"
 # see the exact graph facts used to answer
 python query.py --show-context "How is NVIDIA connected to OpenAI?"
 ```
+
+## Visualize the graph
+
+Render the built graph as an interactive page and open it in your browser:
+
+```bash
+python visualize.py                 # writes graph.html
+python visualize.py --physics       # keep the springy force layout live
+```
+
+`graph.html` is self-contained (the vis.js library is inlined, so it works
+offline). Nodes are draggable and colored by entity type; hover a node to see
+its description, hover an edge to see the relationship. Bigger nodes are more
+connected.
 
 ### Example questions for the sample data
 

@@ -209,3 +209,4 @@ __marimo__/
 # Graph RAG build output
 graph.gml
 *.gml
+graph.html
