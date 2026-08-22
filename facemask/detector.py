@@ -56,10 +56,31 @@ class FaceDetector:
 
         self._mtcnn = MTCNN()
 
-    def detect(self, frame_bgr: np.ndarray) -> List[Face]:
-        """Detect faces in a BGR (OpenCV) frame and return ``Face`` objects."""
+    def detect(self, frame_bgr: np.ndarray, scale: float = 1.0) -> List[Face]:
+        """Detect faces in a BGR (OpenCV) frame and return ``Face`` objects.
+
+        ``scale`` (0 < scale <= 1) shrinks the frame before running MTCNN, which
+        is the main cost. Detections are mapped back to full-resolution
+        coordinates, so a scale of 0.5 roughly quarters the detector's workload
+        with little accuracy loss for a face filling much of the frame.
+        """
+        import cv2
+
+        if scale <= 0 or scale > 1:
+            scale = 1.0
+        if scale != 1.0:
+            small = cv2.resize(frame_bgr, None, fx=scale, fy=scale,
+                               interpolation=cv2.INTER_AREA)
+        else:
+            small = frame_bgr
+
+        inv = 1.0 / scale
         # MTCNN expects RGB, OpenCV gives us BGR.
-        rgb = frame_bgr[:, :, ::-1]
+        rgb = small[:, :, ::-1]
+
+        def up(pt):
+            return (pt[0] * inv, pt[1] * inv)
+
         faces: List[Face] = []
         for det in self._mtcnn.detect_faces(rgb):
             if det.get("confidence", 0.0) < self.min_confidence:
@@ -68,13 +89,13 @@ class FaceDetector:
             x, y, w, h = det["box"]
             faces.append(
                 Face(
-                    box=(int(x), int(y), int(w), int(h)),
+                    box=(int(x * inv), int(y * inv), int(w * inv), int(h * inv)),
                     confidence=float(det["confidence"]),
-                    left_eye=tuple(map(float, kp["left_eye"])),
-                    right_eye=tuple(map(float, kp["right_eye"])),
-                    nose=tuple(map(float, kp["nose"])),
-                    mouth_left=tuple(map(float, kp["mouth_left"])),
-                    mouth_right=tuple(map(float, kp["mouth_right"])),
+                    left_eye=up(kp["left_eye"]),
+                    right_eye=up(kp["right_eye"]),
+                    nose=up(kp["nose"]),
+                    mouth_left=up(kp["mouth_left"]),
+                    mouth_right=up(kp["mouth_right"]),
                 )
             )
         return faces

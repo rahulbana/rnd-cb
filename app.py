@@ -57,10 +57,20 @@ def parse_args(argv=None) -> argparse.Namespace:
                    help="Process a still image instead of the webcam.")
     p.add_argument("--min-confidence", type=float, default=0.90,
                    help="Minimum face-detection confidence, 0-1 (default: 0.90).")
-    p.add_argument("--width", type=int, default=960,
-                   help="Requested capture width (default: 960).")
-    p.add_argument("--height", type=int, default=720,
-                   help="Requested capture height (default: 720).")
+    p.add_argument("--width", type=int, default=640,
+                   help="Requested capture width (default: 640).")
+    p.add_argument("--height", type=int, default=480,
+                   help="Requested capture height (default: 480).")
+    p.add_argument("--detect-every", type=int, default=3, metavar="N",
+                   help="Run the detector only every Nth frame and track in "
+                        "between (default: 3). Higher = smoother/faster, less "
+                        "responsive. 1 = detect every frame.")
+    p.add_argument("--detect-scale", type=float, default=0.5, metavar="S",
+                   help="Downscale factor for detection, 0-1 (default: 0.5). "
+                        "Smaller = faster, less accurate for small faces.")
+    p.add_argument("--smooth", type=float, default=0.5, metavar="A",
+                   help="Motion smoothing 0-1 (default: 0.5). Higher = snappier, "
+                        "lower = smoother but more lag.")
     p.add_argument("--no-mirror", action="store_true",
                    help="Do not mirror the webcam (mirrored is more natural).")
     return p.parse_args(argv)
@@ -122,9 +132,15 @@ def run_image(args, masks, detector) -> int:
 
 
 def run_webcam(args, masks, detector) -> int:
+    from facemask.tracking import FaceSmoother
+
     idx = _select_start_index(masks, args.mask)
     mask_on = True
     show_landmarks = False
+    smoother = FaceSmoother(alpha=args.smooth)
+    faces = []
+    frame_no = 0
+    detect_every = max(1, args.detect_every)
 
     cap = cv2.VideoCapture(args.camera)
     cap.set(cv2.CAP_PROP_FRAME_WIDTH, args.width)
@@ -150,7 +166,13 @@ def run_webcam(args, masks, detector) -> int:
             if not args.no_mirror:
                 frame = cv2.flip(frame, 1)
 
-            faces = detector.detect(frame)
+            # Only run the (expensive) detector every Nth frame; reuse and smooth
+            # the last result in between so the video stays smooth.
+            if frame_no % detect_every == 0:
+                detected = detector.detect(frame, scale=args.detect_scale)
+                faces = smoother.update(detected)
+            frame_no += 1
+
             if mask_on:
                 apply_mask_to_faces(frame, faces, masks[idx])
             if show_landmarks:

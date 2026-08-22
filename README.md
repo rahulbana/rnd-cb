@@ -45,6 +45,27 @@ python app.py --camera 1      # use a different webcam
 python app.py --image me.jpg  # mask a still image -> me_masked.png (no webcam)
 ```
 
+### Performance (smooth movement)
+
+MTCNN runs on the CPU and is the bottleneck, so by default the detector runs on
+a **downscaled** frame only **every 3rd frame** and the mask is **tracked and
+smoothed** in between — the video stays smooth while detection catches up. Tune
+it for your machine:
+
+```bash
+python app.py --detect-every 4 --detect-scale 0.4   # faster / smoother video
+python app.py --detect-every 1 --detect-scale 1.0   # most accurate, slowest
+python app.py --width 480 --height 360              # smaller frames = faster
+python app.py --smooth 0.7                          # snappier (less lag, more jitter)
+```
+
+| Flag             | Default | Effect                                                 |
+| ---------------- | ------- | ------------------------------------------------------ |
+| `--detect-every` | `3`     | Detect every Nth frame, track between. Higher = faster |
+| `--detect-scale` | `0.5`   | Shrink frame before detection. Lower = faster          |
+| `--smooth`       | `0.5`   | Motion smoothing. Higher = snappier, lower = smoother  |
+| `--width/--height` | `640/480` | Capture size. Smaller = faster                     |
+
 ### Choosing / switching masks
 
 You can pick the starting mask with `--mask <name>` and then change it any time
@@ -101,8 +122,9 @@ requirements.txt
 
 - **"Could not open webcam #0"** — another app may be using the camera, or the
   index is wrong. Try `--camera 1`, `--camera 2`, …
-- **Laggy / low FPS** — MTCNN on CPU is the bottleneck. Try a smaller capture
-  size, e.g. `python app.py --width 640 --height 480`.
+- **Laggy / low FPS or slow-moving mask** — MTCNN on CPU is the bottleneck. See
+  [Performance](#performance-smooth-movement): raise `--detect-every`, lower
+  `--detect-scale`, or use a smaller `--width/--height`.
 - **Mask not appearing** — make sure your face is well lit and facing the
   camera; press `l` to see the detected landmarks. Lower the detection
   threshold with `--min-confidence 0.8` if needed.
