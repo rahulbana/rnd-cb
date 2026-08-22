@@ -1,0 +1,18 @@
+# Core computer vision + hand tracking
+opencv-python>=4.8.0
+mediapipe>=0.10.9          # Hand landmark detection (runs on TensorFlow Lite)
+numpy>=1.24.0
+
+# Machine learning – custom gesture classifier
+tensorflow>=2.13.0        # Keras model that classifies hand landmarks into gestures
+
+# System / laptop control
+pyautogui>=0.9.54         # Media keys, mouse control, keyboard
+screen-brightness-control>=0.22.0  # Cross-platform screen brightness
+
+# Notes:
+# - On Linux, pyautogui needs a display server. For volume/brightness you may
+#   also need `sudo apt install scrot python3-tk python3-dev` and, for brightness,
+#   permissions on /sys/class/backlight or the `ddcutil` tool for external monitors.
+# - On macOS, grant the terminal Accessibility + Screen Recording + Camera permissions.
+# - On Windows everything works out of the box.
