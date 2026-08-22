@@ -1,0 +1,15 @@
+OpenAI is an artificial intelligence research company founded in San Francisco
+in 2015. Sam Altman is the CEO of OpenAI. OpenAI developed GPT-4, a large
+language model, and ChatGPT, a conversational assistant built on top of its
+GPT models. Microsoft invested heavily in OpenAI and integrated its models into
+products such as Microsoft Copilot.
+
+DeepMind is an AI research lab based in London and owned by Google. DeepMind
+built AlphaGo, a program that defeated the world champion Go player Lee Sedol.
+DeepMind also created AlphaFold, a system that predicts protein structures.
+Demis Hassabis co-founded DeepMind and serves as its CEO.
+
+NVIDIA designs graphics processing units, known as GPUs, that are widely used
+to train large language models. Jensen Huang is the CEO of NVIDIA. Both OpenAI
+and DeepMind rely on NVIDIA GPUs to train their models. NVIDIA is headquartered
+in Santa Clara, California.

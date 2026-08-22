@@ -1,0 +1,15 @@
+Ada Lovelace worked with Charles Babbage on the Analytical Engine in the
+1840s. Babbage designed the Analytical Engine, a mechanical general-purpose
+computer, in London. Ada Lovelace wrote the first published algorithm intended
+to be carried out by the Analytical Engine, which is why she is often called
+the first computer programmer.
+
+Alan Turing later founded the field of theoretical computer science. Turing
+worked at Bletchley Park during World War II, where he helped build the Bombe,
+a machine used to break the Enigma cipher used by the German military. Turing
+also proposed the Turing Test as a way to judge machine intelligence.
+
+Grace Hopper was an American computer scientist who worked on the Harvard Mark
+I computer. Hopper invented one of the first compilers and contributed to the
+development of COBOL, a programming language widely used in business systems.
+The Harvard Mark I was built by IBM and installed at Harvard University.
