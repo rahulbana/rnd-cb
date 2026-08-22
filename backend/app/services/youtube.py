@@ -7,17 +7,25 @@ video id so repeated summary / Q&A / mind-map calls don't re-fetch.
 """
 from __future__ import annotations
 
+import logging
 import re
 from dataclasses import dataclass
 from urllib.parse import parse_qs, urlparse
 
 import httpx
-from youtube_transcript_api import (
+from youtube_transcript_api import YouTubeTranscriptApi
+from youtube_transcript_api._errors import (
+    AgeRestricted,
+    InvalidVideoId,
+    IpBlocked,
     NoTranscriptFound,
+    RequestBlocked,
     TranscriptsDisabled,
     VideoUnavailable,
-    YouTubeTranscriptApi,
+    VideoUnplayable,
 )
+
+logger = logging.getLogger("yt_research.youtube")
 
 
 class TranscriptError(Exception):
@@ -103,11 +111,15 @@ def _fetch_metadata(video_id: str) -> dict:
 
 
 def _fetch_transcript_text(video_id: str) -> tuple[str, str | None]:
-    """Return (joined_text, language_code) for a video's captions."""
+    """Return (joined_text, language_code) for a video's captions.
+
+    Uses the youtube-transcript-api 1.x instance API.
+    """
+    api = YouTubeTranscriptApi()
     try:
-        transcript_list = YouTubeTranscriptApi.list_transcripts(video_id)
-        # Prefer a manually created English track, then any English, then
-        # any generated track, then anything translatable to English.
+        transcript_list = api.list(video_id)
+        # Prefer a manually created English track, then any English track,
+        # then fall back to the first available track (often auto-generated).
         transcript = None
         try:
             transcript = transcript_list.find_manually_created_transcript(
@@ -121,31 +133,47 @@ def _fetch_transcript_text(video_id: str) -> tuple[str, str | None]:
             except Exception:
                 pass
         if transcript is None:
-            # Fall back to the first available transcript.
             for t in transcript_list:
                 transcript = t
                 break
         if transcript is None:
             raise TranscriptError("No transcript tracks available for this video.")
 
-        entries = transcript.fetch()
+        fetched = transcript.fetch()
         language = getattr(transcript, "language_code", None)
     except (TranscriptsDisabled, NoTranscriptFound):
         raise TranscriptError(
             "This video has no captions available, so it can't be analyzed."
         )
-    except VideoUnavailable:
-        raise TranscriptError("This video is unavailable.")
+    except InvalidVideoId:
+        raise TranscriptError("That doesn't look like a valid YouTube video.")
+    except (VideoUnavailable, VideoUnplayable, AgeRestricted):
+        raise TranscriptError(
+            "This video is unavailable, private, or age-restricted, so its "
+            "transcript can't be retrieved."
+        )
+    except (RequestBlocked, IpBlocked):
+        raise TranscriptError(
+            "YouTube is currently blocking transcript requests from this network "
+            "/ IP. Try again later, or run the backend from a different network."
+        )
     except TranscriptError:
         raise
     except Exception as exc:  # network / parsing / library errors
-        raise TranscriptError(f"Failed to fetch transcript: {exc}") from exc
+        # Surface the real cause in the server console for debugging.
+        logger.exception("Transcript fetch failed for video_id=%s", video_id)
+        raise TranscriptError(
+            f"Failed to fetch transcript ({type(exc).__name__}): {exc}"
+        ) from exc
 
-    text = " ".join(
-        (getattr(e, "text", None) or (e.get("text") if isinstance(e, dict) else "") or "").strip()
-        for e in entries
-    )
-    text = re.sub(r"\s+", " ", text).strip()
+    # FetchedTranscript is iterable of snippets; to_raw_data() -> list of dicts.
+    try:
+        raw = fetched.to_raw_data()
+        parts = [(item.get("text") or "").strip() for item in raw]
+    except AttributeError:
+        parts = [(getattr(s, "text", "") or "").strip() for s in fetched]
+
+    text = re.sub(r"\s+", " ", " ".join(parts)).strip()
     if not text:
         raise TranscriptError("The transcript for this video was empty.")
     return text, language
