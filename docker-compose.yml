@@ -1,0 +1,54 @@
+# Local orchestration: Postgres (durable state) + FastAPI backend + React UI.
+# Usage:
+#   1) cp backend/.env.example backend/.env  and set OPENAI_API_KEY (+ TAVILY_API_KEY)
+#   2) docker compose up --build
+#   3) open http://localhost:5173
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: research
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d research"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  backend:
+    build: ./backend
+    env_file:
+      - ./backend/.env
+    environment:
+      # Point at the compose Postgres service; override anything from .env here.
+      DATABASE_URL: postgresql://postgres:postgres@postgres:5432/research
+      CORS_ORIGINS: http://localhost:5173
+    ports:
+      - "8000:8000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  frontend:
+    image: node:22-alpine
+    working_dir: /app
+    command: sh -c "npm install && npm run dev -- --host 0.0.0.0"
+    environment:
+      # In dev, Vite proxies /api to the backend service (over the compose network).
+      VITE_API_BASE: ""
+      BACKEND_URL: http://backend:8000
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules
+    ports:
+      - "5173:5173"
+    depends_on:
+      - backend
+
+volumes:
+  pgdata:
