@@ -69,6 +69,43 @@ npm run dev        # http://localhost:5173  (proxies /api to the backend)
 
 ---
 
+## Run with Docker
+
+The fastest way to run the whole stack:
+
+```bash
+# From the repo root. Optionally export OPENAI_API_KEY first for LLM plans.
+export OPENAI_API_KEY=sk-...        # optional — omit to run in fallback mode
+docker compose up --build
+```
+
+- App (frontend): http://localhost:8080
+- The frontend's nginx reverse-proxies `/api` to the backend, so it's same-origin.
+- SQLite data persists in the `backend_data` named volume across restarts.
+
+Stop and remove:
+
+```bash
+docker compose down          # keep data
+docker compose down -v       # also delete the SQLite volume
+```
+
+### Images
+
+| Service | Base | Notes |
+|---|---|---|
+| `backend` | `python:3.12-slim` | Multi-stage; runs as non-root; SQLite at `/data`; container `HEALTHCHECK` on `/api/v1/health`. |
+| `frontend` | `node:20-alpine` → `nginx:1.27-alpine` | Multi-stage build; nginx serves the static SPA and proxies `/api` to `backend`. |
+
+Build a single image directly if you prefer:
+
+```bash
+docker build -t diet-planner-backend ./backend
+docker run --rm -p 8000:8000 -e OPENAI_API_KEY=$OPENAI_API_KEY diet-planner-backend
+```
+
+---
+
 ## Tests
 
 ```bash
