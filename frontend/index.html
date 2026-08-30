@@ -1,0 +1,43 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>TravelPlanner — AI Trip Companion</title>
+  <meta name="description" content="AI-powered multi-agent travel planner." />
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🧭</text></svg>" />
+  <link rel="stylesheet" href="/styles.css" />
+</head>
+<body>
+  <div class="app">
+    <!-- Sidebar -------------------------------------------------------- -->
+    <aside class="sidebar" id="sidebar">
+      <div class="brand">
+        <span class="logo">🧭</span>
+        <span>TravelPlanner<small>AI trip companion</small></span>
+      </div>
+      <button class="btn primary block" id="newTripBtn">+ New trip</button>
+      <div class="row between">
+        <span class="stat-label">Your trips</span>
+        <span class="pill" id="tripCount">0</span>
+      </div>
+      <div class="triplist" id="tripList"></div>
+      <div style="margin-top:auto" class="soft" id="modeBadge"></div>
+    </aside>
+
+    <!-- Main ----------------------------------------------------------- -->
+    <main class="main">
+      <div class="row between mb">
+        <button class="btn ghost topbar-toggle" id="menuToggle" aria-label="Menu">☰</button>
+        <div class="row" id="headerActions"></div>
+      </div>
+      <div id="view"></div>
+    </main>
+  </div>
+
+  <!-- Bottom nav (mobile) --------------------------------------------- -->
+  <nav class="bottom-nav" id="bottomNav" aria-label="Sections"></nav>
+
+  <script src="/app.js"></script>
+</body>
+</html>
