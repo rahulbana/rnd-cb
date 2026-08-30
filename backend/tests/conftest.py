@@ -7,7 +7,10 @@ import tempfile
 import pytest
 
 # Force offline + isolated SQLite DB before app modules import settings.
+# ENABLE_LIVE_DATA=false keeps the default test suite deterministic and fast
+# (no network); the live-API parsing paths are covered separately with mocks.
 os.environ.pop("OPENAI_API_KEY", None)
+os.environ["ENABLE_LIVE_DATA"] = "false"
 _db_fd, _db_path = tempfile.mkstemp(suffix=".db")
 os.environ["DATABASE_URL"] = f"sqlite+pysqlite:///{_db_path}"
 

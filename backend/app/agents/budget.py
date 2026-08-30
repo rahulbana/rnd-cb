@@ -37,14 +37,18 @@ class BudgetAgent(BaseAgent):
         lines: list[BudgetLine] = []
 
         # --- Flights ---------------------------------------------------------
-        flight_min = flight_comfort = flight_premium = 0.0
-        if trip.flights and trip.flights.get("price_band_usd"):
+        if trip.flights and trip.flights.get("mode") == "live" and trip.flights.get("options"):
+            # Live offers are already priced in the trip currency (no FX needed).
+            prices = sorted(o["est_price"]["amount"] for o in trip.flights["options"])
+            f_min = prices[0]
+            f_comfort = prices[len(prices) // 2]
+            f_premium = prices[-1] * 1.2
+            lines.append(self._line("Flights", f_min, f_comfort, f_premium, currency,
+                                    "Live offers (round trip may need separate booking)."))
+        elif trip.flights and trip.flights.get("price_band_usd"):
             low, high = trip.flights["price_band_usd"]
-            flight_min = low * fx
-            flight_comfort = (low + high) / 2 * fx
-            flight_premium = high * 1.4 * fx
-            lines.append(self._line("Flights", flight_min, flight_comfort, flight_premium, currency,
-                                    "Round-trip estimate for all travellers."))
+            lines.append(self._line("Flights", low * fx, (low + high) / 2 * fx, high * 1.4 * fx,
+                                    currency, "Round-trip estimate for all travellers."))
 
         # --- Accommodation ---------------------------------------------------
         if trip.accommodation and trip.accommodation.get("options"):

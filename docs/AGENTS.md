@@ -26,10 +26,10 @@ fallbacks) — used heavily so the UI can be honest about data quality.
 | Agent | `depends_on` | Tools | Output schema |
 |-------|--------------|-------|---------------|
 | `destination` | — | — | `DestinationOverview` |
-| `flight` | — | `flight_search` | `FlightOption` (estimated) |
+| `flight` | — | `flight_search` | `FlightOption` (Amadeus live or estimate) |
 | `hotel` | — | — | hotel options |
-| `activity` | — | — | ranked `PlaceRec` list |
-| `food` | — | — | dining `PlaceRec` list |
+| `activity` | — | `places` (OpenTripMap) | ranked `PlaceRec` list (real POIs when keyed) |
+| `food` | — | `places` (OpenTripMap) | dining `PlaceRec` list (real POIs when keyed) |
 | `weather` | — | `weather` | `WeatherOutlook` (never live-faked) |
 | `transportation` | — | — | local transport modes |
 | `visa` | — | — | `VisaInfo` (+ verify disclaimer) |

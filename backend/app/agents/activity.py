@@ -20,6 +20,26 @@ class ActivityAgent(BaseAgent):
     async def _run(self, ctx: AgentContext) -> AgentResult:
         req = ctx.trip.request
         dest = primary_destination(req)
+
+        # Prefer real POIs from OpenTripMap when available.
+        if ctx.tools.has("places"):
+            pois = await ctx.tools.execute("places", destination=dest, kind="attractions", limit=8)
+            if pois.ok and pois.data.get("places"):
+                items = [
+                    PlaceRec(name=p["name"], category="attraction",
+                             why=self._describe(p.get("kinds", "")),
+                             recommendation=Recommendation.HIGHLY_RECOMMENDED,
+                             duration_minutes=120)
+                    for p in pois.data["places"][:8]
+                ]
+                return self._result(
+                    status=AgentStatus.OK,
+                    summary=f"{len(items)} real attractions near {dest}.",
+                    data=_Activities(items=items).model_dump(),
+                    citations=[DataPoint(value="Attractions from OpenTripMap/OSM", source=pois.source,
+                                         trust=DataTrust.LIVE, confidence=0.8)],
+                )
+
         system = (
             f"{GUARDRAILS} You are an activities planner. Suggest 6-8 things to do, each ranked "
             "(must_see / highly_recommended / optional / hidden_gem) with a one-line reason, "
@@ -40,6 +60,11 @@ class ActivityAgent(BaseAgent):
             warnings=[] if used_llm else ["Offline mode: generic categories; enable AI for specific venues."],
             tokens=usage.total_tokens or None, cost_usd=usage.cost_usd or None,
         )
+
+    @staticmethod
+    def _describe(kinds: str) -> str:
+        primary = (kinds.split(",")[0] if kinds else "").replace("_", " ").strip()
+        return f"Popular {primary}." if primary else "Notable local attraction."
 
     @staticmethod
     def _fallback(dest: str, interests: list[str]) -> _Activities:

@@ -47,10 +47,12 @@ def build_default_registry() -> ToolRegistry:
     from .currency import CurrencyTool
     from .flights import FlightSearchTool
     from .geocode import GeocodeTool
+    from .places import PlacesTool
     from .search import WebSearchTool
     from .weather import WeatherTool
 
     registry = ToolRegistry()
-    for tool in (WeatherTool(), GeocodeTool(), CurrencyTool(), WebSearchTool(), FlightSearchTool()):
+    for tool in (WeatherTool(), GeocodeTool(), CurrencyTool(), WebSearchTool(),
+                 FlightSearchTool(), PlacesTool()):
         registry.register(tool)
     return registry

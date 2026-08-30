@@ -50,9 +50,25 @@ class Settings(BaseSettings):
     llm_request_timeout_seconds: float = 45.0
     llm_max_retries: int = 2
 
-    # --- External tool APIs (all optional; tools degrade to estimates) -------
-    weather_api_key: str | None = None
-    maps_api_key: str | None = None
+    # --- External tool APIs --------------------------------------------------
+    # Live data master switch. When true (default), tools call keyless public
+    # APIs (Open-Meteo geocoding/weather, Frankfurter FX) and fall back to
+    # estimates only if a call fails. Set false to force fully-offline estimates.
+    enable_live_data: bool = True
+
+    weather_api_key: str | None = None  # reserved (Open-Meteo needs no key)
+    maps_api_key: str | None = None     # reserved
+
+    # Amadeus (free self-service tier) — enables real flight offers when set.
+    amadeus_client_id: str | None = None
+    amadeus_client_secret: str | None = None
+    amadeus_base_url: str = "https://test.api.amadeus.com"
+
+    # OpenTripMap (free key) — enables real attractions/POIs when set.
+    opentripmap_api_key: str | None = None
+
+    # Tavily (free tier) — enables real web search when set.
+    tavily_api_key: str | None = None
 
     # --- Observability -------------------------------------------------------
     log_level: str = "INFO"

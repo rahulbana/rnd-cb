@@ -168,10 +168,24 @@ docs/            architecture & guides
 
 ---
 
-## ⚠️ Scope & honesty
+## 🌐 Live data sources
 
-This is a comprehensive, runnable **foundation** built to production patterns.
-External data (flights, weather, prices) uses **labelled estimates** rather than
-live paid APIs — the tool interfaces are designed so real providers drop in
-behind them without touching agents. The app never presents an estimate or an
-LLM guess as a verified fact.
+Real APIs are wired in behind the Tool Registry, with graceful fallback to
+labelled estimates when a call fails or a key is missing. `ENABLE_LIVE_DATA`
+(default `true`) is the master switch.
+
+| Data | Provider | Key needed | Fallback |
+|------|----------|-----------|----------|
+| Geocoding | **Open-Meteo Geocoding** (worldwide) | none | 15-city gazetteer |
+| Weather | **Open-Meteo** forecast/archive | none | seasonal climate table |
+| Currency (FX) | **Frankfurter** (ECB rates) | none | static reference rates |
+| Flights (distance/duration) | derived from real geocoding | none | — |
+| Flights (real offers) | **Amadeus** | `AMADEUS_CLIENT_ID/SECRET` | distance estimate |
+| Attractions & dining | **OpenTripMap** (OSM) | `OPENTRIPMAP_API_KEY` | LLM / heuristic |
+| Web search | **Tavily** | `TAVILY_API_KEY` | none (honest empty) |
+| Reasoning (agents/chat) | **OpenAI** | `OPENAI_API_KEY` | deterministic fallback |
+
+The three keyless providers (geocoding, weather, currency) return **real data
+out of the box** — no setup. Every value keeps its trust label (`live` /
+`recent` / `estimated`), so the app never presents an estimate or an LLM guess
+as a verified fact. See [`docs/DATA_SOURCES.md`](docs/DATA_SOURCES.md).

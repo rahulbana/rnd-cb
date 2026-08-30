@@ -32,6 +32,15 @@ def meta(session: Session = Depends(get_session)) -> dict:
         },
         "agents": list(get_orchestrator_agent_names(orchestrator)),
         "tools": orchestrator.tools.list_tools(),
+        "live_data": {
+            "enabled": settings.enable_live_data,
+            "geocoding": "open-meteo (keyless)",
+            "weather": "open-meteo (keyless)",
+            "currency": "frankfurter/ecb (keyless)",
+            "flights": "amadeus" if settings.amadeus_client_id else "distance-estimate",
+            "places": "opentripmap" if settings.opentripmap_api_key else "llm/heuristic",
+            "search": "tavily" if settings.tavily_api_key else "disabled",
+        },
         "observability": observability_repository.summary(session),
     }
 

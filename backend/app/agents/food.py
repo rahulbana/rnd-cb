@@ -20,6 +20,25 @@ class FoodAgent(BaseAgent):
     async def _run(self, ctx: AgentContext) -> AgentResult:
         req = ctx.trip.request
         dest = primary_destination(req)
+
+        # Prefer real dining POIs from OpenTripMap when available.
+        if ctx.tools.has("places"):
+            pois = await ctx.tools.execute("places", destination=dest, kind="food", limit=6)
+            if pois.ok and pois.data.get("places"):
+                items = [
+                    PlaceRec(name=p["name"], category="restaurant",
+                             why="Local dining spot.",
+                             recommendation=Recommendation.HIGHLY_RECOMMENDED)
+                    for p in pois.data["places"][:6]
+                ]
+                return self._result(
+                    status=AgentStatus.OK,
+                    summary=f"{len(items)} real dining spots near {dest}.",
+                    data=_Food(items=items).model_dump(),
+                    citations=[DataPoint(value="Dining from OpenTripMap/OSM", source=pois.source,
+                                         trust=DataTrust.LIVE, confidence=0.8)],
+                )
+
         dietary = ", ".join(req.preferences.dietary) or "no specific restrictions"
         system = (
             f"{GUARDRAILS} You are a food advisor. Suggest 5-6 dining ideas spanning price levels, "

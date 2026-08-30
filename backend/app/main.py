@@ -32,6 +32,8 @@ async def lifespan(app: FastAPI):
     logger.info("%s starting (env=%s, llm=%s)", settings.app_name, settings.environment,
                 "openai" if settings.llm_enabled else "offline-mock")
     yield
+    from .tools.http import aclose
+    await aclose()
     logger.info("shutting down")
 
 
