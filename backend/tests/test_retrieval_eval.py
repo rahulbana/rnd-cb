@@ -11,10 +11,14 @@ from __future__ import annotations
 
 import asyncio
 
+import pytest
+
 from app.core.config import settings
 from app.core.registry import get_retriever_by_name
 from app.evaluation.retrieval_eval import evaluate_retriever
 from tests import fixtures
+
+pytestmark = pytest.mark.eval
 
 # 12-document corpus, one distinctive body each.
 _CORPUS = {

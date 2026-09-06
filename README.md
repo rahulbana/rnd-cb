@@ -148,8 +148,24 @@ uploads a mixed batch, watches ingestion reach completion, and holds a streamed,
 cited conversation — `backend/tests/test_user_journey.py`. The frontend
 typechecks and builds (`npm run build`).
 
-Later phases (9–10) add admin/analytics/observability/eval and cloud
-deployment. See the build plan for details.
+### Phase 9 — Admin, analytics, observability & evaluation ✅
+
+Give operators visibility and give the RAG pipeline a scorecard.
+
+| Deliverable | Where |
+|---|---|
+| Admin dashboard (users, API keys, queue monitor, reprocess/delete, provider viewer) | `backend/app/api/v1/routes/admin.py`, `frontend/src/features/admin/` |
+| Analytics (usage, cost by provider, latency percentiles, top docs, 👍/👎) | `backend/app/services/analytics_service.py` |
+| OpenTelemetry tracing (API + worker) + RAG trace view | `Tracer` port, `GET /messages/{id}/trace` |
+| RAGAS/heuristic eval harness (faithfulness, relevancy, context precision/recall) | `backend/app/adapters/eval_harnesses/` |
+| CI eval gate on retrieval/prompt changes | `.github/workflows/eval.yml` |
+
+**Exit (proven):** an eval run produces a pass/fail scorecard with a threshold,
+and any answer traces to its exact retrieved chunks, reranker scores, and prompt
+version — `backend/tests/test_admin_api.py::test_exit_scorecard_and_traceability`.
+
+Later phase (10) adds production hardening and Cloud Run deployment. See the
+build plan for details.
 
 ## Layout
 

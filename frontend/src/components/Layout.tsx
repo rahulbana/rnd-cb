@@ -16,6 +16,7 @@ export function Layout() {
             {[
               { to: "/chat", label: "Chat" },
               { to: "/documents", label: "Documents" },
+              ...(user?.role === "admin" ? [{ to: "/admin", label: "Admin" }] : []),
             ].map((item) => (
               <NavLink
                 key={item.to}

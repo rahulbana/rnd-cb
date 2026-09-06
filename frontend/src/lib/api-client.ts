@@ -1,9 +1,12 @@
 import type {
+  Analytics,
   Conversation,
   DocumentOut,
   IngestAccepted,
   JobOut,
   Message,
+  QueueMonitor,
+  Scorecard,
   TokenResponse,
 } from "./types";
 
@@ -101,6 +104,26 @@ export const api = {
   },
   async getJob(id: string): Promise<JobOut> {
     return request(`/jobs/${id}`);
+  },
+
+  // --- admin / analytics ---
+  async analytics(): Promise<Analytics> {
+    return request("/admin/analytics");
+  },
+  async queueMonitor(): Promise<QueueMonitor> {
+    return request("/admin/queue");
+  },
+  async activeProviders(): Promise<Record<string, string>> {
+    return request("/admin/providers");
+  },
+  async runEval(): Promise<Scorecard> {
+    return request("/admin/eval/run", { method: "POST" });
+  },
+  async submitFeedback(messageId: string, rating: number): Promise<void> {
+    return request(
+      "/feedback",
+      jsonInit("POST", { message_id: messageId, rating }),
+    );
   },
 
   // --- conversations ---

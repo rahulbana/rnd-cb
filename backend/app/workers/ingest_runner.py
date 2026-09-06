@@ -167,6 +167,7 @@ async def run_ingest_job(document_id: str, job_id: str) -> str:
         get_embedder,
         get_parser,
         get_storage,
+        get_tracer,
         get_vector_store,
     )
     from app.db.base import SessionLocal
@@ -186,6 +187,7 @@ async def run_ingest_job(document_id: str, job_id: str) -> str:
             max_attempts=settings.INGEST_MAX_ATTEMPTS,
             backoff_base=settings.INGEST_BACKOFF_BASE,
         )
-        return await runner.run(document_id, job_id)
+        with get_tracer().span("ingest.job", document_id=document_id, job_id=job_id):
+            return await runner.run(document_id, job_id)
     finally:
         db.close()

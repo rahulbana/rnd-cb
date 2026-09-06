@@ -8,12 +8,16 @@ from __future__ import annotations
 
 import asyncio
 
+import pytest
+
 from app.adapters.rerankers import FakeReranker
 from app.core.config import settings
 from app.core.registry import get_retriever_by_name
 from app.evaluation.retrieval_eval import evaluate_retriever
 from tests import fixtures
 from tests.test_retrieval_eval import _CORPUS, _QUERIES
+
+pytestmark = pytest.mark.eval
 
 
 def _ingest(client) -> dict[str, str]:

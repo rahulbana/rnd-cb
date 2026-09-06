@@ -1,5 +1,6 @@
 import { Navigate, Route, Routes } from "react-router-dom";
 import { Layout } from "../components/Layout";
+import { AdminPage } from "../features/admin/AdminPage";
 import { AuthPage } from "../features/auth/AuthPage";
 import { ChatPage } from "../features/chat/ChatPage";
 import { DocumentsPage } from "../features/documents/DocumentsPage";
@@ -25,6 +26,7 @@ export function App() {
       >
         <Route path="/chat" element={<ChatPage />} />
         <Route path="/documents" element={<DocumentsPage />} />
+        <Route path="/admin" element={<AdminPage />} />
       </Route>
       <Route path="*" element={<Navigate to="/chat" replace />} />
     </Routes>

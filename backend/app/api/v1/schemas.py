@@ -191,3 +191,63 @@ class MessageOut(BaseModel):
 class ConversationOut(BaseModel):
     id: str
     title: str
+
+
+# --- Phase 9: admin, analytics, feedback, eval, trace ---
+
+
+class FeedbackRequest(BaseModel):
+    message_id: str
+    rating: int  # +1 or -1
+    note: str | None = None
+
+
+class ProviderCostOut(BaseModel):
+    provider: str
+    tokens_in: int
+    tokens_out: int
+    cost_usd: float
+
+
+class AnalyticsResponse(BaseModel):
+    conversations: int
+    messages: int
+    tokens_in: int
+    tokens_out: int
+    cost_by_provider: list[ProviderCostOut]
+    latency_p50_ms: float
+    latency_p95_ms: float
+    latency_p99_ms: float
+    top_documents: list[dict]
+    feedback_up: int
+    feedback_down: int
+
+
+class QueueMonitorResponse(BaseModel):
+    by_status: dict[str, int]
+    by_stage: dict[str, int]
+
+
+class AdminUserOut(BaseModel):
+    id: str
+    email: str
+    role: str
+    org_id: str
+
+
+class ReprocessResponse(BaseModel):
+    document_id: str
+    job: JobOut
+
+
+class TraceResponse(BaseModel):
+    """Explains an answer: prompt version, provider, cost, and cited chunks."""
+
+    message_id: str
+    role: str
+    provider: str | None
+    prompt_version: str | None
+    tokens_in: int
+    tokens_out: int
+    latency_ms: int
+    citations: list[CitationOut]

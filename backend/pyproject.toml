@@ -66,6 +66,15 @@ gemini = [
 cohere = [
     "cohere>=5.0",
 ]
+# Phase 9 -- observability (OpenTelemetry) and LLM-judged evaluation (RAGAS).
+observability = [
+    "opentelemetry-sdk>=1.27",
+    "opentelemetry-exporter-otlp-proto-http>=1.27",
+]
+ragas = [
+    "ragas>=0.1.20",
+    "datasets>=2.19",
+]
 
 [build-system]
 requires = ["setuptools>=68"]
@@ -101,3 +110,6 @@ asyncio_mode = "auto"
 testpaths = ["tests"]
 pythonpath = ["."]
 filterwarnings = ["ignore::DeprecationWarning"]
+markers = [
+    "eval: RAG retrieval/generation quality evals (run in the eval CI gate)",
+]

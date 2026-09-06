@@ -13,6 +13,7 @@ from app.domain.models.document import (
     TextBlock,
 )
 from app.domain.models.embedding import EmbeddingVector
+from app.domain.models.evaluation import EvalCase, MetricScore, Scorecard
 from app.domain.models.retrieval import RetrievedChunk
 
 __all__ = [
@@ -22,7 +23,10 @@ __all__ = [
     "ChunkMetadata",
     "Citation",
     "EmbeddingVector",
+    "EvalCase",
     "LLMResponse",
+    "MetricScore",
+    "Scorecard",
     "ParsedDocument",
     "RetrievedChunk",
     "Role",

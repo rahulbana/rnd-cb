@@ -7,22 +7,26 @@ directly.
 
 from app.domain.interfaces.chunker import Chunker
 from app.domain.interfaces.embedder import Embedder
+from app.domain.interfaces.eval_harness import EvalHarness
 from app.domain.interfaces.llm_provider import LLMProvider
 from app.domain.interfaces.parser import Parser
 from app.domain.interfaces.reranker import Reranker
 from app.domain.interfaces.retriever import Retriever
 from app.domain.interfaces.storage import ObjectStorage
 from app.domain.interfaces.task_queue import TaskQueue
+from app.domain.interfaces.tracer import Tracer
 from app.domain.interfaces.vector_store import VectorStore
 
 __all__ = [
     "Chunker",
     "Embedder",
+    "EvalHarness",
     "LLMProvider",
     "ObjectStorage",
     "Parser",
     "Reranker",
     "Retriever",
     "TaskQueue",
+    "Tracer",
     "VectorStore",
 ]

@@ -56,6 +56,8 @@ class Settings(BaseSettings):
     STORAGE_PROVIDER: str = Field(default="fake")
     # celery (broker/worker) | inline (in-process, no Redis) | fake
     TASK_QUEUE_PROVIDER: str = Field(default="celery")
+    TRACER_PROVIDER: str = Field(default="noop")  # noop | otel
+    EVAL_HARNESS: str = Field(default="heuristic")  # heuristic | ragas
 
     # Parser fallback chain (priority order), used when PARSER_STRATEGY=router.
     # Lightweight, fully-local parsers first; heavy ones (Docling/Unstructured)
@@ -103,6 +105,11 @@ class Settings(BaseSettings):
     # http (compose/prod) | ephemeral (in-memory) | persistent (local dir)
     CHROMA_MODE: str = "http"
     CHROMA_PERSIST_DIR: str = "./data/chroma"
+
+    # --- Observability & evaluation (Phase 9) ---
+    OTEL_SERVICE_NAME: str = "rag-platform"
+    OTEL_EXPORTER_OTLP_ENDPOINT: str | None = None
+    EVAL_THRESHOLD: float = 0.6  # min per-metric score for a passing scorecard
 
     # --- Retrieval (Phase 5) ---
     RRF_K: int = 60  # Reciprocal Rank Fusion damping constant

@@ -62,3 +62,41 @@ export interface Message {
   tokens_out: number;
   latency_ms: number;
 }
+
+export interface Analytics {
+  conversations: number;
+  messages: number;
+  tokens_in: number;
+  tokens_out: number;
+  cost_by_provider: {
+    provider: string;
+    tokens_in: number;
+    tokens_out: number;
+    cost_usd: number;
+  }[];
+  latency_p50_ms: number;
+  latency_p95_ms: number;
+  latency_p99_ms: number;
+  top_documents: { document_id: string; filename: string | null; retrievals: number }[];
+  feedback_up: number;
+  feedback_down: number;
+}
+
+export interface QueueMonitor {
+  by_status: Record<string, number>;
+  by_stage: Record<string, number>;
+}
+
+export interface MetricScore {
+  name: string;
+  score: number;
+  passed: boolean;
+}
+
+export interface Scorecard {
+  metrics: MetricScore[];
+  threshold: number;
+  passed: boolean;
+  cases: number;
+  harness: string;
+}

@@ -27,6 +27,7 @@ from app.adapters.embedders import (
     OpenAIEmbedder,
     SentenceTransformersEmbedder,
 )
+from app.adapters.eval_harnesses import HeuristicEvalHarness, RagasEvalHarness
 from app.adapters.llm_providers import (
     AnthropicProvider,
     FakeLLMProvider,
@@ -58,6 +59,7 @@ from app.adapters.retrievers import (
 )
 from app.adapters.storage import FakeObjectStorage, LocalDiskStorage
 from app.adapters.task_queues import CeleryTaskQueue, FakeTaskQueue, InlineTaskQueue
+from app.adapters.tracers import NoopTracer, OTelTracer
 from app.adapters.vector_stores import (
     ChromaVectorStore,
     FakeVectorStore,
@@ -67,12 +69,14 @@ from app.core.config import Settings, settings
 from app.domain.interfaces import (
     Chunker,
     Embedder,
+    EvalHarness,
     LLMProvider,
     ObjectStorage,
     Parser,
     Reranker,
     Retriever,
     TaskQueue,
+    Tracer,
     VectorStore,
 )
 
@@ -140,6 +144,16 @@ _TASK_QUEUE_REGISTRY: dict[str, type[TaskQueue]] = {
     "fake": FakeTaskQueue,
     "inline": InlineTaskQueue,
     "celery": CeleryTaskQueue,
+}
+
+_TRACER_REGISTRY: dict[str, type[Tracer]] = {
+    "noop": NoopTracer,
+    "otel": OTelTracer,
+}
+
+_EVAL_HARNESS_REGISTRY: dict[str, type[EvalHarness]] = {
+    "heuristic": HeuristicEvalHarness,
+    "ragas": RagasEvalHarness,
 }
 
 
@@ -236,6 +250,18 @@ def get_task_queue() -> TaskQueue:
     )
 
 
+@lru_cache
+def get_tracer() -> Tracer:
+    return _resolve(_TRACER_REGISTRY, settings.TRACER_PROVIDER, "tracer", settings)
+
+
+@lru_cache
+def get_eval_harness() -> EvalHarness:
+    return _resolve(
+        _EVAL_HARNESS_REGISTRY, settings.EVAL_HARNESS, "eval harness", settings
+    )
+
+
 def clear_registry_caches() -> None:
     """Reset all cached factory instances.
 
@@ -253,5 +279,7 @@ def clear_registry_caches() -> None:
         get_chunker,
         get_storage,
         get_task_queue,
+        get_tracer,
+        get_eval_harness,
     ):
         factory.cache_clear()

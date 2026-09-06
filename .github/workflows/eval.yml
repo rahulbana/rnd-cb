@@ -1,0 +1,43 @@
+name: RAG eval gate
+
+# Runs the retrieval/generation quality evals on PRs that touch retrieval,
+# reranking, prompts, or the eval harness. Acts as a deploy gate (Phase 10
+# wires it into the deploy pipeline).
+on:
+  pull_request:
+    paths:
+      - "backend/app/adapters/retrievers/**"
+      - "backend/app/adapters/rerankers/**"
+      - "backend/app/adapters/eval_harnesses/**"
+      - "backend/app/prompts/**"
+      - "backend/app/services/retrieval_service.py"
+      - "backend/app/services/chat_service.py"
+      - "backend/app/services/context_assembly.py"
+      - "backend/app/evaluation/**"
+
+jobs:
+  eval:
+    name: RAG eval suite
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install system deps (tesseract OCR)
+        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends tesseract-ocr
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e ".[dev]"
+
+      - name: Run RAG eval gate
+        run: pytest -m eval -v

@@ -19,7 +19,12 @@ from app.api.v1.schemas import (
     MessageOut,
 )
 from app.core.config import settings
-from app.core.registry import get_llm_provider, get_reranker, get_retriever
+from app.core.registry import (
+    get_llm_provider,
+    get_reranker,
+    get_retriever,
+    get_tracer,
+)
 from app.db.base import get_db
 from app.db.models import Conversation, Message, User
 from app.domain.models import Citation
@@ -57,6 +62,7 @@ def _build_chat_service(db: Session, user: User) -> ChatService:
         fetch_k=settings.RERANK_FETCH_K,
         not_found_message=settings.NOT_FOUND_MESSAGE,
         user_id=user.id,
+        tracer=get_tracer(),
     )
 
 

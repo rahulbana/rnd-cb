@@ -11,8 +11,9 @@ from __future__ import annotations
 from collections.abc import AsyncIterator
 from dataclasses import dataclass, field
 
+from app.adapters.tracers import NoopTracer
 from app.core.logging import get_logger
-from app.domain.interfaces import LLMProvider, Reranker
+from app.domain.interfaces import LLMProvider, Reranker, Tracer
 from app.domain.models import ChatMessage, Citation, Role
 from app.prompts.renderer import PromptRenderer
 from app.services.context_assembly import AssembledContext, ContextAssembler
@@ -29,6 +30,7 @@ class ChatResult:
     conversation_id: str
     answer: str
     citations: list[Citation] = field(default_factory=list)
+    contexts: list[str] = field(default_factory=list)
     provider: str = ""
     tokens_in: int = 0
     tokens_out: int = 0
@@ -65,6 +67,7 @@ class ChatService:
         fetch_k: int = 20,
         not_found_message: str = "I couldn't find that in the provided documents.",
         user_id: str = "",
+        tracer: Tracer | None = None,
     ) -> None:
         self._llm = llm
         self._retrieval = retrieval
@@ -72,6 +75,7 @@ class ChatService:
         self._memory = memory
         self._renderer = renderer or PromptRenderer()
         self._assembler = assembler or ContextAssembler()
+        self._tracer = tracer or NoopTracer()
         self._temp = temperature
         self._top_k = top_k
         self._fetch_k = fetch_k
@@ -83,13 +87,23 @@ class ChatService:
     async def _assemble(
         self, question: str, *, namespace: str
     ) -> AssembledContext | None:
-        results, plan = await self._retrieval.retrieve(
-            question, namespace=namespace, top_k=self._fetch_k
-        )
-        reranked = await self._reranker.rerank(plan.text, results, top_k=self._top_k)
+        with self._tracer.span("rag.retrieve", namespace=namespace):
+            results, plan = await self._retrieval.retrieve(
+                question, namespace=namespace, top_k=self._fetch_k
+            )
+        with self._tracer.span(
+            "rag.rerank", candidates=len(results), reranker=self._reranker.name
+        ):
+            reranked = await self._reranker.rerank(plan.text, results, top_k=self._top_k)
         if not reranked:
             return None
-        assembled = self._assembler.assemble(plan.text, reranked)
+        with self._tracer.span(
+            "rag.assemble",
+            chunk_ids=",".join(rc.chunk.id for rc in reranked),
+            scores=",".join(f"{rc.score:.4f}" for rc in reranked),
+            prompt_version=self._renderer.version,
+        ):
+            assembled = self._assembler.assemble(plan.text, reranked)
         clean, flagged = sanitize_context(assembled.text)
         if flagged:
             logger.warning("prompt_injection_flagged", namespace=namespace)
@@ -160,6 +174,7 @@ class ChatService:
             content=resp.content,
             citations=assembled.citations,
             provider=resp.provider,
+            prompt_version=self._renderer.version,
             tokens_in=resp.tokens_in,
             tokens_out=resp.tokens_out,
             latency_ms=int(resp.latency_ms),
@@ -168,6 +183,7 @@ class ChatService:
             conversation_id=conv.id,
             answer=resp.content,
             citations=assembled.citations,
+            contexts=[c.chunk.text for c in assembled.chunks],
             provider=resp.provider,
             tokens_in=resp.tokens_in,
             tokens_out=resp.tokens_out,
@@ -215,6 +231,7 @@ class ChatService:
                 content=content,
                 citations=assembled.citations,
                 provider=self._llm.name,
+                prompt_version=self._renderer.version,
                 tokens_in=tokens_in,
                 tokens_out=tokens_out,
             )
