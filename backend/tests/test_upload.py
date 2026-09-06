@@ -32,7 +32,8 @@ def test_upload_markdown_parses(upload_client):
     assert resp.status_code == 201
     body = resp.json()
     assert body["deduped"] is False
-    assert body["document"]["status"] == "parsed"
+    assert body["document"]["status"] == "indexed"
+    assert body["chunk_count"] >= 1
     assert body["parsed"]["parser_name"] == "plain"
     assert set(body["parsed"]) == _PARSED_KEYS
 
@@ -71,6 +72,24 @@ def test_upload_dedup_by_checksum(upload_client):
 def test_empty_upload_rejected(upload_client):
     resp = _upload(upload_client, "empty.md", b"", "text/markdown")
     assert resp.status_code == 400
+
+
+def test_upload_then_search_end_to_end(upload_client):
+    """Phase 3 exit (API): a document ingests end-to-end and is retrievable by
+    raw similarity search."""
+    body = "the mitochondria is the powerhouse of the cell"
+    up = _upload(
+        upload_client, "bio.md", fixtures.make_markdown(body=body), "text/markdown"
+    )
+    assert up.status_code == 201
+    assert up.json()["chunk_count"] >= 1
+
+    resp = upload_client.post("/api/v1/documents/search", params={"q": body, "top_k": 3})
+    assert resp.status_code == 200
+    hits = resp.json()["hits"]
+    assert hits
+    assert any("mitochondria" in h["text"] for h in hits)
+    assert hits[0]["document_id"] == up.json()["document"]["id"]
 
 
 @requires_tesseract

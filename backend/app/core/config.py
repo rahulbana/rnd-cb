@@ -44,12 +44,12 @@ class Settings(BaseSettings):
 
     # --- Provider selection: the swappable core ---
     LLM_PROVIDER: str = Field(default="fake")
-    EMBEDDER_PROVIDER: str = Field(default="fake")
-    VECTOR_STORE_PROVIDER: str = Field(default="fake")
+    EMBEDDER_PROVIDER: str = Field(default="sentence_transformers")
+    VECTOR_STORE_PROVIDER: str = Field(default="chroma")
     RERANKER_PROVIDER: str = Field(default="fake")
     RETRIEVER_STRATEGY: str = Field(default="fake")
     PARSER_STRATEGY: str = Field(default="router")
-    CHUNKER_STRATEGY: str = Field(default="fake")
+    CHUNKER_STRATEGY: str = Field(default="structure_aware")
     STORAGE_PROVIDER: str = Field(default="fake")
     TASK_QUEUE_PROVIDER: str = Field(default="fake")
 
@@ -70,6 +70,19 @@ class Settings(BaseSettings):
     LOCAL_STORAGE_DIR: str = "./data/objects"
     CHUNK_SIZE: int = 800
     CHUNK_OVERLAP: int = 120
+
+    # --- Embeddings ---
+    # Dim is declared up front so the registry can detect dimension drift
+    # (see docs/runbooks/reindex-on-embedder-change.md).
+    EMBED_MODEL: str = "sentence-transformers/all-MiniLM-L6-v2"
+    EMBED_DIM: int = 384
+    OPENAI_EMBED_MODEL: str = "text-embedding-3-small"
+    OPENAI_EMBED_DIM: int = 1536
+
+    # --- Chroma ---
+    # http (compose/prod) | ephemeral (in-memory) | persistent (local dir)
+    CHROMA_MODE: str = "http"
+    CHROMA_PERSIST_DIR: str = "./data/chroma"
 
 
 @lru_cache

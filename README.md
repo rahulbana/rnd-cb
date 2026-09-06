@@ -40,9 +40,28 @@ Turn any uploaded file into the same canonical `ParsedDocument`.
 via `POST /api/v1/documents` and return the same structured representation —
 `backend/tests/test_upload.py::test_exit_all_formats_return_same_shape`.
 
-Later phases (3–10) add chunking + embedding + vector storage, async ingestion,
-hybrid retrieval, reranking, LLM generation, auth + the enterprise frontend,
-admin/analytics/eval, and cloud deployment. See the build plan for details.
+### Phase 3 — Chunking, embedding & vector storage ✅
+
+Wire parsed documents into a searchable vector index; embedder and vector store
+both fully swappable.
+
+| Deliverable | Where |
+|---|---|
+| Chunkers: structure-aware (default), fixed-size, recursive | `backend/app/adapters/chunkers/` |
+| Embedders: Sentence-Transformers (local), OpenAI | `backend/app/adapters/embedders/` |
+| Vector stores: Chroma (default), Postgres+pgvector | `backend/app/adapters/vector_stores/` |
+| Namespace/collection per org (multi-tenancy hook) | store `namespace` arg |
+| `ingestion_service` (parser → chunker → embedder → store) | `backend/app/services/ingestion_service.py` |
+| Raw similarity search endpoint | `POST /api/v1/documents/search` |
+
+**Exit (proven):** a document ingests end-to-end and is retrievable by raw
+similarity search; switching `VECTOR_STORE_PROVIDER` chroma ↔ pgvector is zero
+code change — `backend/tests/test_vector_store_swap.py`,
+`backend/tests/test_ingestion.py`.
+
+Later phases (4–10) add async ingestion, hybrid retrieval, reranking, LLM
+generation, auth + the enterprise frontend, admin/analytics/eval, and cloud
+deployment. See the build plan for details.
 
 ## Layout
 

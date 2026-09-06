@@ -19,9 +19,10 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.core.logging import get_logger
-from app.db.models import Document
+from app.db.models import ChunkMeta, Document
 from app.domain.interfaces import ObjectStorage, Parser
 from app.domain.models import ParsedDocument
+from app.services.ingestion_service import IngestionService
 
 logger = get_logger("service.document")
 
@@ -55,14 +56,22 @@ class UploadResult:
     document: Document
     parsed: ParsedDocument | None
     deduped: bool
+    chunk_count: int = 0
 
 
 class DocumentService:
-    """Upload + parse a document synchronously."""
+    """Upload, parse, and index a document synchronously (Phases 2-3)."""
 
-    def __init__(self, storage: ObjectStorage, parser: Parser, db: Session) -> None:
+    def __init__(
+        self,
+        storage: ObjectStorage,
+        parser: Parser,
+        ingestion: IngestionService,
+        db: Session,
+    ) -> None:
         self._storage = storage
         self._parser = parser
+        self._ingestion = ingestion
         self._db = db
 
     def _find_existing(self, org_id: str, checksum: str) -> Document | None:
@@ -113,14 +122,37 @@ class DocumentService:
         parsed = await self._parser.parse(data, filename=filename, mime_type=mime_type)
         document.status = "parsed"
         self._db.commit()
+
+        # Chunk -> embed -> index within the org namespace, then persist the
+        # citation metadata for each chunk (vectors live in the vector store).
+        chunks = await self._ingestion.index(
+            parsed, document_id=document.id, namespace=org_id
+        )
+        for chunk in chunks:
+            self._db.add(
+                ChunkMeta(
+                    document_id=document.id,
+                    page=chunk.metadata.page,
+                    heading_path=chunk.metadata.heading_path,
+                    vector_id=chunk.id,
+                )
+            )
+        document.status = "indexed"
+        self._db.commit()
         self._db.refresh(document)
 
         logger.info(
-            "upload_parsed",
+            "upload_indexed",
             document_id=document.id,
             mime_type=mime_type,
             parser=parsed.parser_name,
             used_fallback=parsed.used_fallback,
             blocks=len(parsed.text_blocks),
+            chunks=len(chunks),
         )
-        return UploadResult(document=document, parsed=parsed, deduped=False)
+        return UploadResult(
+            document=document,
+            parsed=parsed,
+            deduped=False,
+            chunk_count=len(chunks),
+        )

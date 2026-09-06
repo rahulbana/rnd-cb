@@ -52,10 +52,16 @@ def db_sessionmaker(tmp_path):
 @pytest.fixture
 def upload_client(tmp_path, db_sessionmaker) -> TestClient:
     """A TestClient wired to SQLite, local-disk storage, and the real router."""
+    from app.adapters.chunkers import StructureAwareChunker
+    from app.adapters.embedders import FakeEmbedder
     from app.adapters.parsers import ParserRouter
     from app.adapters.storage import LocalDiskStorage
+    from app.adapters.vector_stores import FakeVectorStore
+    from app.api.v1.deps import chunker as chunker_dep
+    from app.api.v1.deps import embedder as embedder_dep
     from app.api.v1.deps import parser as parser_dep
     from app.api.v1.deps import storage as storage_dep
+    from app.api.v1.deps import vector_store as vector_store_dep
     from app.core.config import settings
     from app.core.registry import build_parser_chain
     from app.db.base import get_db
@@ -71,8 +77,15 @@ def upload_client(tmp_path, db_sessionmaker) -> TestClient:
 
     storage_obj = LocalDiskStorage(str(tmp_path / "objects"))
     router = ParserRouter(build_parser_chain(settings))
+    # Offline, deterministic ingestion stack shared across requests.
+    embedder_obj = FakeEmbedder()
+    vector_store_obj = FakeVectorStore()
+    chunker_obj = StructureAwareChunker()
 
     app.dependency_overrides[get_db] = _get_db
     app.dependency_overrides[storage_dep] = lambda: storage_obj
     app.dependency_overrides[parser_dep] = lambda: router
+    app.dependency_overrides[embedder_dep] = lambda: embedder_obj
+    app.dependency_overrides[vector_store_dep] = lambda: vector_store_obj
+    app.dependency_overrides[chunker_dep] = lambda: chunker_obj
     return TestClient(app)

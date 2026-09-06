@@ -36,6 +36,16 @@ parsers-heavy = [
     "docling>=2.0",
     "unstructured>=0.15",
 ]
+# Phase 3 -- default local embedder + vector stores (installed in the image).
+ml = [
+    "sentence-transformers>=3.0",
+    "chromadb>=0.5",
+    "pgvector>=0.3",
+]
+# OpenAI embedder / LLM adapters (opt-in).
+openai = [
+    "openai>=1.40",
+]
 
 [build-system]
 requires = ["setuptools>=68"]

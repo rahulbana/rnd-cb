@@ -13,8 +13,9 @@ RUN apt-get update \
     && rm -rf /var/lib/apt/lists/*
 
 # Install dependencies first for better layer caching.
+# The `ml` extra provides the default local embedder + Chroma/pgvector.
 COPY pyproject.toml ./
-RUN pip install --upgrade pip && pip install .
+RUN pip install --upgrade pip && pip install ".[ml]"
 
 # App source.
 COPY . .

@@ -21,8 +21,27 @@ class DocumentOut(BaseModel):
 
 
 class UploadResponse(BaseModel):
-    """Result of a synchronous upload + parse (Phase 2)."""
+    """Result of a synchronous upload + parse + index (Phases 2-3)."""
 
     document: DocumentOut
     deduped: bool
+    chunk_count: int = 0
     parsed: ParsedDocument | None = None
+
+
+class SearchHit(BaseModel):
+    """One raw similarity-search result."""
+
+    chunk_id: str
+    document_id: str
+    text: str
+    score: float
+    page: int | None = None
+    heading_path: str | None = None
+
+
+class SearchResponse(BaseModel):
+    """Raw dense similarity-search results (Phase 3; hybrid arrives in Phase 5)."""
+
+    query: str
+    hits: list[SearchHit]

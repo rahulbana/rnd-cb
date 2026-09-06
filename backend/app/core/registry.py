@@ -15,8 +15,18 @@ from collections.abc import Mapping
 from functools import lru_cache
 from typing import Any
 
-from app.adapters.chunkers import FakeChunker
-from app.adapters.embedders import FakeEmbedder, FakeHashEmbedder
+from app.adapters.chunkers import (
+    FakeChunker,
+    FixedSizeChunker,
+    RecursiveChunker,
+    StructureAwareChunker,
+)
+from app.adapters.embedders import (
+    FakeEmbedder,
+    FakeHashEmbedder,
+    OpenAIEmbedder,
+    SentenceTransformersEmbedder,
+)
 from app.adapters.llm_providers import FakeLLMProvider
 from app.adapters.parsers import (
     DoclingParser,
@@ -32,7 +42,11 @@ from app.adapters.rerankers import FakeReranker
 from app.adapters.retrievers import FakeRetriever
 from app.adapters.storage import FakeObjectStorage, LocalDiskStorage
 from app.adapters.task_queues import FakeTaskQueue
-from app.adapters.vector_stores import FakeVectorStore
+from app.adapters.vector_stores import (
+    ChromaVectorStore,
+    FakeVectorStore,
+    PgVectorStore,
+)
 from app.core.config import Settings, settings
 from app.domain.interfaces import (
     Chunker,
@@ -55,10 +69,14 @@ _LLM_REGISTRY: dict[str, type[LLMProvider]] = {
 _EMBEDDER_REGISTRY: dict[str, type[Embedder]] = {
     "fake": FakeEmbedder,
     "fake_hash": FakeHashEmbedder,
+    "sentence_transformers": SentenceTransformersEmbedder,
+    "openai": OpenAIEmbedder,
 }
 
 _VECTOR_STORE_REGISTRY: dict[str, type[VectorStore]] = {
     "fake": FakeVectorStore,
+    "chroma": ChromaVectorStore,
+    "pgvector": PgVectorStore,
 }
 
 _RERANKER_REGISTRY: dict[str, type[Reranker]] = {
@@ -82,6 +100,9 @@ _PARSER_REGISTRY: dict[str, type[Parser]] = {
 
 _CHUNKER_REGISTRY: dict[str, type[Chunker]] = {
     "fake": FakeChunker,
+    "structure_aware": StructureAwareChunker,
+    "fixed_size": FixedSizeChunker,
+    "recursive": RecursiveChunker,
 }
 
 _STORAGE_REGISTRY: dict[str, type[ObjectStorage]] = {

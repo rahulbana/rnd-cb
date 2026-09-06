@@ -7,13 +7,19 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.adapters.parsers import ParserError
-from app.api.v1.deps import parser, storage
-from app.api.v1.schemas import DocumentOut, UploadResponse
+from app.api.v1.deps import chunker, embedder, parser, storage, vector_store
+from app.api.v1.schemas import (
+    DocumentOut,
+    SearchHit,
+    SearchResponse,
+    UploadResponse,
+)
 from app.core.config import settings
 from app.db.base import get_db
 from app.db.models import Document
-from app.domain.interfaces import ObjectStorage, Parser
+from app.domain.interfaces import Chunker, Embedder, ObjectStorage, Parser, VectorStore
 from app.services.document_service import DocumentService
+from app.services.ingestion_service import IngestionService
 
 router = APIRouter(prefix="/documents", tags=["documents"])
 
@@ -37,16 +43,23 @@ async def upload_document(
     db: Session = Depends(get_db),
     object_storage: ObjectStorage = Depends(storage),
     document_parser: Parser = Depends(parser),
+    document_chunker: Chunker = Depends(chunker),
+    document_embedder: Embedder = Depends(embedder),
+    store: VectorStore = Depends(vector_store),
 ) -> UploadResponse:
-    """Upload a file: store it, dedup by checksum, and parse it synchronously.
+    """Upload a file: store it, dedup by checksum, parse, chunk, embed, index.
 
-    Returns the canonical ``ParsedDocument`` regardless of source format.
+    Returns the canonical ``ParsedDocument`` regardless of source format, plus
+    the number of chunks indexed for raw similarity search.
     """
     data = await file.read()
     if not data:
         raise HTTPException(status_code=400, detail="Empty file upload")
 
-    service = DocumentService(object_storage, document_parser, db)
+    ingestion = IngestionService(
+        embedder=document_embedder, vector_store=store, chunker=document_chunker
+    )
+    service = DocumentService(object_storage, document_parser, ingestion, db)
     try:
         result = await service.upload(
             data=data,
@@ -61,7 +74,38 @@ async def upload_document(
     return UploadResponse(
         document=_to_out(result.document),
         deduped=result.deduped,
+        chunk_count=result.chunk_count,
         parsed=result.parsed,
+    )
+
+
+@router.post("/search", response_model=SearchResponse)
+async def search_documents(
+    q: str,
+    top_k: int = 5,
+    document_embedder: Embedder = Depends(embedder),
+    store: VectorStore = Depends(vector_store),
+) -> SearchResponse:
+    """Raw dense similarity search over indexed chunks (Phase 3).
+
+    Retrieval independent of generation; hybrid retrieval and reranking arrive
+    in Phases 5-6.
+    """
+    ingestion = IngestionService(embedder=document_embedder, vector_store=store)
+    hits = await ingestion.search(q, namespace=settings.DEFAULT_ORG_ID, top_k=top_k)
+    return SearchResponse(
+        query=q,
+        hits=[
+            SearchHit(
+                chunk_id=h.chunk.id,
+                document_id=h.chunk.metadata.document_id,
+                text=h.chunk.text,
+                score=h.score,
+                page=h.chunk.metadata.page,
+                heading_path=h.chunk.metadata.heading_path,
+            )
+            for h in hits
+        ],
     )
 
 
