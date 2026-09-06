@@ -111,8 +111,25 @@ citation-tagged context.
 lifts precision@1 from **0.8** (Phase 5 baseline) to **1.0** on the labeled set
 — `backend/tests/test_rerank_eval.py`.
 
-Later phases (7–10) add LLM generation, auth + the enterprise frontend,
-admin/analytics/eval, and cloud deployment. See the build plan for details.
+### Phase 7 — LLM orchestration & RAG generation ✅
+
+Grounded, cited, streamed answers from any of four LLM backends interchangeably.
+
+| Deliverable | Where |
+|---|---|
+| LLM adapters: Ollama (default), OpenAI, Anthropic, Gemini | `backend/app/adapters/llm_providers/` |
+| Versioned Jinja2 prompts (grounded + citation-format system prompt) | `backend/app/prompts/` |
+| Streaming generation over SSE | `POST /api/v1/chat/stream` |
+| Conversation memory (sliding window + summarization), persisted | `backend/app/services/conversation_memory.py` |
+| Prompt-injection defenses + explicit "not found" fallback | `backend/app/services/prompt_safety.py`, `ChatService` |
+| Per-request cost/latency/token logging | `backend/app/services/cost.py`, `ChatService` |
+
+**Exit (proven):** the same query streams a cited answer, and one env var
+(`LLM_PROVIDER`) selects Ollama / OpenAI / Anthropic / Gemini at an identical
+call site — `backend/tests/test_chat_swap.py`, `backend/tests/test_llm_providers.py`.
+
+Later phases (8–10) add auth + the enterprise frontend, admin/analytics/eval,
+and cloud deployment. See the build plan for details.
 
 ## Layout
 

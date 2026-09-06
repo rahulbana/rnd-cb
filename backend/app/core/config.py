@@ -43,7 +43,7 @@ class Settings(BaseSettings):
     CHROMA_PORT: int = 8000
 
     # --- Provider selection: the swappable core ---
-    LLM_PROVIDER: str = Field(default="fake")
+    LLM_PROVIDER: str = Field(default="ollama")
     EMBEDDER_PROVIDER: str = Field(default="sentence_transformers")
     VECTOR_STORE_PROVIDER: str = Field(default="chroma")
     RERANKER_PROVIDER: str = Field(default="cross_encoder")
@@ -66,6 +66,22 @@ class Settings(BaseSettings):
     COHERE_API_KEY: str | None = None
     LLAMAPARSE_API_KEY: str | None = None
     OLLAMA_BASE_URL: str = "http://localhost:11434"
+
+    # --- LLM models (per provider) ---
+    OPENAI_CHAT_MODEL: str = "gpt-4o-mini"
+    ANTHROPIC_MODEL: str = "claude-3-5-sonnet-latest"
+    GEMINI_MODEL: str = "gemini-1.5-flash"
+    OLLAMA_MODEL: str = "llama3.1"
+    LLM_TEMPERATURE: float = 0.2
+    LLM_MAX_TOKENS: int = 1024
+
+    # --- RAG generation (Phase 7) ---
+    PROMPT_VERSION: str = "v1"
+    CHAT_HISTORY_WINDOW: int = 6  # turns kept verbatim before summarizing
+    CHAT_SUMMARIZE: bool = True
+    NOT_FOUND_MESSAGE: str = (
+        "I couldn't find an answer to that in the provided documents."
+    )
 
     # --- Ingestion / storage tuning ---
     LOCAL_STORAGE_DIR: str = "./data/objects"

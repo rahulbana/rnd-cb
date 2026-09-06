@@ -27,7 +27,13 @@ from app.adapters.embedders import (
     OpenAIEmbedder,
     SentenceTransformersEmbedder,
 )
-from app.adapters.llm_providers import FakeLLMProvider
+from app.adapters.llm_providers import (
+    AnthropicProvider,
+    FakeLLMProvider,
+    GeminiProvider,
+    OllamaProvider,
+    OpenAIProvider,
+)
 from app.adapters.parsers import (
     DoclingParser,
     DocxParser,
@@ -74,6 +80,10 @@ from app.domain.interfaces import (
 
 _LLM_REGISTRY: dict[str, type[LLMProvider]] = {
     "fake": FakeLLMProvider,
+    "openai": OpenAIProvider,
+    "anthropic": AnthropicProvider,
+    "gemini": GeminiProvider,
+    "ollama": OllamaProvider,
 }
 
 _EMBEDDER_REGISTRY: dict[str, type[Embedder]] = {

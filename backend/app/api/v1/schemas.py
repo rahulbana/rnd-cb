@@ -98,3 +98,49 @@ class RetrieveResponse(BaseModel):
     filters: RetrieveFilters
     scoped_document_count: int | None = None
     hits: list[RetrieveHit]
+
+
+class ChatRequest(BaseModel):
+    """A chat turn."""
+
+    question: str
+    conversation_id: str | None = None
+
+
+class CitationOut(BaseModel):
+    chunk_id: str
+    document_id: str
+    page: int | None = None
+    heading_path: str | None = None
+    score: float | None = None
+
+
+class ChatResponse(BaseModel):
+    """A grounded, cited answer plus its cost/latency trail."""
+
+    conversation_id: str
+    answer: str
+    citations: list[CitationOut]
+    provider: str
+    tokens_in: int
+    tokens_out: int
+    latency_ms: float
+    cost_usd: float
+    prompt_version: str
+    found: bool
+
+
+class MessageOut(BaseModel):
+    id: str
+    role: str
+    content: str
+    provider: str | None = None
+    citations: list[CitationOut] = []
+    tokens_in: int = 0
+    tokens_out: int = 0
+    latency_ms: int = 0
+
+
+class ConversationOut(BaseModel):
+    id: str
+    title: str

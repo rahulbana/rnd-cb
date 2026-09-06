@@ -16,6 +16,8 @@ dependencies = [
     "redis>=5.0",
     "pyjwt>=2.9",
     "python-multipart>=0.0.9",
+    "jinja2>=3.1",
+    "httpx>=0.27",
     # Phase 2 -- lightweight, fully-local parsers (default fallback chain)
     "pymupdf>=1.24",
     "python-docx>=1.1",
@@ -47,6 +49,14 @@ ml = [
 # OpenAI embedder / LLM adapters (opt-in).
 openai = [
     "openai>=1.40",
+    "tiktoken>=0.7",
+]
+# Hosted LLM adapters (opt-in). Ollama (the default) needs only httpx (base dep).
+anthropic = [
+    "anthropic>=0.34",
+]
+gemini = [
+    "google-generativeai>=0.7",
 ]
 # Cohere rerank adapter (opt-in). The default cross-encoder reranker uses
 # sentence-transformers from the `ml` extra.
@@ -61,6 +71,9 @@ build-backend = "setuptools.build_meta"
 [tool.setuptools.packages.find]
 where = ["."]
 include = ["app*"]
+
+[tool.setuptools.package-data]
+"app.prompts" = ["*.jinja"]
 
 [tool.ruff]
 line-length = 90

@@ -52,6 +52,7 @@ def async_env(tmp_path, monkeypatch) -> Callable[..., TestClient]:
         monkeypatch.setattr(settings, "DATABASE_URL", f"sqlite:///{tmp_path / 't.db'}")
         monkeypatch.setattr(settings, "STORAGE_PROVIDER", "local_disk")
         monkeypatch.setattr(settings, "LOCAL_STORAGE_DIR", str(tmp_path / "objects"))
+        monkeypatch.setattr(settings, "LLM_PROVIDER", "fake")
         monkeypatch.setattr(settings, "EMBEDDER_PROVIDER", "fake")
         monkeypatch.setattr(settings, "VECTOR_STORE_PROVIDER", "fake")
         monkeypatch.setattr(settings, "RERANKER_PROVIDER", "fake")
