@@ -48,10 +48,15 @@ class Settings(BaseSettings):
     VECTOR_STORE_PROVIDER: str = Field(default="fake")
     RERANKER_PROVIDER: str = Field(default="fake")
     RETRIEVER_STRATEGY: str = Field(default="fake")
-    PARSER_STRATEGY: str = Field(default="fake")
+    PARSER_STRATEGY: str = Field(default="router")
     CHUNKER_STRATEGY: str = Field(default="fake")
     STORAGE_PROVIDER: str = Field(default="fake")
     TASK_QUEUE_PROVIDER: str = Field(default="fake")
+
+    # Parser fallback chain (priority order), used when PARSER_STRATEGY=router.
+    # Lightweight, fully-local parsers first; heavy ones (Docling/Unstructured)
+    # as fallbacks. Production may reorder to put docling first.
+    PARSER_PRIORITY: str = "plain,pymupdf,docx,tesseract_image,unstructured,docling"
 
     # --- Provider credentials (unused by fakes; real adapters read these) ---
     OPENAI_API_KEY: str | None = None

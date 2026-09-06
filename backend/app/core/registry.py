@@ -18,10 +18,19 @@ from typing import Any
 from app.adapters.chunkers import FakeChunker
 from app.adapters.embedders import FakeEmbedder, FakeHashEmbedder
 from app.adapters.llm_providers import FakeLLMProvider
-from app.adapters.parsers import FakeParser
+from app.adapters.parsers import (
+    DoclingParser,
+    DocxParser,
+    FakeParser,
+    ParserRouter,
+    PlainTextParser,
+    PyMuPDFParser,
+    TesseractImageParser,
+    UnstructuredParser,
+)
 from app.adapters.rerankers import FakeReranker
 from app.adapters.retrievers import FakeRetriever
-from app.adapters.storage import FakeObjectStorage
+from app.adapters.storage import FakeObjectStorage, LocalDiskStorage
 from app.adapters.task_queues import FakeTaskQueue
 from app.adapters.vector_stores import FakeVectorStore
 from app.core.config import Settings, settings
@@ -62,6 +71,13 @@ _RETRIEVER_REGISTRY: dict[str, type[Retriever]] = {
 
 _PARSER_REGISTRY: dict[str, type[Parser]] = {
     "fake": FakeParser,
+    "plain": PlainTextParser,
+    "pymupdf": PyMuPDFParser,
+    "docx": DocxParser,
+    "tesseract_image": TesseractImageParser,
+    "docling": DoclingParser,
+    "unstructured": UnstructuredParser,
+    "router": ParserRouter,
 }
 
 _CHUNKER_REGISTRY: dict[str, type[Chunker]] = {
@@ -70,6 +86,7 @@ _CHUNKER_REGISTRY: dict[str, type[Chunker]] = {
 
 _STORAGE_REGISTRY: dict[str, type[ObjectStorage]] = {
     "fake": FakeObjectStorage,
+    "local_disk": LocalDiskStorage,
 }
 
 _TASK_QUEUE_REGISTRY: dict[str, type[TaskQueue]] = {
@@ -123,6 +140,28 @@ def get_retriever() -> Retriever:
 @lru_cache
 def get_parser() -> Parser:
     return _resolve(_PARSER_REGISTRY, settings.PARSER_STRATEGY, "parser", settings)
+
+
+def build_parser_chain(cfg: Settings) -> list[Parser]:
+    """Instantiate the ordered parser fallback chain from ``PARSER_PRIORITY``.
+
+    Names are resolved against the parser registry (excluding ``router`` to
+    avoid recursion). Unknown names are a clear configuration error.
+    """
+    names = [n.strip() for n in cfg.PARSER_PRIORITY.split(",") if n.strip()]
+    chain: list[Parser] = []
+    for name in names:
+        if name == "router":
+            continue
+        try:
+            cls = _PARSER_REGISTRY[name]
+        except KeyError:
+            available = ", ".join(sorted(n for n in _PARSER_REGISTRY if n != "router"))
+            raise ValueError(
+                f"Unknown parser {name!r} in PARSER_PRIORITY. Available: {available}."
+            ) from None
+        chain.append(cls.from_settings(cfg))
+    return chain
 
 
 @lru_cache

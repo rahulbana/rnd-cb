@@ -12,27 +12,35 @@ with more than one reasonable implementation is a Python `Protocol` (a
 driven by environment variables resolves which adapter runs at runtime. Business
 logic imports the interface, never a provider SDK.
 
-## Status — Phase 1: Foundations & core architecture skeleton ✅
+## Status
+
+### Phase 1 — Foundations & core architecture skeleton ✅
 
 A fully wired, empty system: every later phase adds an adapter instead of
-inventing structure.
+inventing structure. Ports for all nine capabilities; a config-driven registry;
+FastAPI skeleton (health, `/api/v1`, structured logging, global errors);
+Postgres schema v1 + Alembic; Docker Compose (api, worker, Postgres, Redis,
+Chroma); CI. **Exit (proven):** flipping `EMBEDDER_PROVIDER=fake → fake_hash`
+swaps the implementation with no code change — `backend/tests/test_registry_swap.py`.
+
+### Phase 2 — Multi-format document ingestion (synchronous path) ✅
+
+Turn any uploaded file into the same canonical `ParsedDocument`.
 
 | Deliverable | Where |
 |---|---|
-| Repo scaffold (backend / frontend / infra / docs) | this tree |
-| All port Protocols | `backend/app/domain/interfaces/` |
-| Pydantic Settings + registry/factory | `backend/app/core/{config,registry}.py` |
-| FastAPI skeleton (health, `/api/v1`, structured logging, global errors) | `backend/app/main.py`, `backend/app/api/` |
-| Postgres schema v1 + Alembic migrations | `backend/app/db/` |
-| Docker Compose (api, worker, Postgres, Redis, Chroma) | `infra/docker-compose.yml` |
-| CI (ruff, mypy, pytest) | `.github/workflows/ci.yml` |
-| One fake adapter per port (two fake embedders) | `backend/app/adapters/*/` |
+| Parser registry keyed by MIME + fallback chain | `backend/app/adapters/parsers/router.py` |
+| Parser adapters (plain/md, PyMuPDF, DOCX, Docling, Unstructured) | `backend/app/adapters/parsers/` |
+| OCR path for scanned images (Tesseract; Docling in prod) | `backend/app/adapters/parsers/image_parser.py` |
+| Object storage abstraction (local-disk adapter) | `backend/app/adapters/storage/local_disk.py` |
+| Upload endpoint with checksum-based dedup | `backend/app/api/v1/routes/documents.py` |
+| Fixture-based tests per format | `backend/tests/test_parsers.py`, `test_upload.py` |
 
-**Exit test (proven):** `docker compose up` boots a fully wired empty app, and
-flipping one env var (`EMBEDDER_PROVIDER=fake` → `fake_hash`) swaps the embedder
-implementation with no code change — see `backend/tests/test_registry_swap.py`.
+**Exit (proven):** a PDF, a DOCX, a scanned PNG, and a Markdown file all upload
+via `POST /api/v1/documents` and return the same structured representation —
+`backend/tests/test_upload.py::test_exit_all_formats_return_same_shape`.
 
-Later phases (2–10) add real parsers, chunkers, embedders, vector stores,
+Later phases (3–10) add chunking + embedding + vector storage, async ingestion,
 hybrid retrieval, reranking, LLM generation, auth + the enterprise frontend,
 admin/analytics/eval, and cloud deployment. See the build plan for details.
 
