@@ -1,39 +1,32 @@
-import { useEffect, useState } from "react";
-import { getProviders, getHealth } from "../lib/api-client";
+import { Navigate, Route, Routes } from "react-router-dom";
+import { Layout } from "../components/Layout";
+import { AuthPage } from "../features/auth/AuthPage";
+import { ChatPage } from "../features/chat/ChatPage";
+import { DocumentsPage } from "../features/documents/DocumentsPage";
+import { useAuth } from "../store/auth";
+import type { ReactNode } from "react";
 
-/**
- * Phase 1 scaffold. The full enterprise app (auth, chat, documents, admin,
- * analytics) is built in Phase 8. This screen only proves the frontend is
- * wired to the API and reads the live provider configuration.
- */
+function Protected({ children }: { children: ReactNode }) {
+  const isAuthenticated = useAuth((s) => s.isAuthenticated);
+  return isAuthenticated ? <>{children}</> : <Navigate to="/login" replace />;
+}
+
 export function App() {
-  const [health, setHealth] = useState<string>("checking…");
-  const [providers, setProviders] = useState<Record<string, string>>({});
-
-  useEffect(() => {
-    getHealth()
-      .then((h) => setHealth(h.status))
-      .catch(() => setHealth("unreachable"));
-    getProviders()
-      .then(setProviders)
-      .catch(() => setProviders({}));
-  }, []);
-
   return (
-    <main style={{ fontFamily: "system-ui", maxWidth: 640, margin: "3rem auto" }}>
-      <h1>Multi-Document RAG Platform</h1>
-      <p>Phase 1 skeleton — ports &amp; adapters core.</p>
-      <p>
-        API health: <strong>{health}</strong>
-      </p>
-      <h2>Active adapters (live wiring)</h2>
-      <ul>
-        {Object.entries(providers).map(([port, impl]) => (
-          <li key={port}>
-            <code>{port}</code>: {impl}
-          </li>
-        ))}
-      </ul>
-    </main>
+    <Routes>
+      <Route path="/login" element={<AuthPage mode="login" />} />
+      <Route path="/register" element={<AuthPage mode="register" />} />
+      <Route
+        element={
+          <Protected>
+            <Layout />
+          </Protected>
+        }
+      >
+        <Route path="/chat" element={<ChatPage />} />
+        <Route path="/documents" element={<DocumentsPage />} />
+      </Route>
+      <Route path="*" element={<Navigate to="/chat" replace />} />
+    </Routes>
   );
 }

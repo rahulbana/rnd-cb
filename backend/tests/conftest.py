@@ -8,7 +8,7 @@ from collections.abc import Callable
 import pytest
 from fastapi.testclient import TestClient
 
-from app.core.ratelimit import get_rate_limiter
+from app.core.ratelimit import get_auth_rate_limiter, get_rate_limiter
 from app.core.registry import clear_registry_caches
 from app.main import create_app
 
@@ -24,14 +24,29 @@ def _reset_caches():
     """Every test starts and ends with clean registry + rate-limiter caches."""
     clear_registry_caches()
     get_rate_limiter.cache_clear()
+    get_auth_rate_limiter.cache_clear()
     yield
     clear_registry_caches()
     get_rate_limiter.cache_clear()
+    get_auth_rate_limiter.cache_clear()
 
 
 @pytest.fixture
 def client() -> TestClient:
     return TestClient(create_app())
+
+
+def _authenticate(
+    client: TestClient,
+    email: str = "tester@example.com",
+    password: str = "password123",
+) -> str:
+    """Register (idempotently) + log in, and set the client's bearer header."""
+    client.post("/api/v1/auth/register", json={"email": email, "password": password})
+    resp = client.post("/api/v1/auth/login", json={"email": email, "password": password})
+    token = resp.json()["access_token"]
+    client.headers["Authorization"] = f"Bearer {token}"
+    return token
 
 
 @pytest.fixture
@@ -48,7 +63,7 @@ def async_env(tmp_path, monkeypatch) -> Callable[..., TestClient]:
     from app.db import base as dbbase
     from app.db import models  # noqa: F401 - register tables on Base.metadata
 
-    def _make(task_queue: str = "inline") -> TestClient:
+    def _make(task_queue: str = "inline", *, authenticate: bool = True) -> TestClient:
         monkeypatch.setattr(settings, "DATABASE_URL", f"sqlite:///{tmp_path / 't.db'}")
         monkeypatch.setattr(settings, "STORAGE_PROVIDER", "local_disk")
         monkeypatch.setattr(settings, "LOCAL_STORAGE_DIR", str(tmp_path / "objects"))
@@ -60,14 +75,21 @@ def async_env(tmp_path, monkeypatch) -> Callable[..., TestClient]:
         monkeypatch.setattr(settings, "PARSER_STRATEGY", "router")
         monkeypatch.setattr(settings, "TASK_QUEUE_PROVIDER", task_queue)
         monkeypatch.setattr(settings, "INGEST_BACKOFF_BASE", 0.0)
+        monkeypatch.setattr(
+            settings, "SECRET_KEY", "test-secret-key-at-least-32-bytes-long!"
+        )
 
         dbbase.get_engine.cache_clear()
         dbbase._get_sessionmaker.cache_clear()
         clear_registry_caches()
         get_rate_limiter.cache_clear()
+        get_auth_rate_limiter.cache_clear()
 
         dbbase.Base.metadata.create_all(dbbase.get_engine())
-        return TestClient(create_app())
+        client = TestClient(create_app())
+        if authenticate:
+            _authenticate(client)
+        return client
 
     yield _make
 

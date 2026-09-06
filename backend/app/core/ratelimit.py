@@ -37,3 +37,8 @@ class RateLimiter:
 @lru_cache
 def get_rate_limiter() -> RateLimiter:
     return RateLimiter(settings.INGEST_RATE_LIMIT, settings.INGEST_RATE_WINDOW_SECONDS)
+
+
+@lru_cache
+def get_auth_rate_limiter() -> RateLimiter:
+    return RateLimiter(settings.LOGIN_RATE_LIMIT, settings.LOGIN_RATE_WINDOW_SECONDS)

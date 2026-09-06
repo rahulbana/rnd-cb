@@ -10,6 +10,7 @@ from fastapi.responses import StreamingResponse
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from app.api.v1.deps_auth import get_current_user
 from app.api.v1.schemas import (
     ChatRequest,
     ChatResponse,
@@ -20,7 +21,7 @@ from app.api.v1.schemas import (
 from app.core.config import settings
 from app.core.registry import get_llm_provider, get_reranker, get_retriever
 from app.db.base import get_db
-from app.db.models import Conversation, Message
+from app.db.models import Conversation, Message, User
 from app.domain.models import Citation
 from app.services.chat_service import ChatService
 from app.services.context_assembly import ContextAssembler
@@ -30,7 +31,7 @@ from app.services.retrieval_service import RetrievalService
 router = APIRouter(tags=["chat"])
 
 
-def _build_chat_service(db: Session) -> ChatService:
+def _build_chat_service(db: Session, user: User) -> ChatService:
     llm = get_llm_provider()
     retrieval = RetrievalService(get_retriever(), db)
     memory = ConversationMemory(
@@ -55,7 +56,7 @@ def _build_chat_service(db: Session) -> ChatService:
         top_k=settings.RETRIEVE_TOP_K,
         fetch_k=settings.RERANK_FETCH_K,
         not_found_message=settings.NOT_FOUND_MESSAGE,
-        user_id=settings.DEFAULT_ORG_ID,
+        user_id=user.id,
     )
 
 
@@ -70,14 +71,18 @@ def _citation_out(c: Citation) -> CitationOut:
 
 
 @router.post("/chat", response_model=ChatResponse)
-async def chat(request: ChatRequest, db: Session = Depends(get_db)) -> ChatResponse:
+async def chat(
+    request: ChatRequest,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+) -> ChatResponse:
     """Answer a question, grounded in the org's documents, with citations."""
     if not request.question.strip():
         raise HTTPException(status_code=400, detail="Empty question")
-    service = _build_chat_service(db)
+    service = _build_chat_service(db, user)
     result = await service.answer(
         request.question,
-        namespace=settings.DEFAULT_ORG_ID,
+        namespace=user.org_id,
         conversation_id=request.conversation_id,
     )
     return ChatResponse(
@@ -96,15 +101,17 @@ async def chat(request: ChatRequest, db: Session = Depends(get_db)) -> ChatRespo
 
 @router.post("/chat/stream")
 async def chat_stream(
-    request: ChatRequest, db: Session = Depends(get_db)
+    request: ChatRequest,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
 ) -> StreamingResponse:
     """Stream a grounded answer over SSE, followed by its citations."""
     if not request.question.strip():
         raise HTTPException(status_code=400, detail="Empty question")
-    service = _build_chat_service(db)
+    service = _build_chat_service(db, user)
     handle = await service.stream(
         request.question,
-        namespace=settings.DEFAULT_ORG_ID,
+        namespace=user.org_id,
         conversation_id=request.conversation_id,
     )
 
@@ -123,8 +130,14 @@ async def chat_stream(
 
 
 @router.get("/conversations", response_model=list[ConversationOut])
-async def list_conversations(db: Session = Depends(get_db)) -> list[ConversationOut]:
-    stmt = select(Conversation).where(Conversation.user_id == settings.DEFAULT_ORG_ID)
+async def list_conversations(
+    db: Session = Depends(get_db), user: User = Depends(get_current_user)
+) -> list[ConversationOut]:
+    stmt = (
+        select(Conversation)
+        .where(Conversation.user_id == user.id)
+        .order_by(Conversation.created_at.desc())
+    )
     return [
         ConversationOut(id=c.id, title=c.title) for c in db.execute(stmt).scalars().all()
     ]
@@ -132,9 +145,12 @@ async def list_conversations(db: Session = Depends(get_db)) -> list[Conversation
 
 @router.get("/conversations/{conversation_id}/messages", response_model=list[MessageOut])
 async def conversation_messages(
-    conversation_id: str, db: Session = Depends(get_db)
+    conversation_id: str,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
 ) -> list[MessageOut]:
-    if db.get(Conversation, conversation_id) is None:
+    conv = db.get(Conversation, conversation_id)
+    if conv is None or conv.user_id != user.id:
         raise HTTPException(status_code=404, detail="Conversation not found")
     stmt = (
         select(Message)

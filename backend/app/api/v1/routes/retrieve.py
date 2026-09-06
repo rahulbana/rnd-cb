@@ -9,10 +9,12 @@ from __future__ import annotations
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 
+from app.api.v1.deps_auth import get_current_user
 from app.api.v1.schemas import RetrieveFilters, RetrieveHit, RetrieveResponse
 from app.core.config import settings
 from app.core.registry import get_reranker, get_retriever, get_retriever_by_name
 from app.db.base import get_db
+from app.db.models import User
 from app.services.retrieval_service import RetrievalService
 
 router = APIRouter(tags=["retrieval"])
@@ -26,6 +28,7 @@ async def retrieve(
     rerank: bool = False,
     document_ids: list[str] | None = Query(default=None),
     db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
 ) -> RetrieveResponse:
     """Retrieve candidate chunks for a query.
 
@@ -42,7 +45,7 @@ async def retrieve(
     fetch_k = settings.RERANK_FETCH_K if rerank else top_k
     results, plan = await service.retrieve(
         q,
-        namespace=settings.DEFAULT_ORG_ID,
+        namespace=user.org_id,
         top_k=fetch_k,
         document_ids=document_ids,
     )

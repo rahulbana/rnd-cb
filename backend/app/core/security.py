@@ -1,71 +1,107 @@
-"""Security primitives: password hashing, JWT, API-key hashing.
+"""Security primitives: Argon2 password hashing, JWT, API keys.
 
-Phase 1 provides the primitives and shapes; full auth flows (register/login/
-refresh, RBAC, rate limiting) land in Phase 8. Kept dependency-light so the
-skeleton boots without optional crypto libraries.
+Phase 8 makes these real: Argon2id for passwords, JWT access + refresh tokens
+with a type claim, and SHA-256-hashed API keys for service-to-service auth.
 """
 
 from __future__ import annotations
 
 import hashlib
-import hmac
 import secrets
 from datetime import UTC, datetime, timedelta
 from typing import Any
 
 import jwt
+from argon2 import PasswordHasher
+from argon2.exceptions import VerifyMismatchError
 
 from app.core.config import settings
 
+_hasher = PasswordHasher()
 
-def hash_password(password: str, *, salt: str | None = None) -> str:
-    """Hash a password with PBKDF2-HMAC-SHA256.
+TOKEN_TYPE_ACCESS = "access"
+TOKEN_TYPE_REFRESH = "refresh"
 
-    Phase 8 replaces this with Argon2; the interface (``hash_password`` /
-    ``verify_password``) stays the same so callers do not change.
-    """
-    salt = salt or secrets.token_hex(16)
-    digest = hashlib.pbkdf2_hmac(
-        "sha256", password.encode("utf-8"), salt.encode("utf-8"), 100_000
-    )
-    return f"pbkdf2_sha256$100000${salt}${digest.hex()}"
+API_KEY_PREFIX = "rag_"
+
+
+# --- Passwords (Argon2id) --------------------------------------------------
+
+
+def hash_password(password: str) -> str:
+    return _hasher.hash(password)
 
 
 def verify_password(password: str, encoded: str) -> bool:
-    """Constant-time verify against a ``hash_password`` output."""
     try:
-        algo, iters, salt, _ = encoded.split("$")
-    except ValueError:
+        return _hasher.verify(encoded, password)
+    except (VerifyMismatchError, Exception):  # noqa: BLE001 - any failure = invalid
         return False
-    if algo != "pbkdf2_sha256":
+
+
+def needs_rehash(encoded: str) -> bool:
+    try:
+        return _hasher.check_needs_rehash(encoded)
+    except Exception:  # noqa: BLE001
         return False
-    expected = hashlib.pbkdf2_hmac(
-        "sha256", password.encode("utf-8"), salt.encode("utf-8"), int(iters)
-    ).hex()
-    return hmac.compare_digest(expected, encoded.split("$")[-1])
+
+
+# --- API keys --------------------------------------------------------------
+
+
+def generate_api_key() -> tuple[str, str]:
+    """Return (raw_key, key_hash). The raw key is shown to the user once."""
+    raw = f"{API_KEY_PREFIX}{secrets.token_urlsafe(32)}"
+    return raw, hash_api_key(raw)
 
 
 def hash_api_key(raw_key: str) -> str:
-    """Deterministic SHA-256 hash for API-key storage/lookup."""
     return hashlib.sha256(raw_key.encode("utf-8")).hexdigest()
 
 
-def create_access_token(
-    subject: str, *, extra_claims: dict[str, Any] | None = None
+# --- JWT -------------------------------------------------------------------
+
+
+def _create_token(
+    subject: str, *, token_type: str, expires: timedelta, claims: dict[str, Any]
 ) -> str:
-    """Issue a signed JWT access token."""
     now = datetime.now(UTC)
     payload: dict[str, Any] = {
         "sub": subject,
+        "type": token_type,
         "iat": now,
-        "exp": now + timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES),
-        "org_id": settings.DEFAULT_ORG_ID,
+        "exp": now + expires,
+        **claims,
     }
-    if extra_claims:
-        payload.update(extra_claims)
     return jwt.encode(payload, settings.SECRET_KEY, algorithm=settings.JWT_ALGORITHM)
 
 
-def decode_access_token(token: str) -> dict[str, Any]:
-    """Decode and verify a JWT access token."""
-    return jwt.decode(token, settings.SECRET_KEY, algorithms=[settings.JWT_ALGORITHM])
+def create_access_token(
+    subject: str, *, org_id: str, role: str, extra_claims: dict[str, Any] | None = None
+) -> str:
+    claims = {"org_id": org_id, "role": role, **(extra_claims or {})}
+    return _create_token(
+        subject,
+        token_type=TOKEN_TYPE_ACCESS,
+        expires=timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES),
+        claims=claims,
+    )
+
+
+def create_refresh_token(subject: str, *, org_id: str) -> str:
+    return _create_token(
+        subject,
+        token_type=TOKEN_TYPE_REFRESH,
+        expires=timedelta(days=settings.REFRESH_TOKEN_EXPIRE_DAYS),
+        claims={"org_id": org_id},
+    )
+
+
+def decode_token(token: str, *, expected_type: str | None = None) -> dict[str, Any]:
+    """Decode and verify a JWT; optionally enforce its ``type`` claim."""
+    payload = jwt.decode(token, settings.SECRET_KEY, algorithms=[settings.JWT_ALGORITHM])
+    if expected_type is not None and payload.get("type") != expected_type:
+        raise jwt.InvalidTokenError(
+            f"expected {expected_type} token, got {payload.get('type')}"
+        )
+    return payload

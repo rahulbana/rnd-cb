@@ -34,7 +34,10 @@ class Settings(BaseSettings):
     SECRET_KEY: str = "change-me-in-production"
     JWT_ALGORITHM: str = "HS256"
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 30
+    REFRESH_TOKEN_EXPIRE_DAYS: int = 14
     DEFAULT_ORG_ID: str = "00000000-0000-0000-0000-000000000000"
+    # First registered user becomes an admin (single-org bootstrap).
+    FIRST_USER_IS_ADMIN: bool = True
 
     # --- Datastores ---
     DATABASE_URL: str = "postgresql+psycopg://rag:rag@localhost:5432/rag"
@@ -120,6 +123,9 @@ class Settings(BaseSettings):
     # Simple in-process ingestion rate limit: max enqueues per window.
     INGEST_RATE_LIMIT: int = 100
     INGEST_RATE_WINDOW_SECONDS: float = 60.0
+    # Login attempt rate limit (per process).
+    LOGIN_RATE_LIMIT: int = 20
+    LOGIN_RATE_WINDOW_SECONDS: float = 60.0
 
 
 @lru_cache

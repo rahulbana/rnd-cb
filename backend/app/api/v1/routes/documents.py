@@ -10,6 +10,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.api.v1.deps import embedder, storage, task_queue, vector_store
+from app.api.v1.deps_auth import get_current_user
 from app.api.v1.schemas import (
     BulkIngestResponse,
     BulkItem,
@@ -22,10 +23,11 @@ from app.api.v1.schemas import (
 from app.core.config import settings
 from app.core.ratelimit import RateLimiter, get_rate_limiter
 from app.db.base import get_db
-from app.db.models import Document
+from app.db.models import Document, User
 from app.domain.interfaces import Embedder, ObjectStorage, TaskQueue, VectorStore
 from app.services.document_service import DocumentService, UploadResult
 from app.services.ingestion_service import IngestionService
+from app.services.storage_keys import object_key
 
 router = APIRouter(prefix="/documents", tags=["documents"])
 
@@ -65,6 +67,7 @@ async def upload_document(
     object_storage: ObjectStorage = Depends(storage),
     queue: TaskQueue = Depends(task_queue),
     limiter: RateLimiter = Depends(get_rate_limiter),
+    user: User = Depends(get_current_user),
 ) -> IngestAcceptedResponse:
     """Accept a file for ingestion: store it, dedup, and enqueue a job.
 
@@ -82,8 +85,8 @@ async def upload_document(
         data=data,
         filename=file.filename or "upload.bin",
         content_type=file.content_type,
-        org_id=settings.DEFAULT_ORG_ID,
-        owner_id=settings.DEFAULT_ORG_ID,
+        org_id=user.org_id,
+        owner_id=user.id,
     )
     return IngestAcceptedResponse(
         document=_doc_out(result.document),
@@ -99,6 +102,7 @@ async def bulk_upload(
     object_storage: ObjectStorage = Depends(storage),
     queue: TaskQueue = Depends(task_queue),
     limiter: RateLimiter = Depends(get_rate_limiter),
+    user: User = Depends(get_current_user),
 ) -> BulkIngestResponse:
     """Accept a ZIP of documents and enqueue an ingestion job for each entry."""
     raw = await file.read()
@@ -132,8 +136,8 @@ async def bulk_upload(
             data=payload,
             filename=info.filename,
             content_type=None,
-            org_id=settings.DEFAULT_ORG_ID,
-            owner_id=settings.DEFAULT_ORG_ID,
+            org_id=user.org_id,
+            owner_id=user.id,
         )
         accepted += 1
         items.append(
@@ -154,10 +158,11 @@ async def search_documents(
     top_k: int = 5,
     document_embedder: Embedder = Depends(embedder),
     store: VectorStore = Depends(vector_store),
+    user: User = Depends(get_current_user),
 ) -> SearchResponse:
     """Raw dense similarity search over indexed chunks (Phase 3)."""
     ingestion = IngestionService(embedder=document_embedder, vector_store=store)
-    hits = await ingestion.search(q, namespace=settings.DEFAULT_ORG_ID, top_k=top_k)
+    hits = await ingestion.search(q, namespace=user.org_id, top_k=top_k)
     return SearchResponse(
         query=q,
         hits=[
@@ -175,14 +180,51 @@ async def search_documents(
 
 
 @router.get("", response_model=list[DocumentOut])
-async def list_documents(db: Session = Depends(get_db)) -> list[DocumentOut]:
-    stmt = select(Document).where(Document.org_id == settings.DEFAULT_ORG_ID)
+async def list_documents(
+    db: Session = Depends(get_db), user: User = Depends(get_current_user)
+) -> list[DocumentOut]:
+    stmt = (
+        select(Document)
+        .where(Document.org_id == user.org_id)
+        .order_by(Document.created_at.desc())
+    )
     return [_doc_out(d) for d in db.execute(stmt).scalars().all()]
 
 
-@router.get("/{document_id}", response_model=DocumentOut)
-async def get_document(document_id: str, db: Session = Depends(get_db)) -> DocumentOut:
+def _owned_document(document_id: str, db: Session, user: User) -> Document:
     document = db.get(Document, document_id)
-    if document is None:
+    if document is None or document.org_id != user.org_id:
         raise HTTPException(status_code=404, detail="Document not found")
-    return _doc_out(document)
+    return document
+
+
+@router.get("/{document_id}", response_model=DocumentOut)
+async def get_document(
+    document_id: str,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+) -> DocumentOut:
+    return _doc_out(_owned_document(document_id, db, user))
+
+
+@router.delete("/{document_id}", status_code=204)
+async def delete_document(
+    document_id: str,
+    db: Session = Depends(get_db),
+    object_storage: ObjectStorage = Depends(storage),
+    store: VectorStore = Depends(vector_store),
+    user: User = Depends(get_current_user),
+) -> None:
+    """Delete a document, its chunk metadata, and its vectors."""
+    document = _owned_document(document_id, db, user)
+    vector_ids = [c.vector_id for c in document.chunks]
+    if vector_ids:
+        await store.delete(vector_ids, namespace=document.org_id)
+    try:
+        await object_storage.delete(
+            object_key(document.org_id, document.checksum, document.filename)
+        )
+    except Exception:  # noqa: BLE001 - best-effort blob cleanup
+        pass
+    db.delete(document)  # cascades to chunks_meta + ingestion_jobs
+    db.commit()

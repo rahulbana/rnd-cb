@@ -128,8 +128,28 @@ Grounded, cited, streamed answers from any of four LLM backends interchangeably.
 (`LLM_PROVIDER`) selects Ollama / OpenAI / Anthropic / Gemini at an identical
 call site — `backend/tests/test_chat_swap.py`, `backend/tests/test_llm_providers.py`.
 
-Later phases (8–10) add auth + the enterprise frontend, admin/analytics/eval,
-and cloud deployment. See the build plan for details.
+### Phase 8 — Auth, API hardening & enterprise frontend core ✅
+
+Turn the API into something a real user logs into, and ship the first working
+slice of the enterprise React app.
+
+| Deliverable | Where |
+|---|---|
+| JWT auth (register/login/refresh), Argon2id, API-key auth | `backend/app/core/security.py`, `backend/app/api/v1/routes/auth.py` |
+| RBAC (admin/user), login rate limiting, ownership checks | `backend/app/api/v1/deps_auth.py` |
+| org_id/owner_id enforced on every data route | documents / jobs / retrieve / chat |
+| React + TS + Vite + Tailwind, React Query + Zustand | `frontend/src/` |
+| Auth flow (login/register, JWT storage + refresh, protected routing) | `frontend/src/features/auth/`, `frontend/src/store/auth.ts` |
+| Chat UI (streaming + inline citations), conversation sidebar | `frontend/src/features/chat/` |
+| Document manager (upload with live progress, list, delete, status) | `frontend/src/features/documents/` |
+
+**Exit (proven via API-level journey test):** a user registers, logs in, bulk-
+uploads a mixed batch, watches ingestion reach completion, and holds a streamed,
+cited conversation — `backend/tests/test_user_journey.py`. The frontend
+typechecks and builds (`npm run build`).
+
+Later phases (9–10) add admin/analytics/observability/eval and cloud
+deployment. See the build plan for details.
 
 ## Layout
 
