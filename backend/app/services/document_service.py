@@ -1,11 +1,10 @@
-"""Document upload orchestration (Phase 2, synchronous path).
+"""Document upload orchestration (Phase 4, async path).
 
-Store the raw file, dedup by checksum, persist metadata, and parse into the
-canonical ``ParsedDocument`` shape. Depends only on the ObjectStorage and
-Parser ports plus a DB session -- never a concrete provider.
+Store the raw file, dedup by checksum, create the document + ingestion job, and
+enqueue the job. Parsing/chunking/embedding/indexing run off the request thread
+in the ingestion job runner (Celery worker, or inline for dev/tests).
 
-Async ingestion (off the request thread) arrives in Phase 4; chunking,
-embedding and indexing in Phase 3. Here the parse runs inline.
+Depends only on the ObjectStorage and TaskQueue ports plus a DB session.
 """
 
 from __future__ import annotations
@@ -19,10 +18,9 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.core.logging import get_logger
-from app.db.models import ChunkMeta, Document
-from app.domain.interfaces import ObjectStorage, Parser
-from app.domain.models import ParsedDocument
-from app.services.ingestion_service import IngestionService
+from app.db.models import Document, IngestionJob
+from app.domain.interfaces import ObjectStorage, TaskQueue
+from app.services.storage_keys import object_key
 
 logger = get_logger("service.document")
 
@@ -54,24 +52,18 @@ def guess_mime_type(filename: str, provided: str | None) -> str:
 @dataclass
 class UploadResult:
     document: Document
-    parsed: ParsedDocument | None
+    job: IngestionJob | None
     deduped: bool
-    chunk_count: int = 0
 
 
 class DocumentService:
-    """Upload, parse, and index a document synchronously (Phases 2-3)."""
+    """Upload a document and enqueue its ingestion job."""
 
     def __init__(
-        self,
-        storage: ObjectStorage,
-        parser: Parser,
-        ingestion: IngestionService,
-        db: Session,
+        self, storage: ObjectStorage, task_queue: TaskQueue, db: Session
     ) -> None:
         self._storage = storage
-        self._parser = parser
-        self._ingestion = ingestion
+        self._task_queue = task_queue
         self._db = db
 
     def _find_existing(self, org_id: str, checksum: str) -> Document | None:
@@ -100,10 +92,9 @@ class DocumentService:
                 checksum=checksum,
                 filename=filename,
             )
-            return UploadResult(document=existing, parsed=None, deduped=True)
+            return UploadResult(document=existing, job=None, deduped=True)
 
-        suffix = Path(filename).suffix
-        key = f"{org_id}/{checksum}{suffix}"
+        key = object_key(org_id, checksum, filename)
         storage_uri = await self._storage.put(key, data, content_type=mime_type)
 
         document = Document(
@@ -113,46 +104,36 @@ class DocumentService:
             mime_type=mime_type,
             checksum=checksum,
             storage_uri=storage_uri,
-            status="uploaded",
+            status="pending",
         )
         self._db.add(document)
         self._db.commit()
         self._db.refresh(document)
 
-        parsed = await self._parser.parse(data, filename=filename, mime_type=mime_type)
-        document.status = "parsed"
-        self._db.commit()
-
-        # Chunk -> embed -> index within the org namespace, then persist the
-        # citation metadata for each chunk (vectors live in the vector store).
-        chunks = await self._ingestion.index(
-            parsed, document_id=document.id, namespace=org_id
+        job = IngestionJob(
+            document_id=document.id,
+            stage="parsing",
+            status="queued",
+            progress=0,
         )
-        for chunk in chunks:
-            self._db.add(
-                ChunkMeta(
-                    document_id=document.id,
-                    page=chunk.metadata.page,
-                    heading_path=chunk.metadata.heading_path,
-                    vector_id=chunk.id,
-                )
-            )
-        document.status = "indexed"
+        self._db.add(job)
         self._db.commit()
+        self._db.refresh(job)
+
+        # Enqueue off-thread ingestion. Inline queue completes it before this
+        # returns; Celery returns immediately and the worker processes it.
+        await self._task_queue.enqueue(
+            "ingest_document", document_id=document.id, job_id=job.id
+        )
+
+        # Reflect any status the (inline) run already advanced.
         self._db.refresh(document)
+        self._db.refresh(job)
 
         logger.info(
-            "upload_indexed",
+            "upload_enqueued",
             document_id=document.id,
+            job_id=job.id,
             mime_type=mime_type,
-            parser=parsed.parser_name,
-            used_fallback=parsed.used_fallback,
-            blocks=len(parsed.text_blocks),
-            chunks=len(chunks),
         )
-        return UploadResult(
-            document=document,
-            parsed=parsed,
-            deduped=False,
-            chunk_count=len(chunks),
-        )
+        return UploadResult(document=document, job=job, deduped=False)

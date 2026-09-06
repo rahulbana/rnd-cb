@@ -4,8 +4,6 @@ from __future__ import annotations
 
 from pydantic import BaseModel
 
-from app.domain.models import ParsedDocument
-
 
 class DocumentOut(BaseModel):
     """Public view of a persisted document row."""
@@ -20,13 +18,41 @@ class DocumentOut(BaseModel):
     status: str
 
 
-class UploadResponse(BaseModel):
-    """Result of a synchronous upload + parse + index (Phases 2-3)."""
+class JobOut(BaseModel):
+    """Ingestion job status -- observable mid-flight."""
+
+    id: str
+    document_id: str
+    stage: str
+    progress: int
+    status: str
+    error: str | None = None
+    retries: int = 0
+
+
+class IngestAcceptedResponse(BaseModel):
+    """Result of an async upload: the job is accepted and enqueued."""
 
     document: DocumentOut
+    job: JobOut | None = None
     deduped: bool
-    chunk_count: int = 0
-    parsed: ParsedDocument | None = None
+
+
+class BulkItem(BaseModel):
+    """One entry's outcome within a bulk (zip) upload."""
+
+    filename: str
+    document: DocumentOut | None = None
+    job: JobOut | None = None
+    deduped: bool = False
+    error: str | None = None
+
+
+class BulkIngestResponse(BaseModel):
+    """Result of a bulk (zip) upload."""
+
+    accepted: int
+    items: list[BulkItem]
 
 
 class SearchHit(BaseModel):

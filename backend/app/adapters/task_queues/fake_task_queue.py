@@ -21,10 +21,15 @@ class FakeTaskQueue:
     def from_settings(cls, settings: Settings) -> FakeTaskQueue:
         return cls()
 
-    def enqueue(self, task_name: str, *args: Any, **kwargs: Any) -> str:
-        job_id = str(uuid.uuid4())
+    async def enqueue(self, task_name: str, *args: Any, **kwargs: Any) -> str:
+        job_id = kwargs.get("job_id") or str(uuid.uuid4())
         self._jobs[job_id] = {"task": task_name, "args": args, "kwargs": kwargs}
         return job_id
+
+    @property
+    def jobs(self) -> dict[str, dict[str, Any]]:
+        """Recorded (but not executed) jobs -- inspected by tests."""
+        return self._jobs
 
     def get_status(self, job_id: str) -> str:
         return "queued" if job_id in self._jobs else "unknown"

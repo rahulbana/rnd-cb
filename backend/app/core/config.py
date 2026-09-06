@@ -51,7 +51,8 @@ class Settings(BaseSettings):
     PARSER_STRATEGY: str = Field(default="router")
     CHUNKER_STRATEGY: str = Field(default="structure_aware")
     STORAGE_PROVIDER: str = Field(default="fake")
-    TASK_QUEUE_PROVIDER: str = Field(default="fake")
+    # celery (broker/worker) | inline (in-process, no Redis) | fake
+    TASK_QUEUE_PROVIDER: str = Field(default="celery")
 
     # Parser fallback chain (priority order), used when PARSER_STRATEGY=router.
     # Lightweight, fully-local parsers first; heavy ones (Docling/Unstructured)
@@ -83,6 +84,14 @@ class Settings(BaseSettings):
     # http (compose/prod) | ephemeral (in-memory) | persistent (local dir)
     CHROMA_MODE: str = "http"
     CHROMA_PERSIST_DIR: str = "./data/chroma"
+
+    # --- Async ingestion (Phase 4) ---
+    INGEST_MAX_ATTEMPTS: int = 3
+    INGEST_BACKOFF_BASE: float = 0.5  # seconds; doubles each retry
+    MAX_BULK_DOCS: int = 200  # max entries accepted from one bulk (zip) upload
+    # Simple in-process ingestion rate limit: max enqueues per window.
+    INGEST_RATE_LIMIT: int = 100
+    INGEST_RATE_WINDOW_SECONDS: float = 60.0
 
 
 @lru_cache

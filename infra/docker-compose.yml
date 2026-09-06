@@ -50,8 +50,13 @@ services:
       REDIS_URL: redis://redis:6379/0
       CHROMA_HOST: chroma
       CHROMA_PORT: "8000"
+      STORAGE_PROVIDER: local_disk
+      LOCAL_STORAGE_DIR: /data/objects
     ports:
       - "8080:8080"
+    volumes:
+      # Shared with the worker so it can read files the API stored.
+      - objectdata:/data/objects
     depends_on:
       postgres:
         condition: service_healthy
@@ -71,12 +76,19 @@ services:
       REDIS_URL: redis://redis:6379/0
       CHROMA_HOST: chroma
       CHROMA_PORT: "8000"
+      STORAGE_PROVIDER: local_disk
+      LOCAL_STORAGE_DIR: /data/objects
+    volumes:
+      - objectdata:/data/objects
     depends_on:
       postgres:
         condition: service_healthy
       redis:
         condition: service_healthy
+      chroma:
+        condition: service_started
 
 volumes:
   pgdata:
   chromadata:
+  objectdata:

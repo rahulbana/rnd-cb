@@ -41,7 +41,7 @@ from app.adapters.parsers import (
 from app.adapters.rerankers import FakeReranker
 from app.adapters.retrievers import FakeRetriever
 from app.adapters.storage import FakeObjectStorage, LocalDiskStorage
-from app.adapters.task_queues import FakeTaskQueue
+from app.adapters.task_queues import CeleryTaskQueue, FakeTaskQueue, InlineTaskQueue
 from app.adapters.vector_stores import (
     ChromaVectorStore,
     FakeVectorStore,
@@ -112,6 +112,8 @@ _STORAGE_REGISTRY: dict[str, type[ObjectStorage]] = {
 
 _TASK_QUEUE_REGISTRY: dict[str, type[TaskQueue]] = {
     "fake": FakeTaskQueue,
+    "inline": InlineTaskQueue,
+    "celery": CeleryTaskQueue,
 }
 
 

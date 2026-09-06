@@ -23,8 +23,12 @@ class TaskQueue(Protocol):
         """Construct the adapter from application settings."""
         ...
 
-    def enqueue(self, task_name: str, *args: Any, **kwargs: Any) -> str:
-        """Enqueue a task and return its job id."""
+    async def enqueue(self, task_name: str, *args: Any, **kwargs: Any) -> str:
+        """Schedule a task and return its job id.
+
+        Async so an in-process (inline) adapter can await the work while a real
+        broker adapter (Celery) returns as soon as the job is queued.
+        """
         ...
 
     def get_status(self, job_id: str) -> str:

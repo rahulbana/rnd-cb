@@ -59,9 +59,27 @@ similarity search; switching `VECTOR_STORE_PROVIDER` chroma ↔ pgvector is zero
 code change — `backend/tests/test_vector_store_swap.py`,
 `backend/tests/test_ingestion.py`.
 
-Later phases (4–10) add async ingestion, hybrid retrieval, reranking, LLM
-generation, auth + the enterprise frontend, admin/analytics/eval, and cloud
-deployment. See the build plan for details.
+### Phase 4 — Async ingestion architecture ✅
+
+Ingestion runs off the request thread: durable, resumable, observable, retriable.
+
+| Deliverable | Where |
+|---|---|
+| Celery + Redis broker/backend, separate worker container | `backend/app/workers/`, `infra/docker-compose.yml` |
+| Upload returns `job_id`; status + SSE progress | `POST /api/v1/documents` (202), `GET /api/v1/jobs/{id}[/stream]` |
+| Per-stage progress (parsing/chunking/embedding/indexing) | `backend/app/workers/ingest_runner.py` |
+| Retry w/ backoff, dead-letter, idempotent re-runs | `IngestionJobRunner` |
+| Bulk upload (zip) + ingestion rate limiting | `POST /api/v1/documents/bulk`, `backend/app/core/ratelimit.py` |
+| TaskQueue port (celery / inline / fake adapters) | `backend/app/adapters/task_queues/` |
+
+**Exit (proven):** 50 mixed-format documents upload concurrently without
+blocking the API, then all process to completion; an induced worker failure
+retries and recovers (and a permanent one dead-letters) —
+`backend/tests/test_jobs_api.py`, `backend/tests/test_ingest_runner.py`.
+
+Later phases (5–10) add hybrid retrieval, reranking, LLM generation, auth + the
+enterprise frontend, admin/analytics/eval, and cloud deployment. See the build
+plan for details.
 
 ## Layout
 

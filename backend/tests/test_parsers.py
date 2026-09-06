@@ -80,3 +80,25 @@ def test_supports_mime_routing():
     assert not PlainTextParser().supports("application/pdf")
     assert PyMuPDFParser().supports("application/pdf")
     assert TesseractImageParser().supports("image/png")
+
+
+@pytest.mark.asyncio
+async def test_all_formats_return_same_canonical_shape():
+    """Every parser returns the identical ParsedDocument top-level shape."""
+    md = await PlainTextParser().parse(
+        fixtures.make_markdown(), filename="a.md", mime_type="text/markdown"
+    )
+    pdf = await PyMuPDFParser().parse(
+        fixtures.make_pdf(), filename="a.pdf", mime_type="application/pdf"
+    )
+    docx = await DocxParser().parse(
+        fixtures.make_docx(),
+        filename="a.docx",
+        mime_type=(
+            "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+        ),
+    )
+    keys = set(md.model_dump())
+    assert set(pdf.model_dump()) == keys
+    assert set(docx.model_dump()) == keys
+    assert all(p.text_blocks for p in (md, pdf, docx))
