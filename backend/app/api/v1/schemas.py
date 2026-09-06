@@ -71,3 +71,30 @@ class SearchResponse(BaseModel):
 
     query: str
     hits: list[SearchHit]
+
+
+class RetrieveHit(BaseModel):
+    """One retrieval result, tagged with which retriever surfaced it."""
+
+    chunk_id: str
+    document_id: str
+    text: str
+    score: float
+    source: str
+    page: int | None = None
+    heading_path: str | None = None
+
+
+class RetrieveFilters(BaseModel):
+    year: int | None = None
+    doc_type: str | None = None
+
+
+class RetrieveResponse(BaseModel):
+    """Standalone retrieval results (retrieval independent of generation)."""
+
+    query: str
+    strategy: str
+    filters: RetrieveFilters
+    scoped_document_count: int | None = None
+    hits: list[RetrieveHit]

@@ -47,7 +47,7 @@ class Settings(BaseSettings):
     EMBEDDER_PROVIDER: str = Field(default="sentence_transformers")
     VECTOR_STORE_PROVIDER: str = Field(default="chroma")
     RERANKER_PROVIDER: str = Field(default="fake")
-    RETRIEVER_STRATEGY: str = Field(default="fake")
+    RETRIEVER_STRATEGY: str = Field(default="hybrid")
     PARSER_STRATEGY: str = Field(default="router")
     CHUNKER_STRATEGY: str = Field(default="structure_aware")
     STORAGE_PROVIDER: str = Field(default="fake")
@@ -84,6 +84,10 @@ class Settings(BaseSettings):
     # http (compose/prod) | ephemeral (in-memory) | persistent (local dir)
     CHROMA_MODE: str = "http"
     CHROMA_PERSIST_DIR: str = "./data/chroma"
+
+    # --- Retrieval (Phase 5) ---
+    RRF_K: int = 60  # Reciprocal Rank Fusion damping constant
+    RETRIEVE_TOP_K: int = 5
 
     # --- Async ingestion (Phase 4) ---
     INGEST_MAX_ATTEMPTS: int = 3

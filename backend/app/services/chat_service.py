@@ -19,7 +19,7 @@ class ChatService:
         self._retrieval = retrieval
 
     async def answer(self, question: str, *, namespace: str) -> LLMResponse:
-        context = await self._retrieval.search(question, namespace=namespace)
+        context, _plan = await self._retrieval.retrieve(question, namespace=namespace)
         context_text = "\n\n".join(rc.chunk.text for rc in context)
         messages = [
             ChatMessage(

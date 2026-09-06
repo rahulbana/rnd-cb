@@ -123,6 +123,7 @@ class IngestionJobRunner:
                     page=chunk.metadata.page,
                     heading_path=chunk.metadata.heading_path,
                     vector_id=chunk.id,
+                    text=chunk.text,
                 )
             )
 

@@ -1,8 +1,4 @@
-"""In-memory fake retriever -- embeds the query and searches the fake store.
-
-Wires the embedder and vector-store ports together to return candidates.
-The real dense/sparse/hybrid strategies live alongside this from Phase 5.
-"""
+"""Dense retriever -- embed the query and search the vector store."""
 
 from __future__ import annotations
 
@@ -15,18 +11,17 @@ if TYPE_CHECKING:
     from app.domain.interfaces import Embedder, VectorStore
 
 
-class FakeRetriever:
-    """Dense-only retriever over the injected embedder + vector store."""
+class DenseRetriever:
+    """Semantic retrieval over the injected embedder + vector store."""
 
-    name = "fake"
+    name = "dense"
 
     def __init__(self, embedder: Embedder, vector_store: VectorStore) -> None:
         self._embedder = embedder
         self._vector_store = vector_store
 
     @classmethod
-    def from_settings(cls, settings: Settings) -> FakeRetriever:
-        # Import here to avoid a circular import with the registry.
+    def from_settings(cls, settings: Settings) -> DenseRetriever:
         from app.core.registry import get_embedder, get_vector_store
 
         return cls(get_embedder(), get_vector_store())
@@ -40,10 +35,14 @@ class FakeRetriever:
         document_ids: list[str] | None = None,
     ) -> list[RetrievedChunk]:
         vector = await self._embedder.embed_query(query)
+        # Over-fetch when scoping so the post-filter still returns ~top_k.
+        fetch_k = top_k * 4 if document_ids else top_k
         results = await self._vector_store.search(
-            vector, namespace=namespace, top_k=top_k
+            vector, namespace=namespace, top_k=fetch_k
         )
         if document_ids is not None:
             allowed = set(document_ids)
             results = [r for r in results if r.chunk.metadata.document_id in allowed]
-        return results
+        for r in results:
+            r.source = "dense"
+        return results[:top_k]

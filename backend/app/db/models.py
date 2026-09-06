@@ -126,6 +126,8 @@ class ChunkMeta(Base, TimestampMixin):
     heading_path: Mapped[str | None] = mapped_column(String(1024), nullable=True)
     # vector lives in the vector store; Postgres keeps citation metadata
     vector_id: Mapped[str] = mapped_column(String(128), nullable=False, index=True)
+    # chunk text kept in Postgres to power lexical/BM25 sparse retrieval (Phase 5)
+    text: Mapped[str] = mapped_column(Text, nullable=False, server_default="")
 
     document: Mapped[Document] = relationship(back_populates="chunks")
 

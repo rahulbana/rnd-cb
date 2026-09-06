@@ -39,7 +39,12 @@ from app.adapters.parsers import (
     UnstructuredParser,
 )
 from app.adapters.rerankers import FakeReranker
-from app.adapters.retrievers import FakeRetriever
+from app.adapters.retrievers import (
+    DenseRetriever,
+    FakeRetriever,
+    HybridRetriever,
+    SparseRetriever,
+)
 from app.adapters.storage import FakeObjectStorage, LocalDiskStorage
 from app.adapters.task_queues import CeleryTaskQueue, FakeTaskQueue, InlineTaskQueue
 from app.adapters.vector_stores import (
@@ -85,6 +90,9 @@ _RERANKER_REGISTRY: dict[str, type[Reranker]] = {
 
 _RETRIEVER_REGISTRY: dict[str, type[Retriever]] = {
     "fake": FakeRetriever,
+    "dense": DenseRetriever,
+    "sparse": SparseRetriever,
+    "hybrid": HybridRetriever,
 }
 
 _PARSER_REGISTRY: dict[str, type[Parser]] = {
@@ -161,6 +169,12 @@ def get_retriever() -> Retriever:
 
 
 @lru_cache
+def get_retriever_by_name(name: str) -> Retriever:
+    """Resolve a specific retriever strategy by name (for /retrieve overrides)."""
+    return _resolve(_RETRIEVER_REGISTRY, name, "retriever", settings)
+
+
+@lru_cache
 def get_parser() -> Parser:
     return _resolve(_PARSER_REGISTRY, settings.PARSER_STRATEGY, "parser", settings)
 
@@ -216,6 +230,7 @@ def clear_registry_caches() -> None:
         get_vector_store,
         get_reranker,
         get_retriever,
+        get_retriever_by_name,
         get_parser,
         get_chunker,
         get_storage,

@@ -22,7 +22,16 @@ class Retriever(Protocol):
         ...
 
     async def retrieve(
-        self, query: str, *, namespace: str, top_k: int = 10
+        self,
+        query: str,
+        *,
+        namespace: str,
+        top_k: int = 10,
+        document_ids: list[str] | None = None,
     ) -> list[RetrievedChunk]:
-        """Return candidate chunks for a query within a namespace."""
+        """Return candidate chunks for a query within a namespace.
+
+        ``document_ids``, when given, scopes retrieval to those documents
+        (per-document / per-collection scoping).
+        """
         ...

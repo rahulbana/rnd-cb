@@ -77,9 +77,26 @@ blocking the API, then all process to completion; an induced worker failure
 retries and recovers (and a permanent one dead-letters) —
 `backend/tests/test_jobs_api.py`, `backend/tests/test_ingest_runner.py`.
 
-Later phases (5–10) add hybrid retrieval, reranking, LLM generation, auth + the
-enterprise frontend, admin/analytics/eval, and cloud deployment. See the build
-plan for details.
+### Phase 5 — Hybrid retrieval & query understanding ✅
+
+Retrieve independent of generation, combining dense and lexical search so
+quality can be measured on its own.
+
+| Deliverable | Where |
+|---|---|
+| Dense / sparse (BM25) / hybrid (RRF) retrievers | `backend/app/adapters/retrievers/` |
+| Query preprocessing: rewriting + metadata-filter extraction (year, doc type) | `backend/app/services/query_understanding.py` |
+| Per-document / per-collection retrieval scoping | `Retriever.retrieve(document_ids=…)` |
+| Standalone `/retrieve` endpoint (no generation) | `POST /api/v1/retrieve` |
+| Retrieval eval harness (recall@k, MRR) | `backend/app/evaluation/retrieval_eval.py` |
+
+**Exit (measured, logged):** on a 12-doc corpus with a 5-query labeled set,
+hybrid retrieval beats the dense-only baseline (recall@3 **1.0** vs **0.2**) —
+`backend/tests/test_retrieval_eval.py`.
+
+Later phases (6–10) add reranking + context assembly, LLM generation, auth +
+the enterprise frontend, admin/analytics/eval, and cloud deployment. See the
+build plan for details.
 
 ## Layout
 
