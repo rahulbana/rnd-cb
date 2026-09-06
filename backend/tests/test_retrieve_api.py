@@ -34,6 +34,24 @@ def test_retrieve_invalid_strategy_400(upload_client):
     assert resp.status_code == 400
 
 
+def test_retrieve_with_rerank(upload_client):
+    _upload(
+        upload_client,
+        "a.md",
+        fixtures.make_markdown(body="quarterly revenue grew twenty percent"),
+        "text/markdown",
+    )
+    resp = upload_client.post(
+        "/api/v1/retrieve",
+        params={"q": "quarterly revenue", "top_k": 3, "rerank": "true"},
+    )
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["strategy"] == "hybrid+fake"
+    assert body["hits"]
+    assert body["hits"][0]["source"] == "reranker"
+
+
 def test_retrieve_reflects_extracted_filters(upload_client):
     resp = upload_client.post(
         "/api/v1/retrieve", params={"q": "the pdf about revenue from 2023"}

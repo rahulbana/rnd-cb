@@ -10,9 +10,13 @@ from __future__ import annotations
 
 from collections.abc import Sequence
 from dataclasses import dataclass
+from typing import TYPE_CHECKING
 
 from app.core.logging import get_logger
 from app.domain.interfaces import Retriever
+
+if TYPE_CHECKING:
+    from app.domain.interfaces import Reranker
 
 logger = get_logger("eval.retrieval")
 
@@ -24,6 +28,7 @@ LabeledQuery = tuple[str, set[str]]
 class RetrievalMetrics:
     strategy: str
     recall_at_k: float
+    precision_at_k: float
     mrr: float
     k: int
 
@@ -34,17 +39,33 @@ async def evaluate_retriever(
     *,
     namespace: str,
     k: int = 5,
+    reranker: Reranker | None = None,
+    fetch_k: int | None = None,
 ) -> RetrievalMetrics:
-    """Compute mean recall@k and MRR for ``retriever`` over ``labeled``."""
-    recall_sum = 0.0
-    rr_sum = 0.0
-    for query, relevant in labeled:
-        hits = await retriever.retrieve(query, namespace=namespace, top_k=k)
-        retrieved = [h.chunk.metadata.document_id for h in hits][:k]
+    """Compute mean recall@k, precision@k and MRR over ``labeled``.
 
+    When ``reranker`` is given, ``fetch_k`` candidates are retrieved and reranked
+    down to ``k`` -- so a reranked pipeline can be compared to the raw retriever.
+    """
+    recall_sum = 0.0
+    precision_sum = 0.0
+    rr_sum = 0.0
+    strategy = retriever.name
+
+    for query, relevant in labeled:
+        candidates = await retriever.retrieve(
+            query, namespace=namespace, top_k=fetch_k or k
+        )
+        if reranker is not None:
+            candidates = await reranker.rerank(query, candidates, top_k=k)
+            strategy = f"{retriever.name}+{reranker.name}"
+
+        retrieved = [h.chunk.metadata.document_id for h in candidates][:k]
+
+        relevant_found = [d for d in retrieved if d in relevant]
         if relevant:
-            found = relevant & set(retrieved)
-            recall_sum += len(found) / len(relevant)
+            recall_sum += len(set(relevant_found)) / len(relevant)
+        precision_sum += len(relevant_found) / k
 
         for rank, doc_id in enumerate(retrieved, start=1):
             if doc_id in relevant:
@@ -53,8 +74,9 @@ async def evaluate_retriever(
 
     n = max(len(labeled), 1)
     metrics = RetrievalMetrics(
-        strategy=retriever.name,
+        strategy=strategy,
         recall_at_k=recall_sum / n,
+        precision_at_k=precision_sum / n,
         mrr=rr_sum / n,
         k=k,
     )
@@ -62,6 +84,7 @@ async def evaluate_retriever(
         "retrieval_eval",
         strategy=metrics.strategy,
         recall_at_k=round(metrics.recall_at_k, 4),
+        precision_at_k=round(metrics.precision_at_k, 4),
         mrr=round(metrics.mrr, 4),
         k=k,
         queries=len(labeled),

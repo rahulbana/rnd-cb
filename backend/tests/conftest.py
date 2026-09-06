@@ -54,6 +54,7 @@ def async_env(tmp_path, monkeypatch) -> Callable[..., TestClient]:
         monkeypatch.setattr(settings, "LOCAL_STORAGE_DIR", str(tmp_path / "objects"))
         monkeypatch.setattr(settings, "EMBEDDER_PROVIDER", "fake")
         monkeypatch.setattr(settings, "VECTOR_STORE_PROVIDER", "fake")
+        monkeypatch.setattr(settings, "RERANKER_PROVIDER", "fake")
         monkeypatch.setattr(settings, "CHUNKER_STRATEGY", "structure_aware")
         monkeypatch.setattr(settings, "PARSER_STRATEGY", "router")
         monkeypatch.setattr(settings, "TASK_QUEUE_PROVIDER", task_queue)

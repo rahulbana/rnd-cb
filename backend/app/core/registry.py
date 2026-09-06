@@ -38,7 +38,12 @@ from app.adapters.parsers import (
     TesseractImageParser,
     UnstructuredParser,
 )
-from app.adapters.rerankers import FakeReranker
+from app.adapters.rerankers import (
+    CohereReranker,
+    CrossEncoderReranker,
+    FakeReranker,
+    LLMReranker,
+)
 from app.adapters.retrievers import (
     DenseRetriever,
     FakeRetriever,
@@ -86,6 +91,9 @@ _VECTOR_STORE_REGISTRY: dict[str, type[VectorStore]] = {
 
 _RERANKER_REGISTRY: dict[str, type[Reranker]] = {
     "fake": FakeReranker,
+    "cross_encoder": CrossEncoderReranker,
+    "cohere": CohereReranker,
+    "llm": LLMReranker,
 }
 
 _RETRIEVER_REGISTRY: dict[str, type[Retriever]] = {

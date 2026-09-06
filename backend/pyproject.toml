@@ -48,6 +48,11 @@ ml = [
 openai = [
     "openai>=1.40",
 ]
+# Cohere rerank adapter (opt-in). The default cross-encoder reranker uses
+# sentence-transformers from the `ml` extra.
+cohere = [
+    "cohere>=5.0",
+]
 
 [build-system]
 requires = ["setuptools>=68"]

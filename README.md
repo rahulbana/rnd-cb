@@ -94,9 +94,25 @@ quality can be measured on its own.
 hybrid retrieval beats the dense-only baseline (recall@3 **1.0** vs **0.2**) —
 `backend/tests/test_retrieval_eval.py`.
 
-Later phases (6–10) add reranking + context assembly, LLM generation, auth +
-the enterprise frontend, admin/analytics/eval, and cloud deployment. See the
-build plan for details.
+### Phase 6 — Reranking & context assembly ✅
+
+Push the truly relevant chunks to the top and pack them into a token-budgeted,
+citation-tagged context.
+
+| Deliverable | Where |
+|---|---|
+| Rerankers: cross-encoder (default), Cohere, LLM-as-reranker | `backend/app/adapters/rerankers/` |
+| MMR diversity pass + near-duplicate dedup | `backend/app/services/context_assembly.py` |
+| Token-budget-aware context packing (injected tokenizer) | `ContextAssembler` |
+| Citation tagging (chunk → document + page) | `ContextAssembler` |
+| Optional contextual compression | `ContextAssembler(compress=True)` |
+
+**Exit (measured, logged):** reranking an over-fetched hybrid candidate set
+lifts precision@1 from **0.8** (Phase 5 baseline) to **1.0** on the labeled set
+— `backend/tests/test_rerank_eval.py`.
+
+Later phases (7–10) add LLM generation, auth + the enterprise frontend,
+admin/analytics/eval, and cloud deployment. See the build plan for details.
 
 ## Layout
 

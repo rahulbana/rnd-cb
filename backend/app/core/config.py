@@ -46,7 +46,7 @@ class Settings(BaseSettings):
     LLM_PROVIDER: str = Field(default="fake")
     EMBEDDER_PROVIDER: str = Field(default="sentence_transformers")
     VECTOR_STORE_PROVIDER: str = Field(default="chroma")
-    RERANKER_PROVIDER: str = Field(default="fake")
+    RERANKER_PROVIDER: str = Field(default="cross_encoder")
     RETRIEVER_STRATEGY: str = Field(default="hybrid")
     PARSER_STRATEGY: str = Field(default="router")
     CHUNKER_STRATEGY: str = Field(default="structure_aware")
@@ -88,6 +88,14 @@ class Settings(BaseSettings):
     # --- Retrieval (Phase 5) ---
     RRF_K: int = 60  # Reciprocal Rank Fusion damping constant
     RETRIEVE_TOP_K: int = 5
+
+    # --- Reranking & context assembly (Phase 6) ---
+    RERANK_MODEL: str = "cross-encoder/ms-marco-MiniLM-L-6-v2"
+    COHERE_RERANK_MODEL: str = "rerank-english-v3.0"
+    RERANK_FETCH_K: int = 20  # candidates fetched before reranking to top_k
+    CONTEXT_TOKEN_BUDGET: int = 2000  # max tokens packed into assembled context
+    MMR_LAMBDA: float = 0.7  # relevance vs diversity in the MMR pass
+    DEDUP_JACCARD: float = 0.9  # near-duplicate chunk threshold
 
     # --- Async ingestion (Phase 4) ---
     INGEST_MAX_ATTEMPTS: int = 3
