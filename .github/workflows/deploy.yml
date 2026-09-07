@@ -1,0 +1,133 @@
+name: Deploy (Cloud Run)
+
+# Build -> push -> deploy on merge to the default branch. The RAG eval gate and
+# the backend test suite must pass before anything is pushed or deployed.
+#
+# Required setup (Workload Identity Federation -- no long-lived keys):
+#   secrets.GCP_PROJECT_ID            target project
+#   secrets.GCP_WORKLOAD_IDENTITY_PROVIDER  WIF provider resource name
+#   secrets.GCP_DEPLOY_SA             deployer service account email
+#   vars.GCP_REGION                   e.g. us-central1  (defaults below)
+#   vars.ARTIFACT_REPO                Artifact Registry repo id (default rag-platform)
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: "Target environment"
+        type: choice
+        options: [dev, prod]
+        default: dev
+
+concurrency:
+  group: deploy-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  REGION: ${{ vars.GCP_REGION || 'us-central1' }}
+  ARTIFACT_REPO: ${{ vars.ARTIFACT_REPO || 'rag-platform' }}
+
+jobs:
+  # ---- Gate: quality + eval must pass before we build or deploy. ----
+  gate:
+    name: Quality + eval gate
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install system deps (tesseract OCR)
+        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends tesseract-ocr
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e ".[dev]"
+      - name: Lint + types
+        run: |
+          ruff check .
+          ruff format --check .
+          mypy app
+      - name: Tests
+        run: pytest -q
+      - name: RAG eval gate
+        run: pytest -m eval -v
+
+  build-and-deploy:
+    name: Build, push & deploy
+    needs: gate
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write # Workload Identity Federation
+    environment: ${{ github.event.inputs.environment || 'dev' }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - id: auth
+        name: Authenticate to GCP
+        uses: google-github-actions/auth@v2
+        with:
+          project_id: ${{ secrets.GCP_PROJECT_ID }}
+          workload_identity_provider: ${{ secrets.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ secrets.GCP_DEPLOY_SA }}
+
+      - name: Set up gcloud
+        uses: google-github-actions/setup-gcloud@v2
+
+      - name: Configure Docker for Artifact Registry
+        run: gcloud auth configure-docker "${REGION}-docker.pkg.dev" --quiet
+
+      - name: Compute image refs
+        id: img
+        run: |
+          BASE="${REGION}-docker.pkg.dev/${{ secrets.GCP_PROJECT_ID }}/${ARTIFACT_REPO}"
+          echo "base=${BASE}" >> "$GITHUB_OUTPUT"
+          echo "tag=${GITHUB_SHA::12}" >> "$GITHUB_OUTPUT"
+
+      - name: Build & push API image
+        run: |
+          docker build -f backend/Dockerfile.api -t "${{ steps.img.outputs.base }}/api:${{ steps.img.outputs.tag }}" backend
+          docker push "${{ steps.img.outputs.base }}/api:${{ steps.img.outputs.tag }}"
+
+      - name: Build & push worker image
+        run: |
+          docker build -f backend/Dockerfile.worker -t "${{ steps.img.outputs.base }}/worker:${{ steps.img.outputs.tag }}" backend
+          docker push "${{ steps.img.outputs.base }}/worker:${{ steps.img.outputs.tag }}"
+
+      - name: Build & push frontend image
+        run: |
+          docker build -f frontend/Dockerfile -t "${{ steps.img.outputs.base }}/frontend:${{ steps.img.outputs.tag }}" frontend
+          docker push "${{ steps.img.outputs.base }}/frontend:${{ steps.img.outputs.tag }}"
+
+      - name: Deploy API (Cloud Run)
+        run: |
+          gcloud run deploy "rag-${{ github.event.inputs.environment || 'dev' }}-api" \
+            --image "${{ steps.img.outputs.base }}/api:${{ steps.img.outputs.tag }}" \
+            --region "${REGION}" --quiet
+      - name: Deploy worker (Cloud Run)
+        run: |
+          gcloud run deploy "rag-${{ github.event.inputs.environment || 'dev' }}-worker" \
+            --image "${{ steps.img.outputs.base }}/worker:${{ steps.img.outputs.tag }}" \
+            --region "${REGION}" --quiet
+      - name: Deploy frontend (Cloud Run)
+        run: |
+          gcloud run deploy "rag-${{ github.event.inputs.environment || 'dev' }}-frontend" \
+            --image "${{ steps.img.outputs.base }}/frontend:${{ steps.img.outputs.tag }}" \
+            --region "${REGION}" --quiet
+
+      - name: Smoke-test the API readiness probe
+        run: |
+          URL=$(gcloud run services describe "rag-${{ github.event.inputs.environment || 'dev' }}-api" \
+            --region "${REGION}" --format='value(status.url)')
+          for i in $(seq 1 10); do
+            if curl -fsS "${URL}/api/v1/health" >/dev/null; then echo "healthy"; exit 0; fi
+            sleep 6
+          done
+          echo "API did not become healthy"; exit 1

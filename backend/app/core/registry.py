@@ -57,6 +57,7 @@ from app.adapters.retrievers import (
     HybridRetriever,
     SparseRetriever,
 )
+from app.adapters.secrets import EnvSecretProvider, GCPSecretManagerProvider
 from app.adapters.storage import FakeObjectStorage, LocalDiskStorage
 from app.adapters.task_queues import CeleryTaskQueue, FakeTaskQueue, InlineTaskQueue
 from app.adapters.tracers import NoopTracer, OTelTracer
@@ -75,6 +76,7 @@ from app.domain.interfaces import (
     Parser,
     Reranker,
     Retriever,
+    SecretProvider,
     TaskQueue,
     Tracer,
     VectorStore,
@@ -154,6 +156,11 @@ _TRACER_REGISTRY: dict[str, type[Tracer]] = {
 _EVAL_HARNESS_REGISTRY: dict[str, type[EvalHarness]] = {
     "heuristic": HeuristicEvalHarness,
     "ragas": RagasEvalHarness,
+}
+
+_SECRET_REGISTRY: dict[str, type[SecretProvider]] = {
+    "env": EnvSecretProvider,
+    "gcp_secret_manager": GCPSecretManagerProvider,
 }
 
 
@@ -262,6 +269,13 @@ def get_eval_harness() -> EvalHarness:
     )
 
 
+@lru_cache
+def get_secret_provider() -> SecretProvider:
+    return _resolve(
+        _SECRET_REGISTRY, settings.SECRET_PROVIDER, "secret provider", settings
+    )
+
+
 def clear_registry_caches() -> None:
     """Reset all cached factory instances.
 
@@ -281,5 +295,6 @@ def clear_registry_caches() -> None:
         get_task_queue,
         get_tracer,
         get_eval_harness,
+        get_secret_provider,
     ):
         factory.cache_clear()

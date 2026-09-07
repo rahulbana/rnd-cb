@@ -75,6 +75,16 @@ ragas = [
     "ragas>=0.1.20",
     "datasets>=2.19",
 ]
+# Phase 10 -- production process manager (Gunicorn managing Uvicorn workers).
+prod = [
+    "gunicorn>=22.0",
+]
+# Phase 10 -- GCP integrations: Secret Manager (secrets port) and GCS storage.
+# Lazily imported by their adapters; only production installs this extra.
+gcp = [
+    "google-cloud-secret-manager>=2.20",
+    "google-cloud-storage>=2.17",
+]
 
 [build-system]
 requires = ["setuptools>=68"]

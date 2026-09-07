@@ -1,0 +1,155 @@
+# Production-topology compose file. Reproduces the Cloud Run deployment locally:
+# multi-stage hardened images (non-root, Gunicorn/nginx), a reverse-proxied
+# frontend, real datastores, resource limits, and secrets loaded from a
+# git-ignored env file rather than committed defaults.
+#
+#   cp infra/prod.env.example infra/prod.env   # then fill in real secrets
+#   docker compose -f infra/docker-compose.prod.yml --env-file infra/prod.env up --build
+#
+# Exit criteria for Phase 10: this stack boots the same topology GCP runs.
+name: rag-platform-prod
+
+x-backend-env: &backend-env
+  DATABASE_URL: postgresql+psycopg://rag:${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD}@postgres:5432/rag
+  REDIS_URL: redis://redis:6379/0
+  CHROMA_HOST: chroma
+  CHROMA_PORT: "8000"
+  CHROMA_MODE: http
+  ENV: production
+  DEBUG: "false"
+  LOG_JSON: "true"
+  SECRET_KEY: ${SECRET_KEY:?set SECRET_KEY}
+  SECRET_PROVIDER: ${SECRET_PROVIDER:-env}
+  STORAGE_PROVIDER: local_disk
+  LOCAL_STORAGE_DIR: /data/objects
+  TASK_QUEUE_PROVIDER: celery
+  LLM_PROVIDER: ${LLM_PROVIDER:-ollama}
+  TRACER_PROVIDER: ${TRACER_PROVIDER:-noop}
+  OTEL_EXPORTER_OTLP_ENDPOINT: ${OTEL_EXPORTER_OTLP_ENDPOINT:-}
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: rag
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD}
+      POSTGRES_DB: rag
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U rag"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          cpus: "1.0"
+          memory: 1g
+
+  redis:
+    image: redis:7-alpine
+    command: ["redis-server", "--appendonly", "yes"]
+    volumes:
+      - redisdata:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          cpus: "0.5"
+          memory: 512m
+
+  chroma:
+    image: chromadb/chroma:0.5.5
+    volumes:
+      - chromadata:/chroma/chroma
+    environment:
+      IS_PERSISTENT: "TRUE"
+      ANONYMIZED_TELEMETRY: "FALSE"
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          cpus: "1.0"
+          memory: 1g
+
+  api:
+    build:
+      context: ../backend
+      dockerfile: Dockerfile.api
+      target: runtime
+    environment:
+      <<: *backend-env
+      WEB_CONCURRENCY: ${WEB_CONCURRENCY:-2}
+    volumes:
+      - objectdata:/data/objects
+    expose:
+      - "8080"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      chroma:
+        condition: service_started
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          cpus: "2.0"
+          memory: 2g
+
+  worker:
+    build:
+      context: ../backend
+      dockerfile: Dockerfile.worker
+      target: runtime
+    environment:
+      <<: *backend-env
+      CELERY_CONCURRENCY: ${CELERY_CONCURRENCY:-2}
+    volumes:
+      - objectdata:/data/objects
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      chroma:
+        condition: service_started
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          cpus: "2.0"
+          memory: 4g
+
+  frontend:
+    build:
+      context: ../frontend
+      dockerfile: Dockerfile
+      target: runtime
+      args:
+        # Empty -> the SPA calls /api/v1 relative; nginx proxies it to `api`.
+        VITE_API_URL: ""
+    ports:
+      - "8080:8080"
+    depends_on:
+      - api
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          cpus: "0.5"
+          memory: 256m
+
+volumes:
+  pgdata:
+  redisdata:
+  chromadata:
+  objectdata:

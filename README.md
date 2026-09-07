@@ -164,8 +164,26 @@ Give operators visibility and give the RAG pipeline a scorecard.
 and any answer traces to its exact retrieved chunks, reranker scores, and prompt
 version — `backend/tests/test_admin_api.py::test_exit_scorecard_and_traceability`.
 
-Later phase (10) adds production hardening and Cloud Run deployment. See the
-build plan for details.
+### Phase 10 — Production hardening & cloud deployment ✅
+
+Ship the same system to GCP Cloud Run without a rewrite; the config-driven
+seams that swap a provider now swap a runtime environment.
+
+| Deliverable | Where |
+|---|---|
+| Multi-stage, non-root images (Gunicorn API, nginx frontend) + health probes | `backend/Dockerfile.*`, `frontend/Dockerfile` |
+| Deep readiness probe (Postgres + Redis, 503 when not ready) | `GET /api/v1/ready` |
+| Secrets abstraction port (env → GCP Secret Manager, one env var) | `SecretProvider`, `backend/app/adapters/secrets/` |
+| Terraform (Cloud Run, Cloud SQL, Memorystore, GCS, Secret Manager, VPC) | `infra/terraform/{modules,envs/{dev,prod}}` |
+| CI/CD deploy with the RAG eval suite as a gate | `.github/workflows/deploy.yml` |
+| Dependency + secret scanning; Terraform/compose validation | `.github/workflows/security.yml`, `infra.yml` |
+| Local prod-topology parity | `infra/docker-compose.prod.yml` |
+| k6 load test (SLO thresholds); backup/restore + deploy/rollback runbooks | `infra/loadtest/`, `docs/runbooks/` |
+
+**Exit (proven):** `docker compose -f infra/docker-compose.prod.yml config`
+reproduces the prod topology, `terraform validate` passes for both envs, and the
+deploy pipeline gates on `pytest -m eval` before shipping to Cloud Run —
+`backend/tests/test_deployment.py`.
 
 ## Layout
 
@@ -190,6 +208,17 @@ docker compose -f infra/docker-compose.yml up --build
 
 The API container runs `alembic upgrade head` before serving, so the schema is
 created on first boot.
+
+### Production topology (locally or as the Cloud Run blueprint)
+
+```bash
+cp infra/prod.env.example infra/prod.env    # fill in real secrets (git-ignored)
+docker compose -f infra/docker-compose.prod.yml --env-file infra/prod.env up --build
+```
+
+This boots the hardened, non-root images (Gunicorn API, nginx-served frontend)
+with resource limits — the same topology Terraform provisions on GCP Cloud Run
+(`infra/terraform/`). See `docs/runbooks/deploy-and-rollback.md`.
 
 ### Backend locally
 
@@ -226,6 +255,7 @@ Change one value in `.env` and restart — no code change:
 EMBEDDER_PROVIDER=fake        # or fake_hash  (Phase 3: sentence_transformers | openai)
 VECTOR_STORE_PROVIDER=fake    # (Phase 3: chroma | pgvector | pinecone)
 LLM_PROVIDER=fake             # (Phase 7: ollama | openai | anthropic | gemini)
+SECRET_PROVIDER=env           # (Phase 10: gcp_secret_manager)
 ```
 
 See `docs/adr/0001-ports-and-adapters.md` for the pattern and

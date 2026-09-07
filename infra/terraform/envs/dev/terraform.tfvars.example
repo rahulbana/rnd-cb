@@ -1,0 +1,13 @@
+# Copy to terraform.tfvars (git-ignored) and fill in real values.
+project_id = "my-gcp-project"
+region     = "us-central1"
+
+# Deploy a specific image tag/digest (CI overrides with -var).
+image_tag = "latest"
+
+# Secrets -- prefer seeding the Secret Manager versions out of band and leaving
+# these as placeholders in CI; kept here for a one-command dev bootstrap.
+secret_key  = "replace-with-a-long-random-string-at-least-32-bytes"
+db_password = "replace-with-a-strong-db-password"
+
+llm_provider = "ollama"

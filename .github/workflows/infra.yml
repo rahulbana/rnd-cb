@@ -1,0 +1,48 @@
+name: Infra (Terraform + compose)
+
+# Validates the deployment IaC without touching any cloud resources: Terraform
+# fmt/validate for both env roots, and a config-parse of the prod compose file.
+on:
+  pull_request:
+    paths:
+      - "infra/**"
+      - ".github/workflows/infra.yml"
+  push:
+    branches: ["**"]
+    paths:
+      - "infra/**"
+
+permissions:
+  contents: read
+
+jobs:
+  terraform:
+    name: Terraform fmt + validate
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: "1.9.5"
+      - name: fmt (all modules + envs)
+        run: terraform -chdir=infra/terraform fmt -recursive -check
+      - name: validate dev
+        # -backend=false: validate structure without configuring remote state.
+        run: |
+          terraform -chdir=infra/terraform/envs/dev init -backend=false
+          terraform -chdir=infra/terraform/envs/dev validate
+      - name: validate prod
+        run: |
+          terraform -chdir=infra/terraform/envs/prod init -backend=false
+          terraform -chdir=infra/terraform/envs/prod validate
+
+  compose:
+    name: docker compose config (prod)
+    runs-on: ubuntu-latest
+    env:
+      POSTGRES_PASSWORD: ci-placeholder
+      SECRET_KEY: ci-placeholder-secret-key-32-bytes-minimum
+    steps:
+      - uses: actions/checkout@v4
+      - name: Validate prod compose file
+        run: docker compose -f infra/docker-compose.prod.yml config >/dev/null

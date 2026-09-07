@@ -10,10 +10,14 @@ def test_health_ok(client):
     assert body["status"] == "ok"
 
 
-def test_ready_ok(client):
-    resp = client.get("/api/v1/ready")
+def test_ready_ok(upload_client):
+    # Readiness now checks datastores, so it needs the wired offline stack
+    # (sqlite + inline queue); the deep-probe failure paths live in
+    # tests/test_deployment.py.
+    resp = upload_client.get("/api/v1/ready")
     assert resp.status_code == 200
     assert resp.json()["status"] == "ready"
+    assert resp.json()["checks"]["database"] == "ok"
 
 
 def test_providers_reflects_config(client):

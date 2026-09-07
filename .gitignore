@@ -209,3 +209,12 @@ __marimo__/
 # Frontend source lib dir must not be caught by the Python "lib/" rule above
 !frontend/src/lib/
 !frontend/src/lib/**
+
+# Phase 10 -- deployment secrets & Terraform state (never commit)
+infra/prod.env
+infra/**/prod.env
+*.tfvars
+!*.tfvars.example
+.terraform/
+*.tfstate
+*.tfstate.*

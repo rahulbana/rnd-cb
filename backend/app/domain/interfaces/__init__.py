@@ -12,6 +12,7 @@ from app.domain.interfaces.llm_provider import LLMProvider
 from app.domain.interfaces.parser import Parser
 from app.domain.interfaces.reranker import Reranker
 from app.domain.interfaces.retriever import Retriever
+from app.domain.interfaces.secrets import SecretProvider
 from app.domain.interfaces.storage import ObjectStorage
 from app.domain.interfaces.task_queue import TaskQueue
 from app.domain.interfaces.tracer import Tracer
@@ -26,6 +27,7 @@ __all__ = [
     "Parser",
     "Reranker",
     "Retriever",
+    "SecretProvider",
     "TaskQueue",
     "Tracer",
     "VectorStore",

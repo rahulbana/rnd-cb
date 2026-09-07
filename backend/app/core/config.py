@@ -58,6 +58,8 @@ class Settings(BaseSettings):
     TASK_QUEUE_PROVIDER: str = Field(default="celery")
     TRACER_PROVIDER: str = Field(default="noop")  # noop | otel
     EVAL_HARNESS: str = Field(default="heuristic")  # heuristic | ragas
+    # env (os.environ) | gcp_secret_manager (production, lazy SDK)
+    SECRET_PROVIDER: str = Field(default="env")
 
     # Parser fallback chain (priority order), used when PARSER_STRATEGY=router.
     # Lightweight, fully-local parsers first; heavy ones (Docling/Unstructured)
@@ -110,6 +112,14 @@ class Settings(BaseSettings):
     OTEL_SERVICE_NAME: str = "rag-platform"
     OTEL_EXPORTER_OTLP_ENDPOINT: str | None = None
     EVAL_THRESHOLD: float = 0.6  # min per-metric score for a passing scorecard
+
+    # --- Secrets & cloud deployment (Phase 10) ---
+    # Optional prefix applied to env-var lookups by the `env` secret provider.
+    SECRET_ENV_PREFIX: str = ""
+    # GCP project + secret version, read by the gcp_secret_manager provider.
+    GCP_PROJECT_ID: str | None = None
+    GCP_REGION: str = "us-central1"
+    GCP_SECRET_VERSION: str = "latest"
 
     # --- Retrieval (Phase 5) ---
     RRF_K: int = 60  # Reciprocal Rank Fusion damping constant
