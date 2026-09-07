@@ -32,6 +32,7 @@ where = ["src"]
 
 [tool.setuptools.package-data]
 product_intel = ["fixtures/*.json"]
+"product_intel.fixtures" = ["*.json"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

@@ -33,9 +33,13 @@ SAMPLE_FIXTURE = "acousticpro_headphones.json"
 
 
 def _load_sample_payload() -> dict:
-    with resources.files("product_intel.fixtures").joinpath(SAMPLE_FIXTURE).open(
-        "r", encoding="utf-8"
-    ) as fh:
+    # Resolve through the top-level package (which always has a real origin);
+    # chained joinpath keeps this working on Python 3.9, where Traversable
+    # .joinpath accepts only a single path segment.
+    resource = (
+        resources.files("product_intel").joinpath("fixtures").joinpath(SAMPLE_FIXTURE)
+    )
+    with resource.open("r", encoding="utf-8") as fh:
         return json.load(fh)
 
 
