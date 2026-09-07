@@ -118,12 +118,34 @@ Override the model per provider via `ANTHROPIC_MODEL` / `OPENAI_MODEL`.
 needed. Shell environment variables take precedence over the file, and
 `--env-file PATH` points at a specific file. `.env` is git-ignored.
 
-Live-scrape a URL (needs the `scraping` extra + `playwright install chromium`;
-site-specific selectors are a documented hook in `PlaywrightScraper`):
+### Analyzing a real Amazon product
+
+Live scraping is supported for **Amazon** URLs. Install the scraping extra first:
 
 ```bash
-product-intel run --url "https://.../product" --live --html out.html
+pip install -e '.[scraping]'
+playwright install chromium
+product-intel run --url "https://www.amazon.com/dp/B0XXXXXXXX" --live --html out.html
 ```
+
+**Reality check:** Amazon aggressively blocks headless browsers (captcha /
+"Robot Check") and gates many reviews behind login, so live scraping works
+*sometimes* and fails *often*. The scraper detects the block and stops with a
+clear message instead of returning garbage. Options when that happens:
+
+* add `--no-headless` to show the browser window (dodges some blocks),
+* cap volume with `--max-reviews N` (default 100),
+* or — the reliable path — **save the page from your own browser** (right-click →
+  *Save Page As* → "Web Page, Complete") and parse it offline, no anti-bot:
+
+```bash
+product-intel run --html-file product.html \
+  --url "https://www.amazon.com/dp/B0XXXXXXXX" --html out.html
+```
+
+Both paths share one parser (`product_intel/scrapers/amazon.py`); only Amazon is
+supported today. For other sites, save the page and adapt the parser, or supply a
+`--fixture` JSON payload (see the sample schema).
 
 `--strict-schema` emits only the plan's core output keys (omits the `diagnostics`
 block). `--quiet` suppresses stage progress logs.
@@ -170,7 +192,7 @@ touching the agents:
 | Dense embeddings + HDBSCAN | Bag-of-words + cosine + threshold clustering | `nlp.py` |
 | Topic classifier | Keyword taxonomy | `config.py` (`TOPIC_KEYWORDS`) |
 | Tiered LLM inference | `OfflineLLM` templates / `AnthropicLLM` / `OpenAILLM` | `llm/` (implement `LLMClient`) |
-| Playwright + anti-bot | `FixtureScraper` / `PlaywrightScraper` hook | `agents/web_ingestion.py` |
+| Playwright + anti-bot | `FixtureScraper` / `AmazonScraper` (Amazon live + saved-HTML) | `scrapers/amazon.py` |
 | LangGraph/CrewAI | Lightweight `Orchestrator` | `orchestrator.py` |
 
 The taxonomies and scoring weights in `config.py` are tuned for the sample

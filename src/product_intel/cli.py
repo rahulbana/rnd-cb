@@ -6,6 +6,16 @@ Run the bundled sample end-to-end and write both JSON and an HTML dashboard::
 
     product-intel run --sample --json report.json --html dashboard.html
 
+Analyze a real Amazon product. Live scrape (needs the ``scraping`` extra +
+``playwright install chromium``)::
+
+    product-intel run --url "https://www.amazon.com/dp/B0XXXXXXXX" --live --html out.html
+
+...or, if Amazon blocks the headless browser, save the page from your browser
+(right-click -> Save Page As -> "Web Page, Complete" / HTML) and parse it::
+
+    product-intel run --html-file product.html --url "https://www.amazon.com/dp/B0XXXXXXXX" --html out.html
+
 Run against a scraped-payload fixture::
 
     product-intel run --fixture my_product.json --html out.html
@@ -48,15 +58,30 @@ def _load_fixture_payload(path: str) -> dict:
         return json.load(fh)
 
 
-def _build_scraper(args) -> Optional[FixtureScraper]:
+def _build_scraper(args):
     if args.sample:
         return FixtureScraper(payload=_load_sample_payload())
     if args.fixture:
         return FixtureScraper(payload=_load_fixture_payload(args.fixture))
-    if args.url and args.live:
-        from .agents.web_ingestion import PlaywrightScraper
+    if args.html_file:
+        # Parse a page you saved from your browser (no network, no anti-bot).
+        from .scrapers.amazon import parse_amazon
 
-        return PlaywrightScraper()
+        with open(args.html_file, "r", encoding="utf-8", errors="replace") as fh:
+            html = fh.read()
+        return FixtureScraper(payload=parse_amazon(html, source_url=args.url or ""))
+    if args.url and args.live:
+        from .scrapers.amazon import AmazonScraper, is_amazon_url
+
+        if not is_amazon_url(args.url):
+            raise SystemExit(
+                "error: live scraping currently supports Amazon URLs only. "
+                "For other sites, save the page and use --html-file, or provide "
+                "a --fixture JSON payload."
+            )
+        return AmazonScraper(
+            max_reviews=args.max_reviews, headless=not args.no_headless
+        )
     return None
 
 
@@ -74,7 +99,11 @@ def cmd_run(args) -> int:
     scraper = _build_scraper(args)
     if scraper is None:
         print(
-            "error: provide one of --sample, --fixture PATH, or --url URL --live",
+            "error: provide an input source - one of:\n"
+            "  --sample                      bundled demo product\n"
+            "  --fixture PATH                a scraped-payload JSON file\n"
+            "  --html-file PATH [--url URL]  an Amazon page saved from your browser\n"
+            "  --url AMAZON_URL --live       scrape Amazon live (needs the scraping extra)",
             file=sys.stderr,
         )
         return 2
@@ -116,9 +145,15 @@ def build_parser() -> argparse.ArgumentParser:
     src = run.add_argument_group("input source")
     src.add_argument("--sample", action="store_true", help="Use the bundled sample product.")
     src.add_argument("--fixture", metavar="PATH", help="Path to a scraped-payload JSON file.")
-    src.add_argument("--url", metavar="URL", default="", help="Product detail URL.")
+    src.add_argument("--url", metavar="URL", default="", help="Amazon product detail URL.")
     src.add_argument("--live", action="store_true",
-                     help="Scrape --url live via Playwright (needs the 'scraping' extra).")
+                     help="Scrape --url live via Playwright (Amazon only; needs the 'scraping' extra).")
+    src.add_argument("--html-file", metavar="PATH",
+                     help="Parse an Amazon product page saved from your browser (no network).")
+    src.add_argument("--max-reviews", type=int, default=100, metavar="N",
+                     help="Cap reviews fetched during live scraping (default: 100).")
+    src.add_argument("--no-headless", action="store_true",
+                     help="Show the browser window during live scraping (can dodge some blocks).")
 
     out = run.add_argument_group("output")
     out.add_argument("--json", metavar="PATH", help="Write the JSON report to PATH.")
