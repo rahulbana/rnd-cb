@@ -228,16 +228,20 @@ downloads), use the committed local profile — everything runs on fakes + SQLit
 
 ```bash
 cd backend
-python3.12 -m venv .venv && . .venv/bin/activate
-pip install -e ".[dev]"
-cp .env.local .env          # ready-made fakes + SQLite profile (no exports)
+python3.12 -m venv .venv && . .venv/bin/activate   # Python 3.12 is required
+pip install -r requirements-local.txt              # pinned, no heavy ML
+cp .env.local .env                                 # fakes + SQLite (no exports)
 alembic upgrade head
 uvicorn app.main:app --reload --port 8080
 ```
 
-Then open http://localhost:8080/docs. Swap any provider in `.env` for a real one
-once its dependency is available; `cp .env.example .env` instead for the full
-provider defaults (Ollama, Sentence-Transformers, Chroma).
+Then open http://localhost:8080/docs. `requirements-local.txt` is a pinned
+snapshot of the base app + dev tools with **no** torch / sentence-transformers,
+so it installs cleanly everywhere (including Intel Macs) and runs entirely on
+fakes. For real embeddings / vector search (torch, Chroma), prefer Docker —
+`docker compose -f infra/docker-compose.yml up --build` — which avoids host
+Python/torch version pitfalls; or `pip install -e ".[ml]"` on a machine with a
+supported torch (≥ 2.5, Apple Silicon or Linux).
 
 ### Checks
 

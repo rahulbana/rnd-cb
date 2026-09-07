@@ -1,0 +1,92 @@
+# ---------------------------------------------------------------------------
+# Pinned LOCAL dependency set -- base app + dev tools, NO heavy ML.
+#
+# Installs cleanly on any machine (incl. Intel Macs) and runs the whole app on
+# the fake providers -- no torch, no sentence-transformers, no model downloads,
+# no numpy/torch version conflicts.
+#
+#   cd backend
+#   python3.12 -m venv .venv && source .venv/bin/activate
+#   pip install -r requirements-local.txt
+#   cp .env.local .env
+#   alembic upgrade head
+#   uvicorn app.main:app --reload --port 8080
+#
+# For real embeddings / vector search (torch etc.), use Docker instead:
+#   docker compose -f infra/docker-compose.yml up --build
+# (see README "Run it"). These pins are a snapshot of the ".[dev]" extra.
+# ---------------------------------------------------------------------------
+alembic==1.19.2
+amqp==5.3.1
+annotated-doc==0.0.5
+annotated-types==0.8.0
+anyio==4.15.1
+argon2-cffi==25.1.0
+argon2-cffi-bindings==26.1.0
+ast_serialize==0.9.0
+billiard==4.2.4
+celery==5.6.3
+certifi==2026.7.22
+cffi==2.1.1
+click==8.5.0
+click-didyoumean==0.3.1
+click-plugins==1.1.1.2
+click-repl==0.3.0
+dnspython==2.8.0
+email-validator==2.3.0
+fastapi==0.141.1
+greenlet==3.5.5
+h11==0.16.0
+httpcore==1.0.9
+httptools==0.8.0
+httpx==0.28.1
+idna==3.19
+iniconfig==2.3.0
+Jinja2==3.1.6
+kombu==5.6.2
+librt==0.15.0
+lxml==6.1.3
+Mako==1.4.1
+MarkupSafe==3.0.3
+mypy==2.3.1
+mypy_extensions==1.1.0
+numpy==2.5.3
+packaging==26.3
+pathspec==1.1.1
+pillow==12.3.0
+pluggy==1.6.0
+prompt_toolkit==3.0.53
+psycopg==3.3.5
+psycopg-binary==3.3.5
+pycparser==3.0
+pydantic==2.13.5
+pydantic-settings==2.15.0
+pydantic_core==2.46.5
+Pygments==2.21.0
+PyJWT==2.13.0
+pymupdf==1.28.2
+pytesseract==0.3.13
+pytest==9.1.1
+pytest-asyncio==1.4.0
+python-dateutil==2.9.0.post0
+python-docx==1.2.0
+python-dotenv==1.2.3
+python-multipart==0.0.32
+PyYAML==6.0.3
+rank-bm25==0.2.2
+redis==8.1.0
+ruff==0.16.6
+six==1.17.0
+SQLAlchemy==2.0.52
+starlette==1.6.0
+structlog==26.1.0
+typing-inspection==0.4.4
+typing_extensions==4.16.0
+tzdata==2026.3
+tzlocal==5.4.4
+uvicorn==0.52.4
+uvloop==0.22.1
+vine==5.1.0
+watchfiles==1.2.0
+wcwidth==0.8.3
+websockets==17.1
