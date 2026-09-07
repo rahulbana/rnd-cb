@@ -112,6 +112,12 @@ product-intel run --sample --llm openai       # needs [openai] + OPENAI_API_KEY
 
 Override the model per provider via `ANTHROPIC_MODEL` / `OPENAI_MODEL`.
 
+**API keys / `.env`:** copy `.env.example` to `.env` and fill in your key
+(`cp .env.example .env`, then set `OPENAI_API_KEY=...`). The CLI auto-loads a
+`.env` from the current directory (searching parents), so no extra tooling is
+needed. Shell environment variables take precedence over the file, and
+`--env-file PATH` points at a specific file. `.env` is git-ignored.
+
 Live-scrape a URL (needs the `scraping` extra + `playwright install chromium`;
 site-specific selectors are a documented hook in `PlaywrightScraper`):
 

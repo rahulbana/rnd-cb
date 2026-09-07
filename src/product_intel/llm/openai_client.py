@@ -38,7 +38,13 @@ class OpenAILLM(LLMClient):
                 "The 'openai' package is required for --llm openai. "
                 "Install with: pip install 'product-intel[openai]'"
             ) from exc
-        self._client = OpenAI(api_key=api_key or os.environ.get("OPENAI_API_KEY"))
+        key = api_key or os.environ.get("OPENAI_API_KEY")
+        if not key:
+            raise RuntimeError(
+                "OPENAI_API_KEY is not set. Add it to your .env file (see "
+                ".env.example) or export it in your shell before using --llm openai."
+            )
+        self._client = OpenAI(api_key=key)
 
     # -- internal helper ---------------------------------------------------- #
     def _complete(

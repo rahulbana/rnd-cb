@@ -61,6 +61,16 @@ def _build_scraper(args) -> Optional[FixtureScraper]:
 
 
 def cmd_run(args) -> int:
+    # Load .env early so hosted-LLM API keys are available before any client
+    # is constructed. Shell environment variables take precedence.
+    from pathlib import Path
+
+    from .dotenv import load_dotenv
+
+    loaded = load_dotenv(Path(args.env_file) if args.env_file else None)
+    if loaded and not args.quiet:
+        print(f"Loaded environment from {loaded}", file=sys.stderr)
+
     scraper = _build_scraper(args)
     if scraper is None:
         print(
@@ -118,6 +128,8 @@ def build_parser() -> argparse.ArgumentParser:
 
     run.add_argument("--llm", choices=["offline", "anthropic", "openai"], default="offline",
                      help="Synthesis engine (default: offline, deterministic).")
+    run.add_argument("--env-file", metavar="PATH", default=None,
+                     help="Path to a .env file (default: auto-discover from the cwd upward).")
     run.add_argument("--quiet", "-q", action="store_true", help="Suppress progress logs.")
     run.set_defaults(func=cmd_run)
     return p
