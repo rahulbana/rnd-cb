@@ -222,13 +222,22 @@ with resource limits — the same topology Terraform provisions on GCP Cloud Run
 
 ### Backend locally
 
+For a **zero-dependency run** (no Postgres/Redis/Chroma/Ollama, no model
+downloads), use the committed local profile — everything runs on fakes + SQLite
++ an in-process queue, so uploads, ingestion, retrieval, and chat all work:
+
 ```bash
 cd backend
-python -m venv .venv && . .venv/bin/activate
+python3.12 -m venv .venv && . .venv/bin/activate
 pip install -e ".[dev]"
-cp .env.example .env
+cp .env.local .env          # ready-made fakes + SQLite profile (no exports)
+alembic upgrade head
 uvicorn app.main:app --reload --port 8080
 ```
+
+Then open http://localhost:8080/docs. Swap any provider in `.env` for a real one
+once its dependency is available; `cp .env.example .env` instead for the full
+provider defaults (Ollama, Sentence-Transformers, Chroma).
 
 ### Checks
 
