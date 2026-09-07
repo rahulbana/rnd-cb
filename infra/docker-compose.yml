@@ -10,7 +10,9 @@ services:
       POSTGRES_PASSWORD: rag
       POSTGRES_DB: rag
     ports:
-      - "5432:5432"
+      # Published on 5433 to avoid clashing with a local Postgres on 5432.
+      # Containers still reach it internally at postgres:5432.
+      - "5433:5432"
     volumes:
       - pgdata:/var/lib/postgresql/data
     healthcheck:
