@@ -1,0 +1,49 @@
+{
+  "metadata": {
+    "product_id": "PROD-9842",
+    "name": "AcousticPro Wireless ANC Headphones",
+    "manufacturer": "AcousticPro Audio",
+    "price": 249.99,
+    "currency": "USD",
+    "source_url": "https://example-shop.com/p/acousticpro-anc-headphones",
+    "advertised_features": [
+      "Active Noise Cancellation",
+      "Multipoint Bluetooth Pairing",
+      "40-hour Battery Playtime",
+      "Memory-foam Comfort Cushions",
+      "Hi-Res Certified Sound",
+      "Companion EQ App",
+      "Crystal-clear Call Microphones"
+    ]
+  },
+  "reviews": [
+    {"review_id": "R0001", "rating": 5, "title": "ANC is incredible", "body": "The active noise cancellation blocked out the entire subway ride. Superior low-frequency cancellation, I couldn't hear the engine at all.", "timestamp": "2024-01-12", "verified_purchase": true},
+    {"review_id": "R0002", "rating": 5, "title": "Best noise cancelling I've owned", "body": "Noise cancellation is excellent on flights. The quiet is amazing and the isolation is superb for open offices.", "timestamp": "2024-02-03", "verified_purchase": true},
+    {"review_id": "R0003", "rating": 4, "title": "Great ANC, good sound", "body": "Noise cancellation is effective and the sound is clear with solid bass. Very happy overall.", "timestamp": "2024-02-20", "verified_purchase": true},
+    {"review_id": "R0004", "rating": 2, "title": "Multipoint is broken", "body": "Frequent audio stuttering when switching from laptop to phone during calls. The multipoint handoff disconnects constantly, so frustrating.", "timestamp": "2024-03-01", "verified_purchase": true},
+    {"review_id": "R0005", "rating": 1, "title": "Bluetooth keeps dropping", "body": "The multipoint pairing stutters and drops every time I switch devices. Connection is unreliable and disconnects mid-call.", "timestamp": "2024-03-04", "verified_purchase": true},
+    {"review_id": "R0006", "rating": 2, "title": "Handoff disconnects", "body": "Switching between my tablet and phone causes a disconnect and I have to re-pair. Multipoint handoff is buggy.", "timestamp": "2024-03-09", "verified_purchase": false},
+    {"review_id": "R0007", "rating": 3, "title": "Multipoint hit or miss", "body": "When it works multipoint is nice but it stutters when switching sources. Bluetooth latency is noticeable on video.", "timestamp": "2024-03-15", "verified_purchase": true},
+    {"review_id": "R0008", "rating": 5, "title": "Battery lasts forever", "body": "Battery playtime is fantastic, I get well over a week of commuting on one charge. USB-C fast charge is great.", "timestamp": "2024-03-20", "verified_purchase": true},
+    {"review_id": "R0009", "rating": 4, "title": "Solid battery", "body": "The 40 hour battery claim holds up, excellent power management and long playtime.", "timestamp": "2024-03-22", "verified_purchase": true},
+    {"review_id": "R0010", "rating": 2, "title": "Battery drains in standby", "body": "Battery drains overnight even when off. Poor battery standby, dies fast if you forget to power down. Disappointing.", "timestamp": "2024-03-28", "verified_purchase": true},
+    {"review_id": "R0011", "rating": 2, "title": "Ears get hot", "body": "The cushions trap heat and my ears get sweaty after an hour. Comfortable padding otherwise but the heat is annoying.", "timestamp": "2024-04-01", "verified_purchase": true},
+    {"review_id": "R0012", "rating": 3, "title": "Comfortable but warm", "body": "Memory foam cushions are comfortable at first but get warm and sweaty on long sessions. Wish the padding was breathable.", "timestamp": "2024-04-05", "verified_purchase": true},
+    {"review_id": "R0013", "rating": 2, "title": "Too tight", "body": "The clamp force is too tight and gives me a headache and pressure after 30 minutes. Uncomfortable for long use.", "timestamp": "2024-04-08", "verified_purchase": false},
+    {"review_id": "R0014", "rating": 5, "title": "Very comfortable", "body": "Super comfortable fit, the headband and cushions feel premium and the fit is perfect for my head.", "timestamp": "2024-04-10", "verified_purchase": true},
+    {"review_id": "R0015", "rating": 5, "title": "Amazing sound", "body": "Sound quality is superb, crisp treble and rich bass. The audio clarity is excellent and the soundstage is wide.", "timestamp": "2024-04-12", "verified_purchase": true},
+    {"review_id": "R0016", "rating": 4, "title": "Great audio", "body": "Really nice balanced sound, clear mids and clean bass. Hi-res audio sounds great with my player.", "timestamp": "2024-04-14", "verified_purchase": true},
+    {"review_id": "R0017", "rating": 2, "title": "App crashes constantly", "body": "The companion EQ app crashes every time I open the equalizer. App is buggy and freezes on my phone, unusable.", "timestamp": "2024-04-16", "verified_purchase": true},
+    {"review_id": "R0018", "rating": 1, "title": "Firmware update bricked settings", "body": "After the firmware update the app crashes and my EQ settings were wiped. Software is a mess and the update broke pairing.", "timestamp": "2024-04-18", "verified_purchase": true},
+    {"review_id": "R0019", "rating": 2, "title": "Buggy app", "body": "App crashing when I try to change settings. The software needs a lot of work, very frustrating.", "timestamp": "2024-04-19", "verified_purchase": false},
+    {"review_id": "R0020", "rating": 2, "title": "Mic sounds muffled", "body": "Callers say my voice is muffled and they can't hear me well. The microphone quality on calls is poor.", "timestamp": "2024-04-21", "verified_purchase": true},
+    {"review_id": "R0021", "rating": 3, "title": "Calls are okay", "body": "Call quality is average, the mic is a bit muffled in noisy places but fine in a quiet room.", "timestamp": "2024-04-23", "verified_purchase": true},
+    {"review_id": "R0022", "rating": 3, "title": "Hinge creaks", "body": "There is an annoying creak from the hinge when I adjust the headband. Build feels a little flimsy there.", "timestamp": "2024-04-25", "verified_purchase": true},
+    {"review_id": "R0023", "rating": 4, "title": "Good but scratches", "body": "Nice headphones but the matte finish scratches easily and shows fingerprints. Minor cosmetic gripe.", "timestamp": "2024-04-27", "verified_purchase": true},
+    {"review_id": "R0024", "rating": 5, "title": "Premium build", "body": "Feels sturdy and durable, quality materials all around. Solid build with no rattles.", "timestamp": "2024-04-29", "verified_purchase": true},
+    {"review_id": "R0025", "rating": 1, "title": "Arrived damaged by courier", "body": "The courier threw the box and it arrived damaged. Terrible delivery experience, packaging was crushed.", "timestamp": "2024-05-01", "verified_purchase": true},
+    {"review_id": "R0026", "rating": 2, "title": "Late shipping", "body": "Shipping was two weeks late and the seller never responded. Nothing to do with the product, just slow delivery.", "timestamp": "2024-05-02", "verified_purchase": false},
+    {"review_id": "R0027", "rating": 5, "title": "Noise cancelling + comfy", "body": "The ANC is amazing and they are comfortable too. Blocks subway noise and the fit is great for long commutes.", "timestamp": "2024-05-04", "verified_purchase": true},
+    {"review_id": "R0028", "rating": 4, "title": "Happy overall", "body": "Great noise cancellation, good battery and nice sound. A couple of app bugs but I recommend them.", "timestamp": "2024-05-06", "verified_purchase": true}
+  ]
+}

@@ -1,0 +1,37 @@
+[build-system]
+requires = ["setuptools>=61.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "product-intel"
+version = "0.1.0"
+description = "Multi-agent product review & feature intelligence system: turn a product page + reviews into a prioritized vNext backlog."
+readme = "README.md"
+requires-python = ">=3.9"
+license = { text = "MIT" }
+authors = [{ name = "rnd-cb" }]
+keywords = ["product-management", "reviews", "multi-agent", "nlp", "roadmap"]
+
+# The core pipeline runs on the Python standard library only, so it works
+# offline and in test/CI without any extra install. Optional integrations
+# (live LLM inference, browser scraping) live behind the extras below and are
+# imported lazily.
+dependencies = []
+
+[project.optional-dependencies]
+anthropic = ["anthropic>=0.39"]
+scraping = ["playwright>=1.40", "beautifulsoup4>=4.12"]
+dev = ["pytest>=7.0"]
+
+[project.scripts]
+product-intel = "product_intel.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.package-data]
+product_intel = ["fixtures/*.json"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["src"]

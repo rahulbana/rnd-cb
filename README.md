@@ -1,2 +1,157 @@
-# rnd-cb
-RND CB
+# product-intel — Multi-Agent Product Review & Feature Intelligence System
+
+Turn a single product detail page + its customer reviews into a **prioritized
+vNext product backlog**. A five-agent pipeline ingests reviews, clusters
+sentiment by functional dimension, audits advertised features against reality,
+diagnoses defects, and synthesizes a RICE-scored roadmap — emitted as JSON
+(ready for a Jira/Linear import) and as an interactive HTML PM dashboard.
+
+This is the reference implementation of the architecture in
+`product_review_multi_agent_plan.pdf`. It runs **fully offline with zero
+third-party dependencies** (Python standard library only), so it works in CI and
+without any API key. Richer synthesis (Claude) and live browser scraping are
+optional, lazily-imported extras.
+
+## Architecture
+
+```
+[Product Detail URL]
+        │
+        ▼
+┌─────────────────────────┐
+│ Agent 1: Web Ingestion  │  scrape → clean → normalize → validate
+└───────────┬─────────────┘
+            │ IngestedProduct (metadata + reviews)
+            ▼
+┌─────────────────────────┐
+│ Orchestrator / Director │  stateful graph, checkpointed
+└───────────┬─────────────┘
+   ┌────────┼─────────────────────────┐
+   ▼        ▼                          ▼
+Agent 2:   Agent 3:                  Agent 4:
+Sentiment  Feature Audit             Problem & Defect
+& Topic    (good vs. bad)           Diagnostics
+   └────────┼─────────────────────────┘
+            │ enriched insights + issues
+            ▼
+┌─────────────────────────┐
+│ Agent 5: Roadmap &      │  RICE → P0/P1/P2 → tickets
+│ Backlog Synthesis       │
+└───────────┬─────────────┘
+            ▼
+[PM Dashboard + Prioritized vNext Backlog]
+```
+
+| Agent | Responsibility | Module |
+|-------|----------------|--------|
+| 1. Web Ingestion | DOM extraction, pagination, noise filtering, date/schema normalization | `agents/web_ingestion.py` |
+| 2. Sentiment & Topic | Cluster reviews into functional dimensions, polarity distribution, filter courier/packaging noise | `agents/sentiment_topic.py` |
+| 3. Feature Audit | Cross-examine advertised features vs. real sentiment → core strengths vs. expectation mismatches | `agents/feature_audit.py` |
+| 4. Defect Diagnostics | Detect, dedupe, classify defects; frequency + severity weighting | `agents/defect_diagnostic.py` |
+| 5. Roadmap Synthesis | RICE scoring, P0/P1/P2 priority, user stories + acceptance criteria + proposed actions | `agents/roadmap_synthesis.py` |
+
+The **orchestrator** (`orchestrator.py`) wires these into the plan's topology
+(sequential → fan-out at stage 3 → synthesis) with a lightweight, dependency-free
+director. Every intermediate artifact is retained on `PipelineState` for
+inspection and checkpointing.
+
+## Install
+
+```bash
+pip install -e .              # core pipeline, no dependencies
+pip install -e '.[dev]'       # + pytest
+pip install -e '.[anthropic]' # + Claude-backed synthesis
+pip install -e '.[scraping]'  # + Playwright/BeautifulSoup live scraping
+```
+
+Python 3.9+.
+
+## Usage
+
+Run the bundled sample end-to-end and produce both outputs:
+
+```bash
+product-intel run --sample --json report.json --html dashboard.html
+```
+
+Analyze your own scraped payload (see the JSON shape in
+`src/product_intel/fixtures/acousticpro_headphones.json`):
+
+```bash
+product-intel run --fixture my_product.json --html out.html
+```
+
+Use Claude for the reasoning/synthesis steps (needs the `anthropic` extra and
+`ANTHROPIC_API_KEY`); it falls back to the offline templates on any error:
+
+```bash
+product-intel run --sample --llm anthropic
+```
+
+Live-scrape a URL (needs the `scraping` extra + `playwright install chromium`;
+site-specific selectors are a documented hook in `PlaywrightScraper`):
+
+```bash
+product-intel run --url "https://.../product" --live --html out.html
+```
+
+`--strict-schema` emits only the plan's core output keys (omits the `diagnostics`
+block). `--quiet` suppresses stage progress logs.
+
+### Library API
+
+```python
+from product_intel import Orchestrator
+from product_intel.agents.web_ingestion import FixtureScraper
+
+report = Orchestrator(scraper=FixtureScraper(path="my_product.json")).run()
+payload = report.to_dict()            # section-5 schema (+ diagnostics)
+```
+
+## Output schema
+
+Top-level keys match section 5 of the plan exactly — `product_summary`,
+`core_strengths`, `feature_gaps`, `vnext_backlog` — plus a `diagnostics` block
+(clusters + defect log) used by the dashboard. Example:
+
+```json
+{
+  "product_summary": { "product_id": "PROD-9842", "average_star_rating": 3.27, "...": "..." },
+  "core_strengths":  [ { "feature": "Active Noise Cancellation", "sentiment_score": 0.9, "mention_frequency": 5 } ],
+  "feature_gaps":    [ { "feature": "Multipoint Bluetooth Pairing", "sentiment_score": 0.25, "gap_description": "..." } ],
+  "vnext_backlog":   [ { "ticket_id": "VNXT-101", "type": "Defect / Bug", "priority": "P0",
+                         "title": "Bluetooth multipoint handoff disconnects",
+                         "frequency_impact": "14.3% of all reviews", "proposed_action": "...",
+                         "rice": { "reach": 14.3, "impact": 2.31, "confidence": 0.9, "effort": 2.0, "score": 11.56 },
+                         "user_story": "...", "acceptance_criteria": ["..."] } ]
+}
+```
+
+## Design notes: offline vs. production
+
+The plan specifies dense embeddings, HDBSCAN/pgvector, LangGraph/CrewAI and
+tiered LLM inference. To keep the reference pipeline runnable and testable
+everywhere, this build uses deterministic, standard-library stand-ins behind
+clean seams, so each can be swapped for its production counterpart without
+touching the agents:
+
+| Plan component | Reference stand-in | Swap point |
+|----------------|--------------------|------------|
+| Dense embeddings + HDBSCAN | Bag-of-words + cosine + threshold clustering | `nlp.py` |
+| Topic classifier | Keyword taxonomy | `config.py` (`TOPIC_KEYWORDS`) |
+| Tiered LLM inference | `OfflineLLM` templates / `AnthropicLLM` | `llm/` (implement `LLMClient`) |
+| Playwright + anti-bot | `FixtureScraper` / `PlaywrightScraper` hook | `agents/web_ingestion.py` |
+| LangGraph/CrewAI | Lightweight `Orchestrator` | `orchestrator.py` |
+
+The taxonomies and scoring weights in `config.py` are tuned for the sample
+(audio/headphones); point at a different category by editing the keyword maps —
+no agent code changes required.
+
+## Tests
+
+```bash
+pytest
+```
+
+Covers the NLP primitives, each agent in isolation, and the end-to-end pipeline
+against the plan's output schema.
