@@ -10,6 +10,7 @@ from __future__ import annotations
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
 
 from app.api.errors import register_exception_handlers
 from app.api.v1.routes import api_router
@@ -42,6 +43,18 @@ def create_app() -> FastAPI:
         debug=settings.DEBUG,
         lifespan=lifespan,
     )
+    # CORS: let the browser frontend (Vite dev server / deployed SPA) call the
+    # API cross-origin. "*" disables credentialed cookies per the CORS spec, so
+    # wildcard and credentials are mutually exclusive here.
+    allow_all = "*" in settings.cors_origins_list
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=["*"] if allow_all else settings.cors_origins_list,
+        allow_credentials=not allow_all,
+        allow_methods=["*"],
+        allow_headers=["*"],
+    )
+
     register_exception_handlers(app)
     app.include_router(api_router, prefix=settings.API_V1_PREFIX)
 

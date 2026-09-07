@@ -29,6 +29,14 @@ class Settings(BaseSettings):
     API_V1_PREFIX: str = "/api/v1"
     LOG_LEVEL: str = "INFO"
     LOG_JSON: bool = True
+    # Browser origins allowed to call the API (the Vite dev server, etc.).
+    # Comma-separated; "*" allows any origin (credentials are then disabled).
+    CORS_ORIGINS: str = "http://localhost:5173,http://localhost:3000"
+
+    @property
+    def cors_origins_list(self) -> list[str]:
+        """CORS_ORIGINS parsed into a clean list."""
+        return [o.strip() for o in self.CORS_ORIGINS.split(",") if o.strip()]
 
     # --- Security (single-tenant today, multi-tenant-shaped) ---
     SECRET_KEY: str = "change-me-in-production"
