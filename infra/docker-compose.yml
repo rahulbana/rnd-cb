@@ -90,6 +90,22 @@ services:
       chroma:
         condition: service_started
 
+  frontend:
+    build:
+      context: ../frontend
+      dockerfile: Dockerfile
+      args:
+        # Empty -> the SPA calls /api/v1 relative; nginx proxies it to `api`,
+        # so the browser and API share an origin (no CORS needed).
+        VITE_API_URL: ""
+    ports:
+      # App on http://localhost:3000 (nginx listens on 8080 in the container;
+      # the API already uses host 8080).
+      - "3000:8080"
+    depends_on:
+      - api
+    restart: unless-stopped
+
 volumes:
   pgdata:
   chromadata:

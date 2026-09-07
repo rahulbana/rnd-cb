@@ -202,9 +202,14 @@ docs/       ADRs and runbooks
 docker compose -f infra/docker-compose.yml up --build
 ```
 
+- Frontend (full app): http://localhost:3000
 - API: http://localhost:8080 (docs at `/docs`)
 - Health: http://localhost:8080/api/v1/health
 - Live wiring diagram: http://localhost:8080/api/v1/providers
+
+The frontend container is the production nginx build and proxies `/api` to the
+`api` service, so the browser and API share an origin (no CORS setup needed).
+Postgres is published on host port **5433** to avoid clashing with a local one.
 
 The API container runs `alembic upgrade head` before serving, so the schema is
 created on first boot.
