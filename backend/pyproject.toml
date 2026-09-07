@@ -44,7 +44,10 @@ parsers-heavy = [
     "unstructured>=0.15",
 ]
 # Phase 3 -- default local embedder + vector stores (installed in the image).
+# torch floor is explicit: recent transformers (pulled by sentence-transformers)
+# require >= 2.5, and pip won't upgrade a pre-existing older torch on its own.
 ml = [
+    "torch>=2.5",
     "sentence-transformers>=3.0",
     "chromadb>=0.5",
     "pgvector>=0.3",
