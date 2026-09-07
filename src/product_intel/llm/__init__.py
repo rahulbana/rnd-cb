@@ -18,8 +18,9 @@ from .offline import OfflineLLM
 def get_llm(provider: str = "offline", **kwargs) -> LLMClient:
     """Factory returning an :class:`LLMClient` for ``provider``.
 
-    ``provider`` is one of ``"offline"`` (default) or ``"anthropic"``. The
-    Anthropic client is imported lazily so its dependency stays optional.
+    ``provider`` is one of ``"offline"`` (default), ``"anthropic"`` or
+    ``"openai"``. The hosted clients are imported lazily so their dependencies
+    stay optional.
     """
 
     provider = (provider or "offline").lower()
@@ -29,7 +30,13 @@ def get_llm(provider: str = "offline", **kwargs) -> LLMClient:
         from .anthropic_client import AnthropicLLM
 
         return AnthropicLLM(**kwargs)
-    raise ValueError(f"Unknown LLM provider: {provider!r} (expected 'offline' or 'anthropic')")
+    if provider == "openai":
+        from .openai_client import OpenAILLM
+
+        return OpenAILLM(**kwargs)
+    raise ValueError(
+        f"Unknown LLM provider: {provider!r} (expected 'offline', 'anthropic' or 'openai')"
+    )
 
 
 __all__ = ["LLMClient", "OfflineLLM", "get_llm"]

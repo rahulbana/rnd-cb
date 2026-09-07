@@ -10,9 +10,10 @@ Run against a scraped-payload fixture::
 
     product-intel run --fixture my_product.json --html out.html
 
-Use the Claude API for synthesis (requires the ``anthropic`` extra + API key)::
+Use a hosted LLM for synthesis (requires the matching extra + API key)::
 
-    product-intel run --sample --llm anthropic
+    product-intel run --sample --llm anthropic   # Claude  (ANTHROPIC_API_KEY)
+    product-intel run --sample --llm openai       # OpenAI  (OPENAI_API_KEY)
 """
 
 from __future__ import annotations
@@ -111,7 +112,7 @@ def build_parser() -> argparse.ArgumentParser:
     out.add_argument("--strict-schema", action="store_true",
                      help="Emit only the plan's core schema (omit diagnostics).")
 
-    run.add_argument("--llm", choices=["offline", "anthropic"], default="offline",
+    run.add_argument("--llm", choices=["offline", "anthropic", "openai"], default="offline",
                      help="Synthesis engine (default: offline, deterministic).")
     run.add_argument("--quiet", "-q", action="store_true", help="Suppress progress logs.")
     run.set_defaults(func=cmd_run)

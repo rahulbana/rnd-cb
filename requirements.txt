@@ -8,6 +8,7 @@
 # the matching extra from pyproject.toml instead:
 #
 #   pip install -e '.[anthropic]'   # Claude-backed synthesis  (--llm anthropic)
+#   pip install -e '.[openai]'      # OpenAI-backed synthesis  (--llm openai)
 #   pip install -e '.[scraping]'    # live browser scraping     (--url ... --live)
 #   pip install -e '.[dev]'         # test suite
 #
@@ -16,6 +17,9 @@
 
 # --- Claude synthesis (optional) -------------------------------------------
 # anthropic>=0.39
+
+# --- OpenAI synthesis (optional) -------------------------------------------
+# openai>=1.0
 
 # --- Live scraping (optional) ----------------------------------------------
 # playwright>=1.40

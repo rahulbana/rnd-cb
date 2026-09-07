@@ -20,6 +20,7 @@ dependencies = []
 
 [project.optional-dependencies]
 anthropic = ["anthropic>=0.39"]
+openai = ["openai>=1.0"]
 scraping = ["playwright>=1.40", "beautifulsoup4>=4.12"]
 dev = ["pytest>=7.0"]
 

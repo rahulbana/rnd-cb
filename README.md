@@ -61,6 +61,7 @@ inspection and checkpointing.
 pip install -e .              # core pipeline, no dependencies
 pip install -e '.[dev]'       # + pytest
 pip install -e '.[anthropic]' # + Claude-backed synthesis
+pip install -e '.[openai]'    # + OpenAI-backed synthesis
 pip install -e '.[scraping]'  # + Playwright/BeautifulSoup live scraping
 ```
 
@@ -81,12 +82,15 @@ Analyze your own scraped payload (see the JSON shape in
 product-intel run --fixture my_product.json --html out.html
 ```
 
-Use Claude for the reasoning/synthesis steps (needs the `anthropic` extra and
-`ANTHROPIC_API_KEY`); it falls back to the offline templates on any error:
+Use a hosted LLM for the reasoning/synthesis steps; each falls back to the
+offline templates on any error:
 
 ```bash
-product-intel run --sample --llm anthropic
+product-intel run --sample --llm anthropic   # needs [anthropic] + ANTHROPIC_API_KEY
+product-intel run --sample --llm openai       # needs [openai] + OPENAI_API_KEY
 ```
+
+Override the model per provider via `ANTHROPIC_MODEL` / `OPENAI_MODEL`.
 
 Live-scrape a URL (needs the `scraping` extra + `playwright install chromium`;
 site-specific selectors are a documented hook in `PlaywrightScraper`):
@@ -139,7 +143,7 @@ touching the agents:
 |----------------|--------------------|------------|
 | Dense embeddings + HDBSCAN | Bag-of-words + cosine + threshold clustering | `nlp.py` |
 | Topic classifier | Keyword taxonomy | `config.py` (`TOPIC_KEYWORDS`) |
-| Tiered LLM inference | `OfflineLLM` templates / `AnthropicLLM` | `llm/` (implement `LLMClient`) |
+| Tiered LLM inference | `OfflineLLM` templates / `AnthropicLLM` / `OpenAILLM` | `llm/` (implement `LLMClient`) |
 | Playwright + anti-bot | `FixtureScraper` / `PlaywrightScraper` hook | `agents/web_ingestion.py` |
 | LangGraph/CrewAI | Lightweight `Orchestrator` | `orchestrator.py` |
 
