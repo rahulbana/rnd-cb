@@ -89,6 +89,15 @@ pytest                             # if you installed the [dev] extra
 
 ## Usage
 
+Three equivalent ways to invoke the CLI (use the underscore import name with
+`python -m`; `python -m product-intel` with a hyphen is **not** valid):
+
+```bash
+product-intel run --sample                 # installed console script (simplest)
+python -m product_intel run --sample       # module form
+python -m product_intel.cli run --sample   # explicit module path
+```
+
 Run the bundled sample end-to-end and produce both outputs:
 
 ```bash
