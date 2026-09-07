@@ -57,6 +57,18 @@ inspection and checkpointing.
 
 ## Install
 
+Python 3.9+ (developed and tested on 3.12). Create and activate a virtual
+environment first:
+
+```bash
+python3.12 -m venv .venv
+source .venv/bin/activate          # Windows: .venv\Scripts\activate
+python -m pip install --upgrade pip
+```
+
+Then install the package (editable). The core pipeline pulls in **no**
+third-party dependencies; add extras only for the optional integrations you use:
+
 ```bash
 pip install -e .              # core pipeline, no dependencies
 pip install -e '.[dev]'       # + pytest
@@ -65,7 +77,15 @@ pip install -e '.[openai]'    # + OpenAI-backed synthesis
 pip install -e '.[scraping]'  # + Playwright/BeautifulSoup live scraping
 ```
 
-Python 3.9+.
+Combine extras in one go, e.g. `pip install -e '.[openai,dev]'`. To leave the
+environment later, run `deactivate`.
+
+Verify the install:
+
+```bash
+product-intel run --sample --html dashboard.html
+pytest                             # if you installed the [dev] extra
+```
 
 ## Usage
 
