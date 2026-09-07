@@ -19,7 +19,8 @@ from .offline import OfflineLLM
 class AnthropicLLM(LLMClient):
     name = "anthropic-claude"
 
-    def __init__(self, model: str = "claude-sonnet-5", api_key: str | None = None):
+    def __init__(self, model: str | None = None, api_key: str | None = None):
+        model = model or os.environ.get("ANTHROPIC_MODEL", "claude-sonnet-5")
         try:
             import anthropic  # noqa: F401
         except ImportError as exc:  # pragma: no cover - depends on optional extra

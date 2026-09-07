@@ -1,0 +1,25 @@
+# ---------------------------------------------------------------------------
+# product-intel dependencies
+#
+# The CORE pipeline needs NOTHING here — it runs on the Python standard library
+# alone (that is what lets it run offline and in CI). The lines below are the
+# OPTIONAL integrations, kept commented so a plain `pip install -r
+# requirements.txt` stays dependency-free. Uncomment what you need, or install
+# the matching extra from pyproject.toml instead:
+#
+#   pip install -e '.[anthropic]'   # Claude-backed synthesis  (--llm anthropic)
+#   pip install -e '.[scraping]'    # live browser scraping     (--url ... --live)
+#   pip install -e '.[dev]'         # test suite
+#
+# pyproject.toml is the source of truth; this file mirrors it for convenience.
+# ---------------------------------------------------------------------------
+
+# --- Claude synthesis (optional) -------------------------------------------
+# anthropic>=0.39
+
+# --- Live scraping (optional) ----------------------------------------------
+# playwright>=1.40
+# beautifulsoup4>=4.12
+
+# --- Development / tests (optional) -----------------------------------------
+# pytest>=7.0
