@@ -69,8 +69,8 @@ export default function SettingsPanel({
             {!temperatureSupported && (
               <small className="field-warning">
                 Note: the active model (<code>{model}</code>) does not support
-                temperature — this value is saved but not applied. Use a model
-                like <code>claude-haiku-4-5</code> to enable it.
+                temperature — this value is saved but not applied. Use a
+                standard chat model like <code>gpt-4o-mini</code> to enable it.
               </small>
             )}
           </label>

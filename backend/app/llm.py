@@ -1,4 +1,4 @@
-"""Anthropic Claude client wrapper with streaming support.
+"""OpenAI client wrapper with streaming support.
 
 Handles model configuration, temperature-support gating, and translates SDK
 errors into a small set of exceptions the API layer can present cleanly.
@@ -7,7 +7,8 @@ from __future__ import annotations
 
 from collections.abc import AsyncGenerator
 
-import anthropic
+import openai
+from openai import AsyncOpenAI
 
 from .config import Settings, get_settings
 from .logging_config import get_logger
@@ -24,43 +25,53 @@ class LLMError(Exception):
         self.status_code = status_code
 
 
-# Model families that reject the `temperature` sampling parameter (they return
-# HTTP 400 if it is sent). Frontier models from the Opus 5 / Sonnet 5 / Opus 4.7+
-# generation removed sampling controls in favour of `effort`.
+# Model families that reject a custom `temperature` value (they only accept the
+# default of 1 and return HTTP 400 otherwise). OpenAI's reasoning models
+# (o1 / o3 / o4 / gpt-5 generations) removed sampling controls.
 _NO_SAMPLING_PREFIXES = (
-    "claude-opus-5",
-    "claude-opus-4-8",
-    "claude-opus-4-7",
-    "claude-sonnet-5",
-    "claude-fable-5",
-    "claude-mythos-5",
+    "o1",
+    "o3",
+    "o4",
+    "gpt-5",
 )
 
 
 def model_supports_temperature(model: str) -> bool:
-    """Return True if the model accepts the `temperature` parameter.
+    """Return True if the model accepts a custom `temperature` parameter.
 
-    Older / smaller models (haiku-4-5, sonnet-4-6, opus-4-6, ...) still accept
-    sampling parameters; the current frontier models do not.
+    Standard chat models (gpt-4o, gpt-4o-mini, gpt-4-turbo, gpt-3.5-turbo, ...)
+    accept sampling parameters; reasoning models do not.
     """
     return not any(model.startswith(prefix) for prefix in _NO_SAMPLING_PREFIXES)
 
 
 class LLMClient:
-    """Thin async wrapper around the Anthropic SDK."""
+    """Thin async wrapper around the OpenAI SDK."""
 
     def __init__(self, settings: Settings | None = None) -> None:
         self.settings = settings or get_settings()
-        # AsyncAnthropic resolves credentials from ANTHROPIC_API_KEY (or an
-        # `ant auth login` profile) when no explicit key is provided.
-        kwargs = {}
-        if self.settings.anthropic_api_key:
-            kwargs["api_key"] = self.settings.anthropic_api_key
-        self._client = anthropic.AsyncAnthropic(**kwargs)
+        self._client: AsyncOpenAI | None = None
 
     @property
     def model(self) -> str:
         return self.settings.model
+
+    def _get_client(self) -> AsyncOpenAI:
+        """Lazily construct the AsyncOpenAI client.
+
+        Construction is deferred (and happens inside the streaming try-block)
+        so that a missing API key surfaces as a graceful error rather than a
+        crash at request-handling time. AsyncOpenAI resolves credentials from
+        OPENAI_API_KEY when no explicit key is provided.
+        """
+        if self._client is None:
+            kwargs: dict = {}
+            if self.settings.openai_api_key:
+                kwargs["api_key"] = self.settings.openai_api_key
+            if self.settings.openai_base_url:
+                kwargs["base_url"] = self.settings.openai_base_url
+            self._client = AsyncOpenAI(**kwargs)
+        return self._client
 
     async def stream_chat(
         self,
@@ -73,21 +84,24 @@ class LLMClient:
 
         Yields incremental text deltas. Raises ``LLMError`` on failure.
         """
+        # OpenAI takes the system prompt as the first message in the list.
+        payload: list[dict[str, str]] = []
+        if system_prompt:
+            payload.append({"role": "system", "content": system_prompt})
+        payload.extend(messages)
+
         request_kwargs: dict = {
             "model": self.model,
-            "max_tokens": self.settings.max_tokens,
-            "messages": messages,
-            "output_config": {"effort": self.settings.effort},
+            "messages": payload,
+            "max_completion_tokens": self.settings.max_tokens,
+            "stream": True,
         }
-        if system_prompt:
-            request_kwargs["system"] = system_prompt
 
-        # Only send temperature to models that accept it, otherwise the API
-        # returns a 400. For unsupported models the stored temperature is kept
-        # for the UI but simply not applied. `temperature` is passed via
-        # extra_body because the 1.x SDK no longer types it as a keyword arg.
+        # Only send temperature to models that accept a custom value, otherwise
+        # the API returns a 400. For unsupported models the stored temperature
+        # is kept for the UI but simply not applied.
         if model_supports_temperature(self.model):
-            request_kwargs["extra_body"] = {"temperature": temperature}
+            request_kwargs["temperature"] = temperature
         else:
             logger.debug(
                 "Model %s does not support temperature; ignoring value %.2f",
@@ -96,46 +110,53 @@ class LLMClient:
             )
 
         try:
-            async with self._client.messages.stream(**request_kwargs) as stream:
-                async for text in stream.text_stream:
-                    yield text
-        except anthropic.AuthenticationError as exc:
-            logger.error("Anthropic authentication failed: %s", exc)
+            client = self._get_client()
+            stream = await client.chat.completions.create(**request_kwargs)
+            async for chunk in stream:
+                if not chunk.choices:
+                    continue
+                delta = chunk.choices[0].delta
+                if delta and delta.content:
+                    yield delta.content
+        except openai.AuthenticationError as exc:
+            logger.error("OpenAI authentication failed: %s", exc)
             raise LLMError(
-                "LLM authentication failed. Check ANTHROPIC_API_KEY.",
+                "LLM authentication failed. Check OPENAI_API_KEY.",
                 status_code=502,
             ) from exc
-        except anthropic.RateLimitError as exc:
-            logger.warning("Anthropic rate limit hit: %s", exc)
+        except openai.RateLimitError as exc:
+            logger.warning("OpenAI rate limit hit: %s", exc)
             raise LLMError(
                 "The assistant is rate limited. Please try again shortly.",
                 status_code=429,
             ) from exc
-        except anthropic.BadRequestError as exc:
-            logger.error("Anthropic bad request: %s", exc)
+        except openai.BadRequestError as exc:
+            logger.error("OpenAI bad request: %s", exc)
             raise LLMError(f"Invalid request to LLM: {exc}", status_code=400) from exc
-        except anthropic.APIConnectionError as exc:
-            logger.error("Anthropic connection error: %s", exc)
+        except openai.APIConnectionError as exc:
+            logger.error("OpenAI connection error: %s", exc)
             raise LLMError(
                 "Could not reach the LLM service. Please try again.",
                 status_code=503,
             ) from exc
-        except anthropic.APIStatusError as exc:
-            logger.error("Anthropic API error %s: %s", exc.status_code, exc)
+        except openai.APIStatusError as exc:
+            logger.error("OpenAI API error %s: %s", exc.status_code, exc)
             raise LLMError(
                 f"LLM service error ({exc.status_code}).", status_code=502
             ) from exc
-        except TypeError as exc:
-            # The SDK raises TypeError when no credentials can be resolved
-            # (no ANTHROPIC_API_KEY and no `ant auth login` profile).
-            if "authentication" in str(exc).lower():
-                logger.error("No Anthropic credentials configured: %s", exc)
+        except openai.OpenAIError as exc:
+            # Catch-all for SDK errors, including a missing API key raised at
+            # request time when no credentials can be resolved.
+            message = str(exc)
+            if "api_key" in message.lower() or "api key" in message.lower():
+                logger.error("No OpenAI credentials configured: %s", exc)
                 raise LLMError(
-                    "The assistant is not configured. Set ANTHROPIC_API_KEY "
+                    "The assistant is not configured. Set OPENAI_API_KEY "
                     "on the server.",
                     status_code=503,
                 ) from exc
-            raise
+            logger.error("OpenAI error: %s", exc)
+            raise LLMError("LLM service error.", status_code=502) from exc
 
 
 _client_singleton: LLMClient | None = None

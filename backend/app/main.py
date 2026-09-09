@@ -34,7 +34,7 @@ logger = get_logger(__name__)
 async def lifespan(app: FastAPI):
     logger.info("Starting up: initializing database (%s)", settings.database_url)
     await init_db()
-    logger.info("Using model: %s (effort=%s)", settings.model, settings.effort)
+    logger.info("Using model: %s", settings.model)
     yield
     logger.info("Shutting down.")
     await engine.dispose()

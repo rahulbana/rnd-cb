@@ -113,7 +113,7 @@ class ConversationManager:
     async def get_history_for_llm(
         self, conversation_id: str
     ) -> list[dict[str, str]]:
-        """Return recent messages formatted for the Anthropic Messages API."""
+        """Return recent messages formatted for the OpenAI Chat Completions API."""
         result = await self.session.execute(
             select(Message)
             .where(Message.conversation_id == conversation_id)

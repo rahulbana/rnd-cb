@@ -3,7 +3,7 @@
 A full-stack, production-shaped AI chat application.
 
 ```
-React UI  →  FastAPI  →  LLM (Claude)  →  Conversation Manager  →  SQLite
+React UI  →  FastAPI  →  LLM (OpenAI)  →  Conversation Manager  →  SQLite
 ```
 
 ## Features
@@ -25,7 +25,7 @@ React UI  →  FastAPI  →  LLM (Claude)  →  Conversation Manager  →  SQLit
 |-------|----------------|-------|
 | **React UI** | Chat, sidebar, settings, streaming rendering | `frontend/src/` |
 | **FastAPI** | REST + SSE endpoints, auth, CORS, error handling | `backend/app/main.py`, `auth.py` |
-| **LLM** | Anthropic Claude client, streaming, temperature gating | `backend/app/llm.py` |
+| **LLM** | OpenAI client, streaming, temperature gating | `backend/app/llm.py` |
 | **Conversation Manager** | History assembly + persistence | `backend/app/conversation.py` |
 | **SQLite** | Durable storage of conversations & messages | `backend/app/database.py`, `models.py` |
 
@@ -33,7 +33,7 @@ React UI  →  FastAPI  →  LLM (Claude)  →  Conversation Manager  →  SQLit
 
 - Python 3.11+
 - Node.js 18+
-- An Anthropic API key ([console.anthropic.com](https://console.anthropic.com))
+- An OpenAI API key ([platform.openai.com](https://platform.openai.com/api-keys))
 
 ## Backend setup
 
@@ -45,7 +45,7 @@ pip install -r requirements.txt
 
 cp .env.example .env         # then edit .env
 # Set at minimum:
-#   ANTHROPIC_API_KEY=sk-ant-...
+#   OPENAI_API_KEY=sk-...
 #   AUTH_USERNAME=admin
 #   AUTH_PASSWORD=<something secret>
 
@@ -74,9 +74,9 @@ All backend settings are environment variables (see `backend/.env.example`):
 
 | Variable | Default | Notes |
 |----------|---------|-------|
-| `ANTHROPIC_API_KEY` | — | Required to talk to the model. |
-| `MODEL` | `claude-opus-5` | Any Claude model id. |
-| `EFFORT` | `medium` | Thinking depth / token spend: `low`…`max`. |
+| `OPENAI_API_KEY` | — | Required to talk to the model. |
+| `OPENAI_BASE_URL` | — | Optional; for Azure OpenAI / compatible gateways. |
+| `MODEL` | `gpt-4o-mini` | Any OpenAI chat model id. |
 | `MAX_TOKENS` | `4096` | Max tokens per reply. |
 | `DEFAULT_SYSTEM_PROMPT` | helpful assistant | Applied to new conversations. |
 | `DEFAULT_TEMPERATURE` | `1.0` | Applied to new conversations. |
@@ -87,13 +87,13 @@ All backend settings are environment variables (see `backend/.env.example`):
 
 ### A note on temperature
 
-Current frontier Claude models (`claude-opus-5`, `claude-sonnet-5`,
-`claude-opus-4-8`, …) **do not accept the `temperature` parameter** — they use
-the `effort` setting instead. The app stores a per-conversation temperature and
-exposes it in the UI, but only sends it to models that support sampling
-(e.g. `claude-haiku-4-5`, `claude-sonnet-4-6`). When the active model doesn't
-support it, the settings panel shows a note and the value is saved but not
-applied. Set `MODEL=claude-haiku-4-5` to make temperature take effect.
+OpenAI reasoning models (`o1`, `o3`, `gpt-5`, …) **do not accept a custom
+`temperature` value** — they only run at the default. The app stores a
+per-conversation temperature and exposes it in the UI, but only sends it to
+standard chat models that support sampling (e.g. `gpt-4o-mini`, `gpt-4o`,
+`gpt-4-turbo`). When the active model doesn't support it, the settings panel
+shows a note and the value is saved but not applied. The default
+`gpt-4o-mini` supports temperature.
 
 ## API reference
 
@@ -130,7 +130,7 @@ backend/
     models.py          # Conversation, Message ORM models
     schemas.py         # Pydantic request/response models
     auth.py            # HTTP Basic auth
-    llm.py             # Anthropic client + streaming + temp gating
+    llm.py             # OpenAI client + streaming + temp gating
     conversation.py    # Conversation Manager (persistence)
   requirements.txt
   .env.example

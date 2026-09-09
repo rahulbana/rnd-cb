@@ -19,15 +19,16 @@ class Settings(BaseSettings):
         extra="ignore",
     )
 
-    # --- Anthropic / LLM -----------------------------------------------------
-    anthropic_api_key: str = ""
-    # Default model. See app/llm.py for temperature-support gating: current
-    # frontier models (opus-5, sonnet-5, opus-4.x) reject the `temperature`
-    # parameter, so the per-conversation temperature only applies to models
-    # that support sampling (e.g. claude-haiku-4-5, claude-sonnet-4-6).
-    model: str = "claude-opus-5"
-    # Effort controls thinking depth / token spend: low | medium | high | xhigh | max
-    effort: str = "medium"
+    # --- OpenAI / LLM --------------------------------------------------------
+    openai_api_key: str = ""
+    # Optional custom base URL (e.g. Azure OpenAI or an OpenAI-compatible
+    # gateway). Leave empty to use the default OpenAI endpoint.
+    openai_base_url: str = ""
+    # Default model. See app/llm.py for temperature-support gating: OpenAI
+    # reasoning models (o1, o3, gpt-5, ...) reject a custom `temperature`, so
+    # the per-conversation temperature only applies to standard chat models
+    # (e.g. gpt-4o, gpt-4o-mini, gpt-4-turbo).
+    model: str = "gpt-4o-mini"
     max_tokens: int = 4096
 
     # --- Conversation defaults ----------------------------------------------
