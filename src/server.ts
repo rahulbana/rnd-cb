@@ -2,7 +2,7 @@ import express, { type Request, type Response } from "express";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { config } from "./config.js";
-import { countTokens, MODEL } from "./anthropic.js";
+import { countTokens, MODEL } from "./openai.js";
 import { buildSystemPrompt, buildUserPrompt } from "./prompts.js";
 import { extractStructured, summarizeStreaming } from "./summarizer.js";
 import {
@@ -67,7 +67,7 @@ app.post("/api/count-tokens", async (req: Request, res: Response) => {
   try {
     const system = buildSystemPrompt(parsed);
     const user = buildUserPrompt(parsed.text);
-    const inputTokens = await countTokens(system, user);
+    const inputTokens = countTokens(system, user);
     res.json({ inputTokens, model: MODEL });
   } catch (err) {
     res.status(500).json({ error: errorMessage(err) });

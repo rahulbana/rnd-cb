@@ -1,7 +1,7 @@
 # AI Text Summarizer
 
 A small full-stack app that turns long text into concise, useful summaries using
-the Anthropic **Claude API**. Built as a learning project for prompt engineering,
+the **OpenAI API**. Built as a learning project for prompt engineering,
 text processing, context windows, and structured output.
 
 ## Features
@@ -33,7 +33,7 @@ Browser (public/)  ──POST /api/summarize──▶  Express server (src/serve
                           ▼                            ▼                        │
                     single streamed request     MAP: summarize each chunk      │
                                                  REDUCE: stream final summary   │
-                          └──────────────── Claude API (src/anthropic.ts) ─────┘
+                          └──────────────── OpenAI API (src/openai.ts) ────────┘
 ```
 
 Key modules:
@@ -42,8 +42,8 @@ Key modules:
 |---|---|
 | `src/prompts.ts` | Prompt engineering — composable length/style/format instructions. |
 | `src/chunking.ts` | Splitting large text on paragraph/sentence boundaries. |
-| `src/summarizer.ts` | Orchestration: single-pass vs. map-reduce, streaming, JSON extraction. |
-| `src/anthropic.ts` | Shared Claude client + token counting. |
+| `src/summarizer.ts` | Orchestration: single-pass vs. map-reduce, streaming, structured outputs. |
+| `src/openai.ts` | Shared OpenAI client + local token counting (tiktoken). |
 | `src/server.ts` | Express routes and the NDJSON streaming endpoint. |
 | `public/` | Dependency-free web UI. |
 
@@ -53,12 +53,12 @@ Requires Node.js 20+.
 
 ```bash
 npm install
-cp .env.example .env   # then add your key, or use `ant auth login`
+cp .env.example .env   # then add your OpenAI API key
 npm run dev            # http://localhost:3000
 ```
 
-The Anthropic SDK resolves credentials from `ANTHROPIC_API_KEY`,
-`ANTHROPIC_AUTH_TOKEN`, or an `ant auth login` profile — set whichever you use.
+The OpenAI SDK reads `OPENAI_API_KEY` from the environment. Set `OPENAI_BASE_URL`
+to target an OpenAI-compatible endpoint (Azure OpenAI, a proxy, etc.).
 
 ### Scripts
 
@@ -74,8 +74,10 @@ Set in `.env` (see `.env.example`):
 | Variable | Default | Purpose |
 |---|---|---|
 | `PORT` | `3000` | Web server port. |
-| `SUMMARIZER_MODEL` | `claude-opus-5` | Model to use. Try `claude-sonnet-5` / `claude-haiku-4-5` to trade quality for cost. |
-| `CHUNK_THRESHOLD_TOKENS` | `180000` | Above this many input tokens, switch to map-reduce. Lower it to see chunking engage on smaller documents. |
+| `OPENAI_API_KEY` | — | Your OpenAI API key (required). |
+| `OPENAI_BASE_URL` | OpenAI default | Optional OpenAI-compatible endpoint. |
+| `SUMMARIZER_MODEL` | `gpt-4o-mini` | Model to use. Try `gpt-4o` / `gpt-4.1` for higher quality. |
+| `CHUNK_THRESHOLD_TOKENS` | `100000` | Above this many input tokens, switch to map-reduce. Lower it to see chunking engage on smaller documents. |
 
 ## API
 

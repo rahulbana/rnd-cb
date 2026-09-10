@@ -1,4 +1,5 @@
-import { client, countTokens, MODEL } from "./anthropic.js";
+import type OpenAI from "openai";
+import { getClient, countTokens, MODEL } from "./openai.js";
 import { config } from "./config.js";
 import { chunkText } from "./chunking.js";
 import {
@@ -13,16 +14,11 @@ import type { SummarizeOptions, StreamEvent } from "./types.js";
 
 type Emit = (event: StreamEvent) => void;
 
-const STREAM_MAX_TOKENS = 64_000; // generous ceiling for streamed output
-const MAP_MAX_TOKENS = 8_000; // per-chunk condensations stay compact
+const STREAM_MAX_TOKENS = 4_096; // generous ceiling for a streamed summary
+const MAP_MAX_TOKENS = 1_500; // per-chunk condensations stay compact
+const SUMMARY_TEMPERATURE = 0.3; // focused, low-variance summaries
 
-/** Pull the concatenated text out of a non-streaming message response. */
-function textOf(message: { content: Array<{ type: string }> }): string {
-  return (message.content as Array<{ type: string; text?: string }>)
-    .filter((b) => b.type === "text")
-    .map((b) => b.text ?? "")
-    .join("");
-}
+type ChatMessage = OpenAI.Chat.Completions.ChatCompletionMessageParam;
 
 /**
  * Summarize `opts.text`, streaming the result out through `emit`. Chooses a
@@ -37,7 +33,7 @@ export async function summarizeStreaming(
   const user = buildUserPrompt(opts.text);
 
   emit({ type: "status", message: "Counting tokens…" });
-  const inputTokens = await countTokens(system, user);
+  const inputTokens = countTokens(system, user);
 
   if (inputTokens <= config.chunkThresholdTokens) {
     emit({ type: "meta", inputTokens, strategy: "single-pass" });
@@ -47,6 +43,30 @@ export async function summarizeStreaming(
   }
 }
 
+/** Stream one chat completion, emitting text deltas. Returns output token count. */
+async function streamSummary(
+  messages: ChatMessage[],
+  emit: Emit,
+): Promise<number> {
+  const stream = await getClient().chat.completions.create({
+    model: MODEL,
+    messages,
+    temperature: SUMMARY_TEMPERATURE,
+    max_tokens: STREAM_MAX_TOKENS,
+    stream: true,
+    stream_options: { include_usage: true },
+  });
+
+  let outputTokens = 0;
+  for await (const chunk of stream) {
+    const text = chunk.choices[0]?.delta?.content;
+    if (text) emit({ type: "delta", text });
+    // The final chunk carries usage (choices is empty there).
+    if (chunk.usage) outputTokens = chunk.usage.completion_tokens;
+  }
+  return outputTokens;
+}
+
 async function singlePass(
   system: string,
   user: string,
@@ -54,30 +74,14 @@ async function singlePass(
   emit: Emit,
 ): Promise<void> {
   emit({ type: "status", message: "Generating summary…" });
-
-  const stream = client.messages.stream({
-    model: MODEL,
-    max_tokens: STREAM_MAX_TOKENS,
-    output_config: { effort: "medium" },
-    system,
-    messages: [{ role: "user", content: user }],
-  });
-
-  for await (const event of stream) {
-    if (
-      event.type === "content_block_delta" &&
-      event.delta.type === "text_delta"
-    ) {
-      emit({ type: "delta", text: event.delta.text });
-    }
-  }
-
-  const final = await stream.finalMessage();
-  emit({
-    type: "done",
-    outputTokens: final.usage.output_tokens,
-    inputTokens,
-  });
+  const outputTokens = await streamSummary(
+    [
+      { role: "system", content: system },
+      { role: "user", content: user },
+    ],
+    emit,
+  );
+  emit({ type: "done", outputTokens, inputTokens });
 }
 
 async function mapReduce(
@@ -97,8 +101,8 @@ async function mapReduce(
     message: `Document is large (~${inputTokens.toLocaleString()} tokens). Splitting into ${chunks.length} sections.`,
   });
 
-  // MAP: condense each chunk. Runs at low effort — these are throwaway
-  // intermediate summaries, so favor speed and cost.
+  // MAP: condense each chunk. These are throwaway intermediate summaries, so
+  // favor speed with a low temperature and a tight output cap.
   const mapSystem = buildMapSystemPrompt();
   const sectionSummaries: string[] = [];
   for (let i = 0; i < chunks.length; i++) {
@@ -106,53 +110,38 @@ async function mapReduce(
       type: "status",
       message: `Summarizing section ${i + 1} of ${chunks.length}…`,
     });
-    const res = await client.messages.create({
+    const res = await getClient().chat.completions.create({
       model: MODEL,
+      temperature: 0.2,
       max_tokens: MAP_MAX_TOKENS,
-      output_config: { effort: "low" },
-      system: mapSystem,
       messages: [
-        { role: "user", content: buildMapUserPrompt(chunks[i], i + 1, chunks.length) },
+        { role: "system", content: mapSystem },
+        {
+          role: "user",
+          content: buildMapUserPrompt(chunks[i], i + 1, chunks.length),
+        },
       ],
     });
-    sectionSummaries.push(textOf(res));
+    sectionSummaries.push(res.choices[0]?.message?.content ?? "");
   }
 
   // REDUCE: synthesize the final, formatted summary from the section summaries,
   // streaming the result to the client.
   emit({ type: "status", message: "Synthesizing final summary…" });
-  const reduceSystem = buildReduceSystemPrompt(opts);
-  const reduceUser = buildReduceUserPrompt(sectionSummaries);
-
-  const stream = client.messages.stream({
-    model: MODEL,
-    max_tokens: STREAM_MAX_TOKENS,
-    output_config: { effort: "medium" },
-    system: reduceSystem,
-    messages: [{ role: "user", content: reduceUser }],
-  });
-
-  for await (const event of stream) {
-    if (
-      event.type === "content_block_delta" &&
-      event.delta.type === "text_delta"
-    ) {
-      emit({ type: "delta", text: event.delta.text });
-    }
-  }
-
-  const final = await stream.finalMessage();
-  emit({
-    type: "done",
-    outputTokens: final.usage.output_tokens,
-    inputTokens,
-  });
+  const outputTokens = await streamSummary(
+    [
+      { role: "system", content: buildReduceSystemPrompt(opts) },
+      { role: "user", content: buildReduceUserPrompt(sectionSummaries) },
+    ],
+    emit,
+  );
+  emit({ type: "done", outputTokens, inputTokens });
 }
 
 // ---------------------------------------------------------------------------
 // Structured extraction: a non-streaming request that returns machine-readable
-// JSON. Demonstrates coaxing structured output from the model via a strict
-// prompt contract, then parsing it defensively.
+// JSON. Uses OpenAI Structured Outputs (response_format json_schema, strict),
+// which guarantees the model's output conforms to the schema.
 // ---------------------------------------------------------------------------
 
 export interface StructuredSummary {
@@ -164,31 +153,66 @@ export interface StructuredSummary {
   entities: string[];
 }
 
-const EXTRACT_SYSTEM = [
-  "You extract structured information from a document and return it as JSON.",
-  "Respond with a SINGLE JSON object and nothing else — no markdown fences, no prose.",
-  "The object must match exactly this shape:",
-  "{",
-  '  "title": string,            // a concise title for the document',
-  '  "summary": string,          // 2-4 sentence overview',
-  '  "keyPoints": string[],      // most important takeaways, ordered by importance',
-  '  "decisions": string[],      // decisions made or proposed (empty array if none)',
-  '  "actionItems": string[],    // concrete next steps, each starting with a verb (empty if none)',
-  '  "entities": string[]        // notable people, orgs, products, or places mentioned',
-  "}",
-  "Base every field strictly on the document; never invent content. Use empty arrays where nothing applies.",
-].join("\n");
+const EXTRACT_SYSTEM =
+  "You extract structured information from a document. Base every field strictly on the document; never invent content. Use empty arrays where nothing applies.";
+
+// JSON Schema for Structured Outputs. `strict: true` requires every property to
+// be listed in `required` and additionalProperties to be false.
+const EXTRACT_SCHEMA = {
+  type: "object",
+  additionalProperties: false,
+  properties: {
+    title: { type: "string", description: "A concise title for the document." },
+    summary: { type: "string", description: "A 2-4 sentence overview." },
+    keyPoints: {
+      type: "array",
+      items: { type: "string" },
+      description: "Most important takeaways, ordered by importance.",
+    },
+    decisions: {
+      type: "array",
+      items: { type: "string" },
+      description: "Decisions made or proposed (empty if none).",
+    },
+    actionItems: {
+      type: "array",
+      items: { type: "string" },
+      description: "Concrete next steps, each starting with a verb (empty if none).",
+    },
+    entities: {
+      type: "array",
+      items: { type: "string" },
+      description: "Notable people, orgs, products, or places mentioned.",
+    },
+  },
+  required: [
+    "title",
+    "summary",
+    "keyPoints",
+    "decisions",
+    "actionItems",
+    "entities",
+  ],
+} as const;
 
 /** Extract a structured summary object from text (non-streaming). */
 export async function extractStructured(
   text: string,
 ): Promise<StructuredSummary> {
-  const res = await client.messages.create({
+  const res = await getClient().chat.completions.create({
     model: MODEL,
-    max_tokens: 8_000,
-    output_config: { effort: "medium" },
-    system: EXTRACT_SYSTEM,
+    temperature: 0.2,
+    max_tokens: 2_000,
+    response_format: {
+      type: "json_schema",
+      json_schema: {
+        name: "structured_summary",
+        strict: true,
+        schema: EXTRACT_SCHEMA,
+      },
+    },
     messages: [
+      { role: "system", content: EXTRACT_SYSTEM },
       {
         role: "user",
         content: [
@@ -202,27 +226,10 @@ export async function extractStructured(
     ],
   });
 
-  return parseStructured(textOf(res));
-}
-
-/** Parse the model's JSON defensively, tolerating stray fences or surrounding text. */
-function parseStructured(raw: string): StructuredSummary {
-  let jsonText = raw.trim();
-
-  // Strip ```json ... ``` fences if the model added them despite instructions.
-  const fence = jsonText.match(/```(?:json)?\s*([\s\S]*?)```/);
-  if (fence) jsonText = fence[1].trim();
-
-  // Otherwise, grab the outermost {...} span.
-  if (!jsonText.startsWith("{")) {
-    const start = jsonText.indexOf("{");
-    const end = jsonText.lastIndexOf("}");
-    if (start !== -1 && end !== -1) jsonText = jsonText.slice(start, end + 1);
-  }
-
+  const raw = res.choices[0]?.message?.content ?? "";
   let parsed: Partial<StructuredSummary>;
   try {
-    parsed = JSON.parse(jsonText);
+    parsed = JSON.parse(raw);
   } catch {
     throw new Error("Model did not return valid JSON for structured extraction.");
   }
