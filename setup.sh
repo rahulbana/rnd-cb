@@ -12,16 +12,19 @@ set -euo pipefail
 # Always operate from the repository root (the directory this script lives in).
 cd "$(dirname "$0")"
 
+# Python interpreter used for the virtualenv (override with PYTHON=... ./setup.sh).
+PYTHON="${PYTHON:-python3.12}"
+
 echo "==> Checking prerequisites"
-command -v python3 >/dev/null 2>&1 || { echo "ERROR: python3 is required but not found." >&2; exit 1; }
-command -v npm >/dev/null 2>&1     || { echo "ERROR: npm (Node.js) is required but not found." >&2; exit 1; }
+command -v "$PYTHON" >/dev/null 2>&1 || { echo "ERROR: $PYTHON is required but not found. Install Python 3.12, or run 'PYTHON=python3 ./setup.sh' to use another interpreter." >&2; exit 1; }
+command -v npm >/dev/null 2>&1      || { echo "ERROR: npm (Node.js) is required but not found." >&2; exit 1; }
 
 # ---------------------------------------------------------------------------
 # Backend: virtualenv + Python dependencies
 # ---------------------------------------------------------------------------
 if [ ! -d .venv ]; then
-  echo "==> Creating virtualenv (.venv)"
-  python3 -m venv .venv
+  echo "==> Creating virtualenv (.venv) with $($PYTHON --version)"
+  "$PYTHON" -m venv .venv
 fi
 
 echo "==> Installing Python dependencies"
