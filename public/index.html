@@ -1,0 +1,88 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>AI Text Summarizer</title>
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <header class="topbar">
+      <h1>AI Text Summarizer</h1>
+      <span class="model-badge" id="modelBadge">…</span>
+    </header>
+
+    <main class="layout">
+      <!-- Input side -->
+      <section class="panel">
+        <div class="panel-head">
+          <h2>Input</h2>
+          <div class="input-actions">
+            <label class="file-btn">
+              Upload .txt / .md
+              <input type="file" id="fileInput" accept=".txt,.md,.markdown,.text,text/plain" hidden />
+            </label>
+            <button class="ghost" id="sampleBtn" type="button">Load sample</button>
+            <button class="ghost" id="clearBtn" type="button">Clear</button>
+          </div>
+        </div>
+
+        <textarea
+          id="inputText"
+          placeholder="Paste long text here, or upload a .txt / .md file…"
+        ></textarea>
+
+        <div class="stats">
+          <span id="charCount">0 characters</span>
+          <span id="tokenCount"></span>
+        </div>
+
+        <div class="controls">
+          <label>
+            Length
+            <select id="lengthSelect"></select>
+          </label>
+          <label>
+            Style
+            <select id="styleSelect"></select>
+          </label>
+          <label>
+            Format
+            <select id="formatSelect"></select>
+          </label>
+        </div>
+
+        <label class="focus-field">
+          Focus (optional)
+          <input
+            type="text"
+            id="focusInput"
+            placeholder="e.g. emphasize risks and costs"
+          />
+        </label>
+
+        <div class="run-actions">
+          <button id="summarizeBtn" class="primary" type="button">Summarize</button>
+          <button id="extractBtn" class="secondary" type="button">Extract structured (JSON)</button>
+          <button id="countBtn" class="ghost" type="button">Count tokens</button>
+          <button id="stopBtn" class="ghost" type="button" hidden>Stop</button>
+        </div>
+      </section>
+
+      <!-- Output side -->
+      <section class="panel">
+        <div class="panel-head">
+          <h2>Summary</h2>
+          <div class="output-meta" id="outputMeta"></div>
+        </div>
+
+        <div class="status-line" id="statusLine"></div>
+        <article class="output" id="output">
+          <p class="placeholder">Your summary will appear here.</p>
+        </article>
+      </section>
+    </main>
+
+    <script src="./app.js"></script>
+  </body>
+</html>

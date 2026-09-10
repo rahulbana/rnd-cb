@@ -1,0 +1,33 @@
+{
+  "name": "ai-text-summarizer",
+  "version": "1.0.0",
+  "description": "An AI-powered text summarizer built on the Anthropic Claude API. Streaming summaries, multiple lengths/styles/formats, key-point extraction, structured executive reports, and context-window-aware handling of very long documents.",
+  "type": "module",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "dev": "tsx watch src/server.ts",
+    "build": "tsc",
+    "start": "node dist/server.js",
+    "typecheck": "tsc --noEmit"
+  },
+  "keywords": [
+    "claude",
+    "anthropic",
+    "summarizer",
+    "llm",
+    "streaming"
+  ],
+  "license": "MIT",
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.124.0",
+    "express": "^4.21.2"
+  },
+  "devDependencies": {
+    "@types/express": "^4.17.21",
+    "@types/node": "^22.10.0",
+    "tsx": "^4.19.2",
+    "typescript": "^5.7.2"
+  }
+}
