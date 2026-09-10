@@ -45,8 +45,16 @@ creates `.env` files from the examples:
 ./setup.sh
 ```
 
-Then add your `OPENAI_API_KEY` (and change the auth password) in `backend/.env`
-and follow the run steps below. For manual setup, see the sections that follow.
+Then add your `OPENAI_API_KEY` (and change the auth password) in `backend/.env`,
+and start both services together:
+
+```bash
+./start.sh
+```
+
+This runs the backend on `http://localhost:8000` and the frontend on
+`http://localhost:5173`; press Ctrl+C to stop both. Override ports with
+`BACKEND_PORT` / `FRONTEND_PORT`. For manual setup, see the sections that follow.
 
 ## Backend setup
 
