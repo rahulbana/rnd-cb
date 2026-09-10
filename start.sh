@@ -82,5 +82,15 @@ PIDS+=("$!")
 
 info "Both services are running. Press Ctrl+C to stop."
 
-# Wait for either process to exit; if one dies, cleanup (via trap) stops the other.
-wait -n
+# Wait for either process to exit; if one dies, cleanup (via the EXIT trap)
+# stops the other. Uses a portable poll loop instead of `wait -n`, which is
+# not available in older bash (e.g. macOS's bash 3.2).
+while true; do
+  for pid in "${PIDS[@]}"; do
+    if ! kill -0 "$pid" 2>/dev/null; then
+      info "A service exited; stopping the other."
+      exit 1
+    fi
+  done
+  sleep 1
+done
