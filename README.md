@@ -4,7 +4,7 @@ A small full-stack app that turns long text into concise, useful summaries using
 the **OpenAI API**. Built as a learning project for prompt engineering,
 text processing, context windows, and structured output.
 
-Backend: **Python + FastAPI**. Frontend: a dependency-free web UI.
+Backend: **Python + FastAPI**. Frontend: **React + TypeScript** (built with Vite).
 
 ## Features
 
@@ -49,11 +49,31 @@ Key modules:
 | `app/llm.py` | Shared OpenAI client + local token counting (tiktoken, with a fallback). |
 | `app/models.py` | Pydantic request/response schemas and the option vocabulary. |
 | `app/main.py` | FastAPI routes, the NDJSON streaming endpoint, and static hosting. |
-| `public/` | Dependency-free web UI. |
+| `frontend/` | React + TypeScript UI (Vite). Builds into `public/`. |
+
+### Frontend (`frontend/`)
+
+| File | Responsibility |
+|---|---|
+| `src/App.tsx` | Top-level state and orchestration. |
+| `src/api.ts` | `fetch` helpers + NDJSON stream reader. |
+| `src/components/InputPanel.tsx` | Text input, upload, controls, actions. |
+| `src/components/OutputPanel.tsx` | Streaming markdown (react-markdown) and structured results. |
 
 ## Setup
 
-Requires Python 3.11+.
+Requires Python 3.11+ and Node.js 20+.
+
+**1. Build the frontend** (outputs to `public/`, which the backend serves):
+
+```bash
+cd frontend
+npm install
+npm run build
+cd ..
+```
+
+**2. Run the backend:**
 
 ```bash
 python3 -m venv .venv
@@ -62,13 +82,28 @@ pip install -r requirements.txt
 
 cp .env.example .env   # then add your OpenAI API key
 
-# Run (PORT defaults to 3000)
 uvicorn app.main:app --reload --port 3000
 # → http://localhost:3000
 ```
 
 The OpenAI SDK reads `OPENAI_API_KEY` from the environment. Set `OPENAI_BASE_URL`
 to target an OpenAI-compatible endpoint (Azure OpenAI, a proxy, etc.).
+
+> If you open the app before building the frontend, the server returns a short
+> "build the frontend" page; the `/api/*` endpoints work regardless.
+
+### Frontend development (hot reload)
+
+Run the backend and the Vite dev server side by side. Vite proxies `/api` to the
+backend, so you get instant reloads on the UI:
+
+```bash
+# terminal 1 — backend
+uvicorn app.main:app --reload --port 3000
+
+# terminal 2 — frontend dev server (http://localhost:5173)
+cd frontend && npm run dev
+```
 
 > Token counting uses `tiktoken`, which downloads its encoding data on first use.
 > If that download is blocked (offline / restricted network), the app falls back

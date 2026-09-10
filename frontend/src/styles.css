@@ -234,6 +234,7 @@ button:disabled {
   color: var(--muted);
 }
 
+.output h1,
 .output h2 {
   font-size: 1.05rem;
   margin: 18px 0 8px;
@@ -246,12 +247,12 @@ button:disabled {
   margin: 14px 0 6px;
 }
 
-.output h2:first-child,
-.output h3:first-child {
+.output > :first-child {
   margin-top: 0;
 }
 
-.output ul {
+.output ul,
+.output ol {
   margin: 8px 0;
   padding-left: 22px;
 }

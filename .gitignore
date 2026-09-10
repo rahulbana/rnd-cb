@@ -208,3 +208,9 @@ __marimo__/
 
 # Node dependencies
 node_modules/
+
+# React build output (frontend/ builds into ./public)
+/public/
+
+# TypeScript incremental build cache
+*.tsbuildinfo

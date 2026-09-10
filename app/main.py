@@ -8,7 +8,7 @@ from typing import AsyncIterator
 
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.exceptions import RequestValidationError
-from fastapi.responses import JSONResponse, StreamingResponse
+from fastapi.responses import HTMLResponse, JSONResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 
 from .config import config
@@ -23,6 +23,7 @@ from .models import (
 from . import prompts
 from .summarizer import extract_structured, summarize_streaming
 
+# The React frontend (frontend/) builds into ./public, which we serve at "/".
 PUBLIC_DIR = Path(__file__).resolve().parent.parent / "public"
 MAX_INPUT_CHARS = 5_000_000  # ~1.25M tokens — a hard guard against runaway inputs
 
@@ -105,6 +106,19 @@ async def extract_route(req: ExtractRequest) -> JSONResponse:
     return JSONResponse(structured.model_dump())
 
 
-# Serve the static frontend. Mounted last so the /api/* routes above take
-# precedence; html=True serves public/index.html at "/".
-app.mount("/", StaticFiles(directory=PUBLIC_DIR, html=True), name="static")
+# Serve the built React frontend if present. Mounted last so the /api/* routes
+# above take precedence; html=True serves public/index.html at "/". When the
+# frontend hasn't been built yet, show instructions instead of failing to start.
+if (PUBLIC_DIR / "index.html").is_file():
+    app.mount("/", StaticFiles(directory=PUBLIC_DIR, html=True), name="static")
+else:
+
+    @app.get("/")
+    async def _needs_build() -> HTMLResponse:
+        return HTMLResponse(
+            "<h1>Frontend not built</h1>"
+            "<p>Build the React app first:</p>"
+            "<pre>cd frontend &amp;&amp; npm install &amp;&amp; npm run build</pre>"
+            "<p>Then reload. The API is already running at <code>/api/*</code>.</p>",
+            status_code=503,
+        )
