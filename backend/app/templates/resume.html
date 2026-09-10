@@ -1,0 +1,131 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>{{ r.personal.full_name }} — Resume</title>
+<style>
+  {% include "styles/base.css" %}
+  {% include "styles/" + style + ".css" %}
+</style>
+</head>
+<body>
+<div class="page style-{{ style }}">
+
+  {# ---------- Header ---------- #}
+  <header class="header">
+    <div class="identity">
+      <h1 class="name">{{ r.personal.full_name }}</h1>
+      {% if r.personal.title %}<div class="title">{{ r.personal.title }}</div>{% endif %}
+    </div>
+    <div class="contact">
+      {% if r.personal.email %}<span>{{ r.personal.email }}</span>{% endif %}
+      {% if r.personal.phone %}<span>{{ r.personal.phone }}</span>{% endif %}
+      {% if r.personal.location %}<span>{{ r.personal.location }}</span>{% endif %}
+      {% if r.personal.website %}<span>{{ r.personal.website }}</span>{% endif %}
+      {% if r.personal.linkedin %}<span>{{ r.personal.linkedin }}</span>{% endif %}
+      {% if r.personal.github %}<span>{{ r.personal.github }}</span>{% endif %}
+    </div>
+  </header>
+
+  {# ---------- Summary ---------- #}
+  {% if r.summary %}
+  <section class="section summary">
+    <h2 class="section-title">Summary</h2>
+    <p>{{ r.summary }}</p>
+  </section>
+  {% endif %}
+
+  {# ---------- Experience ---------- #}
+  {% if r.experience %}
+  <section class="section">
+    <h2 class="section-title">Experience</h2>
+    {% for exp in r.experience %}
+    <div class="entry">
+      <div class="entry-head">
+        <span class="entry-primary">{{ exp.role }}{% if exp.company %} · {{ exp.company }}{% endif %}</span>
+        <span class="entry-dates">{{ exp.start_date }}{% if exp.start_date and exp.end_date %} – {% endif %}{{ exp.end_date }}</span>
+      </div>
+      {% if exp.location %}<div class="entry-sub">{{ exp.location }}</div>{% endif %}
+      {% if exp.highlights %}
+      <ul>
+        {% for h in exp.highlights %}<li>{{ h }}</li>{% endfor %}
+      </ul>
+      {% endif %}
+    </div>
+    {% endfor %}
+  </section>
+  {% endif %}
+
+  {# ---------- Projects ---------- #}
+  {% if r.projects %}
+  <section class="section">
+    <h2 class="section-title">Projects</h2>
+    {% for p in r.projects %}
+    <div class="entry">
+      <div class="entry-head">
+        <span class="entry-primary">{{ p.name }}</span>
+        {% if p.link %}<span class="entry-dates">{{ p.link }}</span>{% endif %}
+      </div>
+      {% if p.technologies %}<div class="entry-sub">{{ p.technologies | join(", ") }}</div>{% endif %}
+      {% if p.description %}<p class="project-desc">{{ p.description }}</p>{% endif %}
+      {% if p.highlights %}
+      <ul>
+        {% for h in p.highlights %}<li>{{ h }}</li>{% endfor %}
+      </ul>
+      {% endif %}
+    </div>
+    {% endfor %}
+  </section>
+  {% endif %}
+
+  {# ---------- Skills ---------- #}
+  {% if r.skills %}
+  <section class="section skills">
+    <h2 class="section-title">Skills</h2>
+    {% for group in r.skills %}
+    <div class="skill-row">
+      <span class="skill-cat">{{ group.category }}</span>
+      <span class="skill-items">{{ group.items | join(" · ") }}</span>
+    </div>
+    {% endfor %}
+  </section>
+  {% endif %}
+
+  {# ---------- Education ---------- #}
+  {% if r.education %}
+  <section class="section">
+    <h2 class="section-title">Education</h2>
+    {% for ed in r.education %}
+    <div class="entry">
+      <div class="entry-head">
+        <span class="entry-primary">{{ ed.institution }}</span>
+        <span class="entry-dates">{{ ed.start_date }}{% if ed.start_date and ed.end_date %} – {% endif %}{{ ed.end_date }}</span>
+      </div>
+      {% if ed.degree or ed.field_of_study %}
+      <div class="entry-sub">
+        {{ ed.degree }}{% if ed.degree and ed.field_of_study %}, {% endif %}{{ ed.field_of_study }}{% if ed.gpa %} · GPA {{ ed.gpa }}{% endif %}
+      </div>
+      {% endif %}
+      {% if ed.details %}
+      <ul>
+        {% for d in ed.details %}<li>{{ d }}</li>{% endfor %}
+      </ul>
+      {% endif %}
+    </div>
+    {% endfor %}
+  </section>
+  {% endif %}
+
+  {# ---------- Achievements ---------- #}
+  {% if r.achievements %}
+  <section class="section">
+    <h2 class="section-title">Achievements</h2>
+    <ul>
+      {% for a in r.achievements %}<li>{{ a }}</li>{% endfor %}
+    </ul>
+  </section>
+  {% endif %}
+
+</div>
+</body>
+</html>

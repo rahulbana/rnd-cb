@@ -1,0 +1,17 @@
+/* Minimal: lots of whitespace, thin type, no color, subtle uppercase labels. */
+
+body { font-family: "Helvetica Neue", Arial, sans-serif; color: #2b2b2b; font-weight: 300; }
+
+.style-minimal .name { font-size: 20pt; font-weight: 400; letter-spacing: 3px; text-transform: uppercase; }
+.style-minimal .title { color: #777; font-size: 10.5pt; letter-spacing: 1px; }
+.style-minimal .header { padding-bottom: 4px; }
+
+.style-minimal .section { margin-top: 18px; }
+.style-minimal .section-title {
+  color: #999;
+  font-size: 9pt;
+  letter-spacing: 3px;
+  font-weight: 400;
+}
+.style-minimal .entry-primary { font-weight: 600; }
+.style-minimal .entry-dates { color: #999; }
