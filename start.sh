@@ -43,5 +43,11 @@ echo ""
 echo "Both servers are starting. Open http://localhost:5173 in your browser."
 echo "Press Ctrl-C to stop."
 
-# Wait for either process to exit, then cleanup runs via the trap.
-wait -n
+# Wait for the background servers. `wait -n` (exit as soon as either one dies)
+# needs bash 4.3+, so fall back to plain `wait` on older shells (e.g. the
+# bash 3.2 that ships with macOS). Either way, Ctrl-C fires the cleanup trap.
+if wait -n 2>/dev/null; then
+  :
+else
+  wait
+fi
