@@ -35,6 +35,19 @@ React UI  →  FastAPI  →  LLM (OpenAI)  →  Conversation Manager  →  SQLit
 - Node.js 18+
 - An OpenAI API key ([platform.openai.com](https://platform.openai.com/api-keys))
 
+## Quick setup
+
+Run the setup script from the repo root — it creates a Python 3.12 virtual
+environment at `backend/.venv`, installs backend and frontend dependencies, and
+creates `.env` files from the examples:
+
+```bash
+./setup.sh
+```
+
+Then add your `OPENAI_API_KEY` (and change the auth password) in `backend/.env`
+and follow the run steps below. For manual setup, see the sections that follow.
+
 ## Backend setup
 
 ```bash
