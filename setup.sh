@@ -7,12 +7,18 @@ ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 cd "$ROOT"
 
 echo "==> Setting up the backend (Python / FastAPI)"
-if ! command -v python3 >/dev/null 2>&1; then
-  echo "ERROR: python3 is required but was not found on PATH." >&2
+# Prefer python3.12, falling back to python3.
+if command -v python3.12 >/dev/null 2>&1; then
+  PYTHON=python3.12
+elif command -v python3 >/dev/null 2>&1; then
+  PYTHON=python3
+else
+  echo "ERROR: python3.12 (or python3) is required but was not found on PATH." >&2
   exit 1
 fi
+echo "    using $($PYTHON --version)"
 
-python3 -m venv backend/.venv
+"$PYTHON" -m venv backend/.venv
 # shellcheck disable=SC1091
 source backend/.venv/bin/activate
 pip install --upgrade pip

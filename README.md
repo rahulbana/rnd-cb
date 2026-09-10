@@ -55,7 +55,8 @@ echo "OPENAI_API_KEY=sk-..." >> backend/.env   # or edit the file
 
 Then open <http://localhost:5173>.
 
-> **Prerequisites:** Python 3.10+ and Node.js 18+.
+> **Prerequisites:** Python 3.12 (recommended) and Node.js 18+. `setup.sh`
+> prefers `python3.12` and falls back to `python3`.
 
 ## API
 
