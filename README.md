@@ -60,9 +60,20 @@ Key modules:
 | `src/components/InputPanel.tsx` | Text input, upload, controls, actions. |
 | `src/components/OutputPanel.tsx` | Streaming markdown (react-markdown) and structured results. |
 
-## Setup
+## Quick start
 
 Requires Python 3.11+ and Node.js 20+.
+
+```bash
+./setup.sh              # install deps + build the frontend + create .env
+# edit .env and set OPENAI_API_KEY
+./start.sh              # serve on http://localhost:3000
+# ./start.sh --reload   # dev mode with auto-reload
+```
+
+The manual steps below are equivalent.
+
+## Setup (manual)
 
 **1. Build the frontend** (outputs to `public/`, which the backend serves):
 
